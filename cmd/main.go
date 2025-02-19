@@ -1,11 +1,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
+
+	"github.com/spf13/cobra"
 )
 
 func startServer(port string) {
@@ -14,27 +14,28 @@ func startServer(port string) {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: nimbus [server|client] [flags]")
-		os.Exit(1)
+	var rootCmd = &cobra.Command{Use: "nimbus"}
+
+	var serverCmd = &cobra.Command{
+		Use:   "server",
+		Short: "Start the server",
+		Run: func(cmd *cobra.Command, args []string) {
+			port, _ := cmd.Flags().GetString("port")
+			startServer(port)
+		},
 	}
+	serverCmd.Flags().StringP("port", "p", "8080", "Port to run the server on")
 
-	mode := os.Args[1]
-
-	switch mode {
-	case "server":
-		serverFlags := flag.NewFlagSet("server", flag.ExitOnError)
-		port := serverFlags.String("port", "8080", "Port to run the server on")
-		serverFlags.Parse(os.Args[2:])
-		startServer(*port)
-
-	case "client":
-		clientFlags := flag.NewFlagSet("client", flag.ExitOnError)
-		_ = clientFlags.String("host", "http://localhost:8080", "URL of the host server")
-		clientFlags.Parse(os.Args[2:])
-
-	default:
-		fmt.Println("Invalid mode. Use 'server' or 'client'")
-		os.Exit(1)
+	var clientCmd = &cobra.Command{
+		Use:   "client",
+		Short: "Run the client",
+		Run: func(cmd *cobra.Command, args []string) {
+			host, _ := cmd.Flags().GetString("host")
+			fmt.Println("Client connecting to", host)
+		},
 	}
+	clientCmd.Flags().StringP("host", "H", "http://localhost:8080", "URL of the host server")
+
+	rootCmd.AddCommand(serverCmd, clientCmd)
+	rootCmd.Execute()
 }
