@@ -1,6 +1,8 @@
 package api
 
 import (
+	"nimbus/internal/api/handlers"
+
 	"log"
 	"net/http"
 
@@ -11,6 +13,7 @@ func Start(port string) {
 	log.Printf("Serving at 0.0.0.0:%s...", port)
 	router := mux.NewRouter()
 	router.Use(recoverMiddleware)
+	addRoutes(router)
 
 	http.Handle("/", router)
 	http.ListenAndServe(":"+port, nil)
@@ -28,4 +31,13 @@ func recoverMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func addRoutes(router *mux.Router) {
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}).Methods("GET")
+
+	router.HandleFunc("/deploy", handlers.Deploy).Methods("POST")
 }
