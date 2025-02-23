@@ -1,17 +1,12 @@
 package main
 
 import (
+	"nimbus/internal/api"
+
 	"fmt"
-	"log"
-	"net/http"
 
 	"github.com/spf13/cobra"
 )
-
-func startServer(port string) {
-	fmt.Println("Starting server on port", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
-}
 
 func main() {
 	var rootCmd = &cobra.Command{Use: "nimbus"}
@@ -21,7 +16,7 @@ func main() {
 		Short: "Start the server",
 		Run: func(cmd *cobra.Command, args []string) {
 			port, _ := cmd.Flags().GetString("port")
-			startServer(port)
+			api.Start(port)
 		},
 	}
 	serverCmd.Flags().StringP("port", "p", "8080", "Port to run the server on")
