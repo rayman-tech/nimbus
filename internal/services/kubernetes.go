@@ -8,7 +8,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -42,12 +41,6 @@ func CreateNamespace(name string) error {
 			Name: name,
 		},
 	}, metav1.CreateOptions{})
-
-	return err
-}
-
-func CreateDeployment(namespace string, deployment *appsv1.Deployment) error {
-	_, err := getClient().AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 
 	return err
 }

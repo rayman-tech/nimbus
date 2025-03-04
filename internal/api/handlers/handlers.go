@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"nimbus/internal/models"
 	"nimbus/internal/services"
 
 	"io"
@@ -9,29 +10,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
-
-type Config struct {
-	App      string    `yaml:"app"`
-	Services []Service `yaml:"services"`
-}
-
-type Service struct {
-	Name     string        `yaml:"name"`
-	Image    string        `yaml:"image,omitempty"`
-	Network  Network       `yaml:"network,omitempty"`
-	Template string        `yaml:"template,omitempty"`
-	Version  string        `yaml:"version,omitempty"`
-	Configs  []ConfigEntry `yaml:"configs,omitempty"`
-}
-
-type Network struct {
-	Ports []int `yaml:"ports"`
-}
-
-type ConfigEntry struct {
-	Path  string `yaml:"path"`
-	Value string `yaml:"value"`
-}
 
 func Deploy(w http.ResponseWriter, r *http.Request) {
 	log.Println("POST /deploy")
@@ -58,7 +36,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var config Config
+	var config models.Config
 	err = yaml.Unmarshal(content, &config)
 	if err != nil {
 		http.Error(w, "Error parsing YAML", http.StatusBadRequest)
@@ -79,6 +57,15 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("Created namespace: %s\n", config.App)
+	}
+
+	for _, service := range config.Services {
+		spec, err := services.GenerateDeploymentSpec(config.App, &service)
+		if err != nil {
+			http.Error(w, "Error generating deployment spec", http.StatusInternalServerError)
+			return
+		}
+		services.CreateDeployment(config.App, spec)
 	}
 
 	w.WriteHeader(http.StatusOK)
