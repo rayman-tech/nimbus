@@ -16,7 +16,7 @@ type Config struct {
 type Service struct {
 	Name     string        `yaml:"name"`
 	Image    string        `yaml:"image,omitempty"`
-	Network  *Network      `yaml:"network,omitempty"`
+	Network  Network       `yaml:"network,omitempty"`
 	Template string        `yaml:"template,omitempty"`
 	Version  string        `yaml:"version,omitempty"`
 	Configs  []ConfigEntry `yaml:"configs,omitempty"`
