@@ -9,9 +9,26 @@ import (
 )
 
 type Config struct {
-	Name  string `yaml:"name"`
-	Image string `yaml:"image"`
-	Ports []int  `yaml:"ports"`
+	App      string    `yaml:"app"`
+	Services []Service `yaml:"services"`
+}
+
+type Service struct {
+	Name     string        `yaml:"name"`
+	Image    string        `yaml:"image,omitempty"`
+	Network  *Network      `yaml:"network,omitempty"`
+	Template string        `yaml:"template,omitempty"`
+	Version  string        `yaml:"version,omitempty"`
+	Configs  []ConfigEntry `yaml:"configs,omitempty"`
+}
+
+type Network struct {
+	Ports []int `yaml:"ports"`
+}
+
+type ConfigEntry struct {
+	Path  string `yaml:"path"`
+	Value string `yaml:"value"`
 }
 
 func Deploy(w http.ResponseWriter, r *http.Request) {
