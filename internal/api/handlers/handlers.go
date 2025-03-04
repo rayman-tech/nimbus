@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"nimbus/internal/services"
+
 	"io"
 	"log"
 	"net/http"
@@ -63,6 +65,21 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("Parsed YAML: %+v\n", config)
+
+	namespace, err := services.GetNamespace(config.App)
+	if err != nil {
+		http.Error(w, "Error retrieving namespace", http.StatusInternalServerError)
+		return
+	}
+
+	if namespace == nil {
+		err = services.CreateNamespace(config.App)
+		if err != nil {
+			http.Error(w, "Error creating namespace", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Created namespace: %s\n", config.App)
+	}
 
 	w.WriteHeader(http.StatusOK)
 }
