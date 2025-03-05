@@ -45,12 +45,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Parsed YAML: %+v\n", config)
 
 	namespace, err := services.GetNamespace(config.App)
-	if err != nil {
-		http.Error(w, "Error retrieving namespace", http.StatusInternalServerError)
-		return
-	}
-
-	if namespace == nil {
+	if err != nil || namespace == nil {
 		err = services.CreateNamespace(config.App)
 		if err != nil {
 			http.Error(w, "Error creating namespace", http.StatusInternalServerError)
