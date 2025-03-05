@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nimbus
+  namespace: nimbus
+  labels:
+    app: nimbus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nimbus
+  template:
+    metadata:
+      labels:
+        app: nimbus
+    spec:
+      serviceAccountName: nimbus-sa
+      containers:
+        - name: nimbus
+          image: docker.prayujt.com/nimbus # replace with custom registry
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+          args:
+            - "server"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nimbus
+  namespace: nimbus
+  labels:
+    app: nimbus
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: nimbus
+  type: ClusterIP
