@@ -60,12 +60,18 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, service := range config.Services {
+		log.Printf("Creating deployment for service: %s\n", service.Name)
 		spec, err := services.GenerateDeploymentSpec(config.App, &service)
 		if err != nil {
 			http.Error(w, "Error generating deployment spec", http.StatusInternalServerError)
 			return
 		}
-		services.CreateDeployment(config.App, spec)
+		deployment, err := services.CreateDeployment(config.App, spec)
+		if err != nil {
+			http.Error(w, "Error creating deployment", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Created deployment: %s\n", deployment.Name)
 	}
 
 	w.WriteHeader(http.StatusOK)

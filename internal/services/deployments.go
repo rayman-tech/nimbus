@@ -41,6 +41,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 
 	switch service.Template {
 	case "postgres":
+		// TODO: check existing PV and PVC, if not found then create them
 		if service.Version == "" {
 			service.Version = "13"
 		}
@@ -65,6 +66,21 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 				ContainerPort: 5432,
 			},
 		}
+		spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+			{
+				Name:      "postgres-storage",
+				MountPath: "/var/lib/postgresql/data",
+			},
+		}
+		spec.Template.Spec.Volumes = []corev1.Volume{
+			{
+				Name: "postgres-storage",
+				VolumeSource: corev1.VolumeSource{
+					// TODO: use persistent volume
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		}
 
 	case "redis":
 		if service.Version == "" {
@@ -75,6 +91,20 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 			{
 				Name:          "redis",
 				ContainerPort: 6379,
+			},
+		}
+		spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+			{
+				Name:      "redis-storage",
+				MountPath: "/data",
+			},
+		}
+		spec.Template.Spec.Volumes = []corev1.Volume{
+			{
+				Name: "redis-storage",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
 			},
 		}
 
@@ -96,8 +126,6 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 	}, nil
 }
 
-func CreateDeployment(namespace string, deployment *appsv1.Deployment) error {
-	_, err := getClient().AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
-
-	return err
+func CreateDeployment(namespace string, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	return getClient().AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 }

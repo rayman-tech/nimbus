@@ -15,6 +15,7 @@ type Service struct {
 	Replicas int32           `yaml:"replicas,omitempty"`
 	Network  Network         `yaml:"network,omitempty"`
 	Env      []corev1.EnvVar `yaml:"env,omitempty"`
+	Volumes  []Volume        `yaml:"volumes,omitempty"`
 	Template string          `yaml:"template,omitempty"`
 	Version  string          `yaml:"version,omitempty"`
 	Configs  []ConfigEntry   `yaml:"configs,omitempty"`
@@ -22,6 +23,11 @@ type Service struct {
 
 type Network struct {
 	Ports []int32 `yaml:"ports"`
+}
+
+type Volume struct {
+	Name      string `yaml:"name"`
+	MountPath string `yaml:"mountPath"`
 }
 
 type ConfigEntry struct {
