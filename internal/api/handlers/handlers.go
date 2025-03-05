@@ -66,7 +66,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error generating deployment spec", http.StatusInternalServerError)
 			return
 		}
-		deployment, err := services.CreateDeployment(config.App, spec)
+		deployment, err := services.StartDeployment(config.App, spec)
 		if err != nil {
 			log.Printf("Error creating deployment: %s\n", err)
 			http.Error(w, "Error creating deployment", http.StatusInternalServerError)

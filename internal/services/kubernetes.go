@@ -3,10 +3,13 @@ package services
 import (
 	"context"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,9 +20,21 @@ var once sync.Once
 
 func getClient() *kubernetes.Clientset {
 	once.Do(func() {
-		config, err := rest.InClusterConfig()
-		if err != nil {
-			log.Fatalf("Failed to load in-cluster config: %v", err)
+		var config *rest.Config
+		var err error
+		if os.Getenv("ENVIRONMENT") == "production" {
+			log.Println("Using in-cluster kubeconfig")
+			config, err = rest.InClusterConfig()
+			if err != nil {
+				log.Fatalf("Failed to load in-cluster config: %v", err)
+			}
+		} else {
+			log.Println("Using local kubeconfig")
+			kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+			config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+			if err != nil {
+				log.Fatalf("Failed to load local config: %v", err)
+			}
 		}
 
 		client, err = kubernetes.NewForConfig(config)

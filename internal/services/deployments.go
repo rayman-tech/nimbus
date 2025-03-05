@@ -5,6 +5,10 @@ import (
 
 	"context"
 	"fmt"
+	"log"
+	"time"
+
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +26,9 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"kubectl.kubernetes.io/restartedAt": time.Now().Format(time.RFC3339),
+				},
 				Labels: map[string]string{
 					"app": service.Name,
 				},
@@ -126,6 +133,30 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 	}, nil
 }
 
-func CreateDeployment(namespace string, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	return getClient().AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
+func StartDeployment(namespace string, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	client := getClient().AppsV1().Deployments(namespace)
+
+	existing, err := client.Get(context.TODO(), deployment.Name, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			log.Printf("Deployment %s not found, creating new one.", deployment.Name)
+			return client.Create(context.TODO(), deployment, metav1.CreateOptions{})
+		}
+		return nil, fmt.Errorf("failed to get deployment: %w", err)
+	}
+
+	existing.Spec = deployment.Spec
+
+	if existing.Spec.Template.Annotations == nil {
+		existing.Spec.Template.Annotations = make(map[string]string)
+	}
+	existing.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+
+	log.Printf("Updating deployment %s...", deployment.Name)
+	updated, err := client.Update(context.TODO(), existing, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update deployment: %w", err)
+	}
+
+	return updated, nil
 }
