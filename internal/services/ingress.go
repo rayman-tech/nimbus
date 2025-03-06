@@ -12,7 +12,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	networkingv1 "k8s.io/api/networking/v1"
@@ -21,11 +20,7 @@ import (
 
 func GenerateIngressSpec(namespace string, service *models.Service, existingService *database.Service) (*networkingv1.Ingress, error) {
 	switch service.Template {
-	case "postgres":
-		return nil, nil
-	case "redis":
-		return nil, nil
-	default:
+	case "http":
 		randomString := GenerateRandomChars()
 		spec := networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
@@ -63,22 +58,8 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingServ
 				},
 			},
 		}
-		if existingService != nil && existingService.Ingress.String != "" {
+		if existingService != nil && existingService.Ingress.Valid {
 			spec.Rules[0].Host = existingService.Ingress.String
-		} else {
-			if existingService == nil {
-				database.GetQueries().CreateService(context.TODO(), database.CreateServiceParams{
-					Name:        service.Name,
-					ProjectName: namespace,
-					Ingress:     pgtype.Text{String: spec.Rules[0].Host},
-				})
-			} else {
-				database.GetQueries().SetServiceIngress(context.TODO(), database.SetServiceIngressParams{
-					Name:        service.Name,
-					ProjectName: namespace,
-					Ingress:     pgtype.Text{String: spec.Rules[0].Host},
-				})
-			}
 		}
 
 		return &networkingv1.Ingress{
@@ -95,6 +76,9 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingServ
 			},
 			Spec: spec,
 		}, nil
+
+	default:
+		return nil, nil
 	}
 }
 
@@ -109,6 +93,15 @@ func CreateIngress(namespace string, ingress *networkingv1.Ingress) (*networking
 	}
 	log.Printf("Created ingress: %s\n", ingress.Name)
 	return ingress, nil
+}
+
+func DeleteIngress(namespace, name string) error {
+	err := getClient().NetworkingV1().Ingresses(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	log.Printf("Deleted ingress: %s\n", name)
+	return nil
 }
 
 func GenerateRandomChars() string {

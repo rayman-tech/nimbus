@@ -160,3 +160,14 @@ func CreateDeployment(namespace string, deployment *appsv1.Deployment) (*appsv1.
 
 	return updated, nil
 }
+
+func DeleteDeployment(namespace, name string) error {
+	client := getClient().AppsV1().Deployments(namespace)
+
+	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to delete deployment: %w", err)
+	}
+
+	return nil
+}

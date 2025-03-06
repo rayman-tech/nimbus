@@ -77,11 +77,16 @@ func (q *Queries) DeleteProject(ctx context.Context, name string) error {
 
 const deleteService = `-- name: DeleteService :exec
 DELETE FROM services
-WHERE name = $1
+WHERE name = $1 AND project_name = $2
 `
 
-func (q *Queries) DeleteService(ctx context.Context, name string) error {
-	_, err := q.db.Exec(ctx, deleteService, name)
+type DeleteServiceParams struct {
+	Name        string
+	ProjectName string
+}
+
+func (q *Queries) DeleteService(ctx context.Context, arg DeleteServiceParams) error {
+	_, err := q.db.Exec(ctx, deleteService, arg.Name, arg.ProjectName)
 	return err
 }
 
@@ -183,7 +188,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 
 const listServices = `-- name: ListServices :many
 SELECT name, project_name, node_ports, ingress FROM services
-WHERE project_name = $1          
+WHERE project_name = $1
 ORDER BY name
 `
 

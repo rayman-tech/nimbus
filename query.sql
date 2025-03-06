@@ -31,10 +31,10 @@ WHERE name = $1 LIMIT 1;
 SELECT * FROM services
 WHERE project_name = $1;
 
--- name: ListServices :many 
+-- name: ListServices :many
 SELECT * FROM services
-WHERE project_name = $1          
-ORDER BY name;       
+WHERE project_name = $1
+ORDER BY name;
 
 -- name: CreateService :one
 INSERT INTO services (
@@ -42,11 +42,11 @@ INSERT INTO services (
 ) VALUES (
   $1, $2, $3, $4
 )
-RETURNING *;       
+RETURNING *;
 
 -- name: DeleteService :exec
 DELETE FROM services
-WHERE name = $1;   
+WHERE name = $1 AND project_name = $2;
 
 -- name: SetServiceNodePorts :exec
 UPDATE services SET

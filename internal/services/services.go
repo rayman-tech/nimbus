@@ -30,22 +30,8 @@ func GenerateServiceSpec(namespace string, service *models.Service, existingServ
 			Name: "postgres",
 			Port: 5432,
 		})
-		if existingService != nil && (len(existingService.NodePorts) > 0 || existingService.NodePorts[0] != 5432) {
+		if existingService != nil && len(existingService.NodePorts) > 0 && existingService.NodePorts[0] == 5432 {
 			spec.Ports[0].NodePort = existingService.NodePorts[0]
-		} else {
-			if existingService == nil {
-				database.GetQueries().CreateService(context.TODO(), database.CreateServiceParams{
-					Name:        service.Name,
-					ProjectName: namespace,
-					NodePorts:   []int32{spec.Ports[0].NodePort},
-				})
-			} else {
-				database.GetQueries().SetServiceNodePorts(context.TODO(), database.SetServiceNodePortsParams{
-					Name:        service.Name,
-					ProjectName: namespace,
-					NodePorts:   []int32{spec.Ports[0].NodePort},
-				})
-			}
 		}
 
 	case "redis":
@@ -54,30 +40,28 @@ func GenerateServiceSpec(namespace string, service *models.Service, existingServ
 			Name: "redis",
 			Port: 6379,
 		})
-		if existingService != nil && (len(existingService.NodePorts) > 0 || existingService.NodePorts[0] != 6379) {
+		if existingService != nil && len(existingService.NodePorts) > 0 && existingService.NodePorts[0] == 6379 {
 			spec.Ports[0].NodePort = existingService.NodePorts[0]
-		} else {
-			if existingService == nil {
-				database.GetQueries().CreateService(context.TODO(), database.CreateServiceParams{
-					Name:        service.Name,
-					ProjectName: namespace,
-					NodePorts:   []int32{spec.Ports[0].NodePort},
-				})
-			} else {
-				database.GetQueries().SetServiceNodePorts(context.TODO(), database.SetServiceNodePortsParams{
-					Name:        service.Name,
-					ProjectName: namespace,
-					NodePorts:   []int32{spec.Ports[0].NodePort},
-				})
-			}
 		}
 
 	default:
+		if service.Template != "http" {
+			spec.Type = corev1.ServiceTypeNodePort
+		}
+
 		for _, port := range service.Network.Ports {
-			spec.Ports = append(spec.Ports, corev1.ServicePort{
-				Name: fmt.Sprintf("port-%d", port),
-				Port: port,
-			})
+			if existingService != nil && len(existingService.NodePorts) > 0 && existingService.NodePorts[0] == port {
+				spec.Ports = append(spec.Ports, corev1.ServicePort{
+					Name:     fmt.Sprintf("port-%d", port),
+					Port:     port,
+					NodePort: existingService.NodePorts[0],
+				})
+			} else {
+				spec.Ports = append(spec.Ports, corev1.ServicePort{
+					Name: fmt.Sprintf("port-%d", port),
+					Port: port,
+				})
+			}
 		}
 	}
 
@@ -116,4 +100,15 @@ func CreateService(namespace string, service *corev1.Service) (*corev1.Service, 
 	}
 
 	return updated, nil
+}
+
+func DeleteService(namespace, name string) error {
+	client := getClient().CoreV1().Services(namespace)
+
+	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to delete service: %w", err)
+	}
+
+	return nil
 }

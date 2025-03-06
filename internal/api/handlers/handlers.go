@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"gopkg.in/yaml.v3"
 )
 
@@ -90,7 +91,62 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Created namespace: %s\n", config.App)
 	}
 
+	serviceNames := make(map[string]bool)
 	for _, service := range config.Services {
+		if serviceNames[service.Name] {
+			log.Printf("Service names must be unique: %s\n", service.Name)
+			http.Error(w, "Service names must be unique, duplicate of "+service.Name, http.StatusBadRequest)
+			return
+		}
+		serviceNames[service.Name] = true
+	}
+
+	for _, service := range existingServices {
+		if _, ok := serviceNames[service.Name]; !ok {
+			log.Printf("Deleting deployment for service: %s\n", service.Name)
+			err = services.DeleteDeployment(config.App, service.Name)
+			if err != nil {
+				log.Printf("Error deleting deployment: %s\n", err)
+				http.Error(w, "Error deleting deployment", http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Deleted deployment: %s\n", service.Name)
+
+			log.Printf("Deleting service for service: %s\n", service.Name)
+			err = services.DeleteService(config.App, service.Name)
+			if err != nil {
+				log.Printf("Error deleting service: %s\n", err)
+				http.Error(w, "Error deleting service", http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Deleted service: %s\n", service.Name)
+
+			if service.Ingress.Valid {
+				log.Printf("Deleting ingress for service: %s\n", service.Name)
+				err = services.DeleteIngress(config.App, service.Ingress.String)
+				if err != nil {
+					log.Printf("Error deleting ingress: %s\n", err)
+					http.Error(w, "Error deleting ingress", http.StatusInternalServerError)
+					return
+				}
+				log.Printf("Deleted ingress: %s\n", service.Name)
+			}
+
+			log.Printf("Deleting service in database: %s\n", service.Name)
+			err = database.GetQueries().DeleteService(r.Context(), database.DeleteServiceParams{
+				Name:        service.Name,
+				ProjectName: project.Name,
+			})
+			if err != nil {
+				log.Printf("Error deleting service in database: %s\n", err)
+				http.Error(w, "Error deleting service", http.StatusInternalServerError)
+				return
+			}
+		}
+	}
+
+	for _, service := range config.Services {
+		// --- Deployment ---
 		log.Printf("Creating deployment for service: %s\n", service.Name)
 		deploymentSpec, err := services.GenerateDeploymentSpec(config.App, &service)
 		if err != nil {
@@ -106,8 +162,9 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("Created deployment: %s\n", newDeployment.Name)
 
+		// --- Service ---
 		log.Printf("Creating service for deployment: %s\n", newDeployment.Name)
-		svc := serviceMap[service.Name]
+		svc, svcExists := serviceMap[service.Name]
 		serviceSpec, err := services.GenerateServiceSpec(config.App, &service, svc)
 		if err != nil {
 			log.Printf("Error generating service spec: %s\n", err)
@@ -121,7 +178,44 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("Created service: %s\n", newService.Name)
+		if svcExists && service.Template != "http" {
+			// TODO: only run this if the service node ports changed
+			log.Printf("Updating service in database: %s\n", newService.Name)
+			var nodePorts []int32
+			for _, port := range newService.Spec.Ports {
+				nodePorts = append(nodePorts, port.NodePort)
+			}
+			err = database.GetQueries().SetServiceNodePorts(r.Context(), database.SetServiceNodePortsParams{
+				Name:        newService.Name,
+				ProjectName: project.Name,
+				NodePorts:   nodePorts,
+			})
+			if err != nil {
+				log.Printf("Error updating service in database: %s\n", err)
+				http.Error(w, "Error updating service", http.StatusInternalServerError)
+				return
+			}
+		} else if !svcExists {
+			log.Printf("Creating service in database: %s\n", newService.Name)
+			var nodePorts []int32
+			if service.Template != "http" {
+				for _, port := range newService.Spec.Ports {
+					nodePorts = append(nodePorts, port.NodePort)
+				}
+			}
+			_, err = database.GetQueries().CreateService(r.Context(), database.CreateServiceParams{
+				Name:        newService.Name,
+				ProjectName: project.Name,
+				NodePorts:   nodePorts,
+			})
+			if err != nil {
+				log.Printf("Error creating service in database: %s\n", err)
+				http.Error(w, "Error creating service", http.StatusInternalServerError)
+				return
+			}
+		}
 
+		// --- Ingress ---
 		if service.Template == "http" {
 			log.Printf("Creating ingress for service: %s\n", newService.Name)
 			ingressSpec, err := services.GenerateIngressSpec(config.App, &service, svc)
@@ -137,6 +231,33 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			log.Printf("Created ingress: %s\n", newIngress.Name)
+
+			if svcExists {
+				log.Printf("Updating ingress in database: %s\n", newIngress.Spec.Rules[0].Host)
+				log.Printf("Params: %s %s\n", service.Name, project.Name)
+				err = database.GetQueries().SetServiceIngress(r.Context(), database.SetServiceIngressParams{
+					Name:        service.Name,
+					ProjectName: project.Name,
+					Ingress:     pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
+				})
+				if err != nil {
+					log.Printf("Error updating ingress in database: %s\n", err)
+					http.Error(w, "Error updating ingress", http.StatusInternalServerError)
+					return
+				}
+			} else {
+				log.Printf("Creating ingress in database: %s\n", newIngress.Spec.Rules[0].Host)
+				_, err = database.GetQueries().CreateService(r.Context(), database.CreateServiceParams{
+					Name:        service.Name,
+					ProjectName: project.Name,
+					Ingress:     pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
+				})
+				if err != nil {
+					log.Printf("Error creating ingress in database: %s\n", err)
+					http.Error(w, "Error creating ingress", http.StatusInternalServerError)
+					return
+				}
+			}
 		}
 	}
 
