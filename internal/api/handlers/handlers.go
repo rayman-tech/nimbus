@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"nimbus/internal/database"
 	"nimbus/internal/models"
 	"nimbus/internal/services"
 
@@ -38,6 +39,20 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apiKey := r.Header.Get("X-API-Key")
+	if apiKey == "" {
+		log.Println("API key missing")
+		http.Error(w, "API key missing", http.StatusUnauthorized)
+		return
+	}
+
+	project, err := database.GetQueries().GetProjectByApiKey(r.Context(), apiKey)
+	if err != nil {
+		log.Printf("Error getting project: %s\n", err)
+		http.Error(w, "Error getting project", http.StatusUnauthorized)
+		return
+	}
+
 	var config models.Config
 	err = yaml.Unmarshal(content, &config)
 	if err != nil {
@@ -46,6 +61,12 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("Parsed YAML: %+v\n", config)
+
+	if config.App != project.Name {
+		log.Printf("App name does not match project name: %s != %s\n", config.App, project.Name)
+		http.Error(w, "App name does not match project name", http.StatusBadRequest)
+		return
+	}
 
 	namespace, err := services.GetNamespace(config.App)
 	if err != nil || namespace == nil {

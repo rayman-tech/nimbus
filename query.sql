@@ -1,6 +1,10 @@
 -- name: GetProject :one
 SELECT * FROM projects
-WHERE id = $1 LIMIT 1;
+WHERE name = $1 LIMIT 1;
+
+-- name: GetProjectByApiKey :one
+SELECT * FROM projects
+WHERE api_key = $1 LIMIT 1;
 
 -- name: ListProjects :many
 SELECT * FROM projects
@@ -8,19 +12,18 @@ ORDER BY name;
 
 -- name: CreateProject :one
 INSERT INTO projects (
-  name, api_key
+  name, api_key, node_ports
 ) VALUES (
-  $1, $2
+  $1, $2, NULL
 )
 RETURNING *;
 
 -- name: UpdateProject :one
 UPDATE projects
-  set name = $2,
-  api_key = $3
-WHERE id = $1
+  SET node_ports = $2
+WHERE name = $1
 RETURNING *;
 
 -- name: DeleteProject :exec
 DELETE FROM projects
-WHERE id = $1;
+WHERE name = $1;

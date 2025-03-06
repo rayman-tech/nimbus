@@ -5,7 +5,7 @@
 package database
 
 type Project struct {
-	ID     int64
-	Name   string
-	ApiKey string
+	Name      string
+	ApiKey    string
+	NodePorts []int32
 }

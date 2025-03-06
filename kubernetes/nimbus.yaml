@@ -24,6 +24,16 @@ spec:
           env:
             - name: ENVIRONMENT
               value: "production"
+            - name: DB_USER
+              value: <database username>
+            - name: DB_PASSWORD
+              value: <database password>
+            - name: DB_HOST
+              value: <database host>
+            - name: DB_NAME
+              value: <database name>
+            - name: DB_PORT
+              value: 5432
           args:
             - "server"
 ---

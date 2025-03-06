@@ -1,5 +1,5 @@
 CREATE TABLE projects (
-  id        BIGSERIAL   PRIMARY KEY,
-  name      TEXT        NOT NULL,
-  api_key   TEXT        NOT NULL
+  name      TEXT        PRIMARY KEY,
+  api_key   TEXT        NOT NULL,
+  node_ports INTEGER[]  NULL
 );

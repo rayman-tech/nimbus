@@ -11,11 +11,11 @@ import (
 
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (
-  name, api_key
+  name, api_key, node_ports
 ) VALUES (
-  $1, $2
+  $1, $2, NULL
 )
-RETURNING id, name, api_key
+RETURNING name, api_key, node_ports
 `
 
 type CreateProjectParams struct {
@@ -26,34 +26,46 @@ type CreateProjectParams struct {
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
 	row := q.db.QueryRow(ctx, createProject, arg.Name, arg.ApiKey)
 	var i Project
-	err := row.Scan(&i.ID, &i.Name, &i.ApiKey)
+	err := row.Scan(&i.Name, &i.ApiKey, &i.NodePorts)
 	return i, err
 }
 
 const deleteProject = `-- name: DeleteProject :exec
 DELETE FROM projects
-WHERE id = $1
+WHERE name = $1
 `
 
-func (q *Queries) DeleteProject(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, deleteProject, id)
+func (q *Queries) DeleteProject(ctx context.Context, name string) error {
+	_, err := q.db.Exec(ctx, deleteProject, name)
 	return err
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, name, api_key FROM projects
-WHERE id = $1 LIMIT 1
+SELECT name, api_key, node_ports FROM projects
+WHERE name = $1 LIMIT 1
 `
 
-func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
-	row := q.db.QueryRow(ctx, getProject, id)
+func (q *Queries) GetProject(ctx context.Context, name string) (Project, error) {
+	row := q.db.QueryRow(ctx, getProject, name)
 	var i Project
-	err := row.Scan(&i.ID, &i.Name, &i.ApiKey)
+	err := row.Scan(&i.Name, &i.ApiKey, &i.NodePorts)
+	return i, err
+}
+
+const getProjectByApiKey = `-- name: GetProjectByApiKey :one
+SELECT name, api_key, node_ports FROM projects
+WHERE api_key = $1 LIMIT 1
+`
+
+func (q *Queries) GetProjectByApiKey(ctx context.Context, apiKey string) (Project, error) {
+	row := q.db.QueryRow(ctx, getProjectByApiKey, apiKey)
+	var i Project
+	err := row.Scan(&i.Name, &i.ApiKey, &i.NodePorts)
 	return i, err
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, name, api_key FROM projects
+SELECT name, api_key, node_ports FROM projects
 ORDER BY name
 `
 
@@ -66,7 +78,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 	var items []Project
 	for rows.Next() {
 		var i Project
-		if err := rows.Scan(&i.ID, &i.Name, &i.ApiKey); err != nil {
+		if err := rows.Scan(&i.Name, &i.ApiKey, &i.NodePorts); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -79,21 +91,19 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 
 const updateProject = `-- name: UpdateProject :one
 UPDATE projects
-  set name = $2,
-  api_key = $3
-WHERE id = $1
-RETURNING id, name, api_key
+  SET node_ports = $2
+WHERE name = $1
+RETURNING name, api_key, node_ports
 `
 
 type UpdateProjectParams struct {
-	ID     int64
-	Name   string
-	ApiKey string
+	Name      string
+	NodePorts []int32
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
-	row := q.db.QueryRow(ctx, updateProject, arg.ID, arg.Name, arg.ApiKey)
+	row := q.db.QueryRow(ctx, updateProject, arg.Name, arg.NodePorts)
 	var i Project
-	err := row.Scan(&i.ID, &i.Name, &i.ApiKey)
+	err := row.Scan(&i.Name, &i.ApiKey, &i.NodePorts)
 	return i, err
 }

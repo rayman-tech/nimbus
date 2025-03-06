@@ -2,6 +2,7 @@ package main
 
 import (
 	"nimbus/internal/api"
+	"nimbus/internal/database"
 
 	"fmt"
 
@@ -9,6 +10,8 @@ import (
 )
 
 func main() {
+	defer database.Close()
+
 	var rootCmd = &cobra.Command{Use: "nimbus"}
 
 	var serverCmd = &cobra.Command{
