@@ -213,6 +213,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Error creating service", http.StatusInternalServerError)
 				return
 			}
+			svcExists = true
 		}
 
 		// --- Ingress ---
