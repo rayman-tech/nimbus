@@ -7,15 +7,17 @@ package database
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (
-  name, api_key, node_ports
+  name, api_key
 ) VALUES (
-  $1, $2, NULL
+  $1, $2
 )
-RETURNING name, api_key, node_ports
+RETURNING name, api_key
 `
 
 type CreateProjectParams struct {
@@ -26,7 +28,40 @@ type CreateProjectParams struct {
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
 	row := q.db.QueryRow(ctx, createProject, arg.Name, arg.ApiKey)
 	var i Project
-	err := row.Scan(&i.Name, &i.ApiKey, &i.NodePorts)
+	err := row.Scan(&i.Name, &i.ApiKey)
+	return i, err
+}
+
+const createService = `-- name: CreateService :one
+INSERT INTO services (
+  name, project_name, node_ports, ingress
+) VALUES (
+  $1, $2, $3, $4
+)
+RETURNING name, project_name, node_ports, ingress
+`
+
+type CreateServiceParams struct {
+	Name        string
+	ProjectName string
+	NodePorts   []int32
+	Ingress     pgtype.Text
+}
+
+func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (Service, error) {
+	row := q.db.QueryRow(ctx, createService,
+		arg.Name,
+		arg.ProjectName,
+		arg.NodePorts,
+		arg.Ingress,
+	)
+	var i Service
+	err := row.Scan(
+		&i.Name,
+		&i.ProjectName,
+		&i.NodePorts,
+		&i.Ingress,
+	)
 	return i, err
 }
 
@@ -40,32 +75,89 @@ func (q *Queries) DeleteProject(ctx context.Context, name string) error {
 	return err
 }
 
+const deleteService = `-- name: DeleteService :exec
+DELETE FROM services
+WHERE name = $1
+`
+
+func (q *Queries) DeleteService(ctx context.Context, name string) error {
+	_, err := q.db.Exec(ctx, deleteService, name)
+	return err
+}
+
 const getProject = `-- name: GetProject :one
-SELECT name, api_key, node_ports FROM projects
+SELECT name, api_key FROM projects
 WHERE name = $1 LIMIT 1
 `
 
 func (q *Queries) GetProject(ctx context.Context, name string) (Project, error) {
 	row := q.db.QueryRow(ctx, getProject, name)
 	var i Project
-	err := row.Scan(&i.Name, &i.ApiKey, &i.NodePorts)
+	err := row.Scan(&i.Name, &i.ApiKey)
 	return i, err
 }
 
 const getProjectByApiKey = `-- name: GetProjectByApiKey :one
-SELECT name, api_key, node_ports FROM projects
-WHERE api_key = $1 LIMIT 1
+SELECT name, api_key FROM projects
+WHERE projects.api_key = $1 LIMIT 1
 `
 
 func (q *Queries) GetProjectByApiKey(ctx context.Context, apiKey string) (Project, error) {
 	row := q.db.QueryRow(ctx, getProjectByApiKey, apiKey)
 	var i Project
-	err := row.Scan(&i.Name, &i.ApiKey, &i.NodePorts)
+	err := row.Scan(&i.Name, &i.ApiKey)
 	return i, err
 }
 
+const getService = `-- name: GetService :one
+SELECT name, project_name, node_ports, ingress FROM services
+WHERE name = $1 LIMIT 1
+`
+
+func (q *Queries) GetService(ctx context.Context, name string) (Service, error) {
+	row := q.db.QueryRow(ctx, getService, name)
+	var i Service
+	err := row.Scan(
+		&i.Name,
+		&i.ProjectName,
+		&i.NodePorts,
+		&i.Ingress,
+	)
+	return i, err
+}
+
+const getServicesByProject = `-- name: GetServicesByProject :many
+SELECT name, project_name, node_ports, ingress FROM services
+WHERE project_name = $1
+`
+
+func (q *Queries) GetServicesByProject(ctx context.Context, projectName string) ([]Service, error) {
+	rows, err := q.db.Query(ctx, getServicesByProject, projectName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Service
+	for rows.Next() {
+		var i Service
+		if err := rows.Scan(
+			&i.Name,
+			&i.ProjectName,
+			&i.NodePorts,
+			&i.Ingress,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjects = `-- name: ListProjects :many
-SELECT name, api_key, node_ports FROM projects
+SELECT name, api_key FROM projects
 ORDER BY name
 `
 
@@ -78,7 +170,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 	var items []Project
 	for rows.Next() {
 		var i Project
-		if err := rows.Scan(&i.Name, &i.ApiKey, &i.NodePorts); err != nil {
+		if err := rows.Scan(&i.Name, &i.ApiKey); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -89,21 +181,67 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 	return items, nil
 }
 
-const updateProject = `-- name: UpdateProject :one
-UPDATE projects
-  SET node_ports = $2
-WHERE name = $1
-RETURNING name, api_key, node_ports
+const listServices = `-- name: ListServices :many
+SELECT name, project_name, node_ports, ingress FROM services
+WHERE project_name = $1          
+ORDER BY name
 `
 
-type UpdateProjectParams struct {
-	Name      string
-	NodePorts []int32
+func (q *Queries) ListServices(ctx context.Context, projectName string) ([]Service, error) {
+	rows, err := q.db.Query(ctx, listServices, projectName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Service
+	for rows.Next() {
+		var i Service
+		if err := rows.Scan(
+			&i.Name,
+			&i.ProjectName,
+			&i.NodePorts,
+			&i.Ingress,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
-	row := q.db.QueryRow(ctx, updateProject, arg.Name, arg.NodePorts)
-	var i Project
-	err := row.Scan(&i.Name, &i.ApiKey, &i.NodePorts)
-	return i, err
+const setServiceIngress = `-- name: SetServiceIngress :exec
+UPDATE services SET
+  ingress = $3
+WHERE name = $1 AND project_name = $2 RETURNING name, project_name, node_ports, ingress
+`
+
+type SetServiceIngressParams struct {
+	Name        string
+	ProjectName string
+	Ingress     pgtype.Text
+}
+
+func (q *Queries) SetServiceIngress(ctx context.Context, arg SetServiceIngressParams) error {
+	_, err := q.db.Exec(ctx, setServiceIngress, arg.Name, arg.ProjectName, arg.Ingress)
+	return err
+}
+
+const setServiceNodePorts = `-- name: SetServiceNodePorts :exec
+UPDATE services SET
+  node_ports = $3
+WHERE name = $1 AND project_name = $2 RETURNING name, project_name, node_ports, ingress
+`
+
+type SetServiceNodePortsParams struct {
+	Name        string
+	ProjectName string
+	NodePorts   []int32
+}
+
+func (q *Queries) SetServiceNodePorts(ctx context.Context, arg SetServiceNodePortsParams) error {
+	_, err := q.db.Exec(ctx, setServiceNodePorts, arg.Name, arg.ProjectName, arg.NodePorts)
+	return err
 }

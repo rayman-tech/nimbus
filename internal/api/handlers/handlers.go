@@ -68,6 +68,17 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existingServices, err := database.GetQueries().GetServicesByProject(r.Context(), project.Name)
+	if err != nil {
+		log.Printf("Error retrieving project services: %s\n", err)
+		http.Error(w, "Error getting project services", http.StatusInternalServerError)
+		return
+	}
+	var serviceMap = make(map[string]*database.Service)
+	for _, service := range existingServices {
+		serviceMap[service.Name] = &service
+	}
+
 	namespace, err := services.GetNamespace(config.App)
 	if err != nil || namespace == nil {
 		err = services.CreateNamespace(config.App)
@@ -81,19 +92,52 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 
 	for _, service := range config.Services {
 		log.Printf("Creating deployment for service: %s\n", service.Name)
-		spec, err := services.GenerateDeploymentSpec(config.App, &service)
+		deploymentSpec, err := services.GenerateDeploymentSpec(config.App, &service)
 		if err != nil {
 			log.Printf("Error generating deployment spec: %s\n", err)
 			http.Error(w, "Error generating deployment spec", http.StatusInternalServerError)
 			return
 		}
-		deployment, err := services.StartDeployment(config.App, spec)
+		newDeployment, err := services.CreateDeployment(config.App, deploymentSpec)
 		if err != nil {
 			log.Printf("Error creating deployment: %s\n", err)
 			http.Error(w, "Error creating deployment", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Created deployment: %s\n", deployment.Name)
+		log.Printf("Created deployment: %s\n", newDeployment.Name)
+
+		log.Printf("Creating service for deployment: %s\n", newDeployment.Name)
+		svc := serviceMap[service.Name]
+		serviceSpec, err := services.GenerateServiceSpec(config.App, &service, svc)
+		if err != nil {
+			log.Printf("Error generating service spec: %s\n", err)
+			http.Error(w, "Error generating service spec", http.StatusInternalServerError)
+			return
+		}
+		newService, err := services.CreateService(config.App, serviceSpec)
+		if err != nil {
+			log.Printf("Error creating service: %s\n", err)
+			http.Error(w, "Error creating service", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Created service: %s\n", newService.Name)
+
+		if service.Template == "http" {
+			log.Printf("Creating ingress for service: %s\n", newService.Name)
+			ingressSpec, err := services.GenerateIngressSpec(config.App, &service, svc)
+			if err != nil {
+				log.Printf("Error generating ingress spec: %s\n", err)
+				http.Error(w, "Error generating ingress spec", http.StatusInternalServerError)
+				return
+			}
+			newIngress, err := services.CreateIngress(config.App, ingressSpec)
+			if err != nil {
+				log.Printf("Error creating ingress: %s\n", err)
+				http.Error(w, "Error creating ingress", http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Created ingress: %s\n", newIngress.Name)
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)

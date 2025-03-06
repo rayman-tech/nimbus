@@ -4,8 +4,18 @@
 
 package database
 
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
 type Project struct {
-	Name      string
-	ApiKey    string
-	NodePorts []int32
+	Name   string
+	ApiKey string
+}
+
+type Service struct {
+	Name        string
+	ProjectName string
+	NodePorts   []int32
+	Ingress     pgtype.Text
 }
