@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"nimbus/internal/database"
+	"nimbus/internal/kubernetes"
 	"nimbus/internal/models"
-	"nimbus/internal/services"
 
 	"io"
 	"log"
@@ -80,9 +80,9 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		serviceMap[service.Name] = &service
 	}
 
-	namespace, err := services.GetNamespace(config.App)
+	namespace, err := kubernetes.GetNamespace(config.App)
 	if err != nil || namespace == nil {
-		err = services.CreateNamespace(config.App)
+		err = kubernetes.CreateNamespace(config.App)
 		if err != nil {
 			log.Printf("Error creating namespace: %s\n", config.App)
 			http.Error(w, "Error creating namespace", http.StatusInternalServerError)
@@ -104,7 +104,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	for _, service := range existingServices {
 		if _, ok := serviceNames[service.Name]; !ok {
 			log.Printf("Deleting deployment for service: %s\n", service.Name)
-			err = services.DeleteDeployment(config.App, service.Name)
+			err = kubernetes.DeleteDeployment(config.App, service.Name)
 			if err != nil {
 				log.Printf("Error deleting deployment: %s\n", err)
 				http.Error(w, "Error deleting deployment", http.StatusInternalServerError)
@@ -113,7 +113,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Deleted deployment: %s\n", service.Name)
 
 			log.Printf("Deleting service for service: %s\n", service.Name)
-			err = services.DeleteService(config.App, service.Name)
+			err = kubernetes.DeleteService(config.App, service.Name)
 			if err != nil {
 				log.Printf("Error deleting service: %s\n", err)
 				http.Error(w, "Error deleting service", http.StatusInternalServerError)
@@ -123,7 +123,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 
 			if service.Ingress.Valid {
 				log.Printf("Deleting ingress for service: %s\n", service.Name)
-				err = services.DeleteIngress(config.App, service.Ingress.String)
+				err = kubernetes.DeleteIngress(config.App, service.Ingress.String)
 				if err != nil {
 					log.Printf("Error deleting ingress: %s\n", err)
 					http.Error(w, "Error deleting ingress", http.StatusInternalServerError)
@@ -148,13 +148,13 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	for _, service := range config.Services {
 		// --- Deployment ---
 		log.Printf("Creating deployment for service: %s\n", service.Name)
-		deploymentSpec, err := services.GenerateDeploymentSpec(config.App, &service)
+		deploymentSpec, err := kubernetes.GenerateDeploymentSpec(config.App, &service)
 		if err != nil {
 			log.Printf("Error generating deployment spec: %s\n", err)
 			http.Error(w, "Error generating deployment spec", http.StatusInternalServerError)
 			return
 		}
-		newDeployment, err := services.CreateDeployment(config.App, deploymentSpec)
+		newDeployment, err := kubernetes.CreateDeployment(config.App, deploymentSpec)
 		if err != nil {
 			log.Printf("Error creating deployment: %s\n", err)
 			http.Error(w, "Error creating deployment", http.StatusInternalServerError)
@@ -165,13 +165,13 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		// --- Service ---
 		log.Printf("Creating service for deployment: %s\n", newDeployment.Name)
 		svc, svcExists := serviceMap[service.Name]
-		serviceSpec, err := services.GenerateServiceSpec(config.App, &service, svc)
+		serviceSpec, err := kubernetes.GenerateServiceSpec(config.App, &service, svc)
 		if err != nil {
 			log.Printf("Error generating service spec: %s\n", err)
 			http.Error(w, "Error generating service spec", http.StatusInternalServerError)
 			return
 		}
-		newService, err := services.CreateService(config.App, serviceSpec)
+		newService, err := kubernetes.CreateService(config.App, serviceSpec)
 		if err != nil {
 			log.Printf("Error creating service: %s\n", err)
 			http.Error(w, "Error creating service", http.StatusInternalServerError)
@@ -219,13 +219,13 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		// --- Ingress ---
 		if service.Template == "http" {
 			log.Printf("Creating ingress for service: %s\n", newService.Name)
-			ingressSpec, err := services.GenerateIngressSpec(config.App, &service, svc)
+			ingressSpec, err := kubernetes.GenerateIngressSpec(config.App, &service, svc)
 			if err != nil {
 				log.Printf("Error generating ingress spec: %s\n", err)
 				http.Error(w, "Error generating ingress spec", http.StatusInternalServerError)
 				return
 			}
-			newIngress, err := services.CreateIngress(config.App, ingressSpec)
+			newIngress, err := kubernetes.CreateIngress(config.App, ingressSpec)
 			if err != nil {
 				log.Printf("Error creating ingress: %s\n", err)
 				http.Error(w, "Error creating ingress", http.StatusInternalServerError)

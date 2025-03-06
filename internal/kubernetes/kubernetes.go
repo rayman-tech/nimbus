@@ -1,4 +1,4 @@
-package services
+package kubernetes
 
 import (
 	"context"
