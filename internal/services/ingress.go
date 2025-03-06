@@ -26,10 +26,11 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingServ
 	case "redis":
 		return nil, nil
 	default:
+		randomString := GenerateRandomChars()
 		spec := networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: fmt.Sprintf("%s.%s", GenerateRandomChars(), os.Getenv("DOMAIN")),
+					Host: fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
@@ -51,6 +52,14 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingServ
 							},
 						},
 					},
+				},
+			},
+			TLS: []networkingv1.IngressTLS{
+				{
+					Hosts: []string{
+						fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
+					},
+					SecretName: fmt.Sprintf("%s-%s", service.Name, "tls"),
 				},
 			},
 		}
