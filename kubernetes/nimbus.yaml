@@ -36,8 +36,8 @@ spec:
               value: <database name>
             - name: DB_PORT
               value: 5432
-            - name: NIMBUS_PVC
-              value: <pvc name> # create your own PVC under which all volumes will be created, must be ReadWriteMany
+            - name: NIMBUS_PV
+              value: <pv name> # create your own PV under which all volumes will be created, must be ReadWriteMany
           args:
             - "server"
           volumeMounts:
@@ -46,7 +46,7 @@ spec:
       volumes:
         - name: nimbus-volumes
           persistentVolumeClaim:
-            claimName: <pvc name>
+            claimName: <pvc name> # create your own PVC that binds to the same PV as above, must also be ReadWriteMany
 ---
 apiVersion: v1
 kind: Service
