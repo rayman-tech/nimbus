@@ -11,3 +11,11 @@ CREATE TABLE services (
   FOREIGN KEY (project_name) REFERENCES projects(name),
   PRIMARY KEY (name, project_name)
 );
+
+CREATE TABLE volumes (
+  identifier    TEXT    PRIMARY KEY,
+  volume_name   TEXT    NOT NULL,
+  service_name  TEXT    NOT NULL,
+  project_name  TEXT    NOT NULL,
+  FOREIGN KEY (service_name, project_name) REFERENCES services(name, project_name)
+);

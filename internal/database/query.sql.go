@@ -65,6 +65,38 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 	return i, err
 }
 
+const createVolume = `-- name: CreateVolume :one
+INSERT INTO volumes (
+  volume_name, project_name, service_name, identifier
+) VALUES (
+  $1, $2, $3, $4
+) RETURNING identifier, volume_name, service_name, project_name
+`
+
+type CreateVolumeParams struct {
+	VolumeName  string
+	ProjectName string
+	ServiceName string
+	Identifier  string
+}
+
+func (q *Queries) CreateVolume(ctx context.Context, arg CreateVolumeParams) (Volume, error) {
+	row := q.db.QueryRow(ctx, createVolume,
+		arg.VolumeName,
+		arg.ProjectName,
+		arg.ServiceName,
+		arg.Identifier,
+	)
+	var i Volume
+	err := row.Scan(
+		&i.Identifier,
+		&i.VolumeName,
+		&i.ServiceName,
+		&i.ProjectName,
+	)
+	return i, err
+}
+
 const deleteProject = `-- name: DeleteProject :exec
 DELETE FROM projects
 WHERE name = $1
@@ -87,6 +119,22 @@ type DeleteServiceParams struct {
 
 func (q *Queries) DeleteService(ctx context.Context, arg DeleteServiceParams) error {
 	_, err := q.db.Exec(ctx, deleteService, arg.Name, arg.ProjectName)
+	return err
+}
+
+const deleteUnusedVolumes = `-- name: DeleteUnusedVolumes :exec
+DELETE FROM volumes
+WHERE project_name = $1 AND service_name = $2 AND volume_name NOT IN ($3)
+`
+
+type DeleteUnusedVolumesParams struct {
+	ProjectName string
+	ServiceName string
+	VolumeNames []string
+}
+
+func (q *Queries) DeleteUnusedVolumes(ctx context.Context, arg DeleteUnusedVolumesParams) error {
+	_, err := q.db.Exec(ctx, deleteUnusedVolumes, arg.ProjectName, arg.ServiceName, arg.VolumeNames)
 	return err
 }
 
@@ -159,6 +207,24 @@ func (q *Queries) GetServicesByProject(ctx context.Context, projectName string) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const getVolumeIdentifier = `-- name: GetVolumeIdentifier :one
+SELECT identifier FROM volumes
+WHERE volume_name = $1 AND project_name = $2 AND service_name = $3 LIMIT 1
+`
+
+type GetVolumeIdentifierParams struct {
+	VolumeName  string
+	ProjectName string
+	ServiceName string
+}
+
+func (q *Queries) GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifierParams) (string, error) {
+	row := q.db.QueryRow(ctx, getVolumeIdentifier, arg.VolumeName, arg.ProjectName, arg.ServiceName)
+	var identifier string
+	err := row.Scan(&identifier)
+	return identifier, err
 }
 
 const listProjects = `-- name: ListProjects :many

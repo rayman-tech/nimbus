@@ -57,3 +57,19 @@ WHERE name = $1 AND project_name = $2 RETURNING *;
 UPDATE services SET
   ingress = $3
 WHERE name = $1 AND project_name = $2 RETURNING *;
+
+
+-- name: GetVolumeIdentifier :one
+SELECT identifier FROM volumes
+WHERE volume_name = $1 AND project_name = $2 AND service_name = $3 LIMIT 1;
+
+-- name: CreateVolume :one
+INSERT INTO volumes (
+  volume_name, project_name, service_name, identifier
+) VALUES (
+  $1, $2, $3, $4
+) RETURNING *;
+
+-- name: DeleteUnusedVolumes :exec
+DELETE FROM volumes
+WHERE project_name = $1 AND service_name = $2 AND volume_name NOT IN (sqlc.slice(volume_names));

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -42,8 +43,32 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 						Env:   service.Env,
 					},
 				},
+				Volumes: []corev1.Volume{},
 			},
 		},
+	}
+
+	if len(service.Volumes) > 0 {
+		volumeMap, err := GetVolumeIdentifiers(namespace, service.Name, service.Volumes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get volume identifiers: %w", err)
+		}
+
+		for name, volume := range volumeMap {
+			spec.Template.Spec.Volumes = append(spec.Template.Spec.Volumes, corev1.Volume{
+				Name: name,
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: os.Getenv("NIMBUS_PVC"),
+					},
+				},
+			})
+			spec.Template.Spec.Containers[0].VolumeMounts = append(spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+				Name:      name,
+				MountPath: volume.MountPath,
+				SubPath:   fmt.Sprintf("%s/%s", namespace, volume.Identifier),
+			})
+		}
 	}
 
 	switch service.Template {

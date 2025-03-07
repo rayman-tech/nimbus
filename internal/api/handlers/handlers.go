@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"gopkg.in/yaml.v3"
@@ -44,6 +45,12 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	if apiKey == "" {
 		log.Println("API key missing")
 		http.Error(w, "API key missing", http.StatusUnauthorized)
+		return
+	}
+
+	if os.Getenv("NIMBUS_PVC") == "" {
+		log.Println("NIMBUS_PVC environment variable not set")
+		http.Error(w, "Server is missing environment variables", http.StatusInternalServerError)
 		return
 	}
 

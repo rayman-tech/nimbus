@@ -19,3 +19,10 @@ type Service struct {
 	NodePorts   []int32
 	Ingress     pgtype.Text
 }
+
+type Volume struct {
+	Identifier  string
+	VolumeName  string
+	ServiceName string
+	ProjectName string
+}
