@@ -123,7 +123,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 				Name: name,
 				VolumeSource: corev1.VolumeSource{
 					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: os.Getenv("NIMBUS_PVC"),
+						ClaimName: os.Getenv("nimbus-data-pvc"),
 					},
 				},
 			})

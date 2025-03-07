@@ -10,6 +10,10 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type VolumeInfo struct {
@@ -70,4 +74,33 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 	}
 
 	return volumeMap, nil
+}
+
+func InitNamespacePVC(namespace string) error {
+	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
+
+	_, err := client.Get(context.TODO(), "nimbus-data-pvc", metav1.GetOptions{})
+	if err == nil {
+		return nil
+	}
+
+	_, err = client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "nimbus-data-pvc",
+			Namespace: namespace,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteMany,
+			},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("100Gi"),
+				},
+			},
+			VolumeName: os.Getenv("NIMBUS_PV"),
+		},
+	}, metav1.CreateOptions{})
+
+	return err
 }
