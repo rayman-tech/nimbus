@@ -84,6 +84,7 @@ func InitNamespacePVC(namespace string) error {
 		return nil
 	}
 
+	storageClass := os.Getenv("NIMBUS_STORAGE_CLASS")
 	_, err = client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nimbus-data-pvc",
@@ -98,7 +99,8 @@ func InitNamespacePVC(namespace string) error {
 					corev1.ResourceStorage: resource.MustParse("100Gi"),
 				},
 			},
-			VolumeName: os.Getenv("NIMBUS_PV"),
+			VolumeName:       os.Getenv("NIMBUS_PV"),
+			StorageClassName: &storageClass,
 		},
 	}, metav1.CreateOptions{})
 
