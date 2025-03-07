@@ -23,6 +23,5 @@ type Service struct {
 type Volume struct {
 	Identifier  string
 	VolumeName  string
-	ServiceName string
 	ProjectName string
 }

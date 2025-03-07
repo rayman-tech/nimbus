@@ -28,7 +28,6 @@ type Network struct {
 type Volume struct {
 	Name      string `yaml:"name"`
 	MountPath string `yaml:"mountPath"`
-	Size      int32  `yaml:"size"` // in MB
 }
 
 type ConfigEntry struct {

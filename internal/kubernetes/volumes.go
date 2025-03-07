@@ -17,22 +17,36 @@ type VolumeInfo struct {
 	MountPath  string
 }
 
-func GetVolumeIdentifiers(namespace string, serviceName string, volumes []models.Volume) (map[string]VolumeInfo, error) {
+func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string]VolumeInfo, error) {
 	volumeMap := make(map[string]VolumeInfo)
-	names := make([]string, 0, len(volumes))
+	names := make([]string, 0, len(service.Volumes))
+	switch service.Template {
+	case "postgres":
+		if len(service.Volumes) == 0 {
+			service.Volumes = append(service.Volumes, models.Volume{
+				Name:      fmt.Sprintf("%s-postgres", service.Name),
+				MountPath: "/var/lib/postgresql/data",
+			})
+		}
+	case "redis":
+		if len(service.Volumes) == 0 {
+			service.Volumes = append(service.Volumes, models.Volume{
+				Name:      fmt.Sprintf("%s-redis", service.Name),
+				MountPath: "/data",
+			})
+		}
+	}
 
-	for _, volume := range volumes {
+	for _, volume := range service.Volumes {
 		identifier, err := database.GetQueries().GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
 			VolumeName:  volume.Name,
 			ProjectName: namespace,
-			ServiceName: serviceName,
 		})
 		if err != nil {
 			identifier = uuid.New().String()
 			_, err := database.GetQueries().CreateVolume(context.TODO(), database.CreateVolumeParams{
 				VolumeName:  volume.Name,
 				ProjectName: namespace,
-				ServiceName: serviceName,
 				Identifier:  identifier,
 			})
 			if err != nil {
@@ -50,8 +64,7 @@ func GetVolumeIdentifiers(namespace string, serviceName string, volumes []models
 
 	unusedIdentifiers, err := database.GetQueries().GetUnusedVolumeIdentifiers(context.TODO(), database.GetUnusedVolumeIdentifiersParams{
 		ProjectName: namespace,
-		ServiceName: serviceName,
-		VolumeNames: names,
+		Column2:     names,
 	})
 	if err != nil {
 		log.Printf("Error getting unused volume identifiers: %s\n", err)
@@ -66,8 +79,7 @@ func GetVolumeIdentifiers(namespace string, serviceName string, volumes []models
 
 	err = database.GetQueries().DeleteUnusedVolumes(context.TODO(), database.DeleteUnusedVolumesParams{
 		ProjectName: namespace,
-		ServiceName: serviceName,
-		VolumeNames: names,
+		Column2:     names,
 	})
 	if err != nil {
 		log.Printf("Error deleting unused volumes: %s\n", err)

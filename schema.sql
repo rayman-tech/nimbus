@@ -15,7 +15,6 @@ CREATE TABLE services (
 CREATE TABLE volumes (
   identifier    TEXT    PRIMARY KEY,
   volume_name   TEXT    NOT NULL,
-  service_name  TEXT    NOT NULL,
   project_name  TEXT    NOT NULL,
-  FOREIGN KEY (service_name, project_name) REFERENCES services(name, project_name)
+  FOREIGN KEY (project_name) REFERENCES projects(name)
 );

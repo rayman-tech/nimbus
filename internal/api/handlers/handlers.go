@@ -154,7 +154,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var serviceUrls map[string][]string
+	serviceUrls := make(map[string][]string)
 	for _, service := range config.Services {
 		// --- Deployment ---
 		log.Printf("Creating deployment for service: %s\n", service.Name)
@@ -188,7 +188,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("Created service: %s\n", newService.Name)
-		serviceUrls = make(map[string][]string)
+		serviceUrls[service.Name] = make([]string, 0)
 		if svcExists && service.Template != "http" {
 			// TODO: only run this if the service node ports changed
 			log.Printf("Updating service in database: %s\n", newService.Name)
@@ -248,7 +248,6 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 
 			if svcExists {
 				log.Printf("Updating ingress in database: %s\n", newIngress.Spec.Rules[0].Host)
-				log.Printf("Params: %s %s\n", service.Name, project.Name)
 				err = database.GetQueries().SetServiceIngress(r.Context(), database.SetServiceIngressParams{
 					Name:        service.Name,
 					ProjectName: project.Name,
@@ -282,5 +281,4 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(Response{
 		Urls: serviceUrls,
 	})
-	w.WriteHeader(http.StatusOK)
 }

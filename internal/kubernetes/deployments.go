@@ -49,7 +49,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 	}
 
 	if len(service.Volumes) > 0 {
-		volumeMap, err := GetVolumeIdentifiers(namespace, service.Name, service.Volumes)
+		volumeMap, err := GetVolumeIdentifiers(namespace, service)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get volume identifiers: %w", err)
 		}

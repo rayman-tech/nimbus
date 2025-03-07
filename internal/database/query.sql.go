@@ -67,33 +67,22 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 
 const createVolume = `-- name: CreateVolume :one
 INSERT INTO volumes (
-  volume_name, project_name, service_name, identifier
+  volume_name, project_name, identifier
 ) VALUES (
-  $1, $2, $3, $4
-) RETURNING identifier, volume_name, service_name, project_name
+  $1, $2, $3
+) RETURNING identifier, volume_name, project_name
 `
 
 type CreateVolumeParams struct {
 	VolumeName  string
 	ProjectName string
-	ServiceName string
 	Identifier  string
 }
 
 func (q *Queries) CreateVolume(ctx context.Context, arg CreateVolumeParams) (Volume, error) {
-	row := q.db.QueryRow(ctx, createVolume,
-		arg.VolumeName,
-		arg.ProjectName,
-		arg.ServiceName,
-		arg.Identifier,
-	)
+	row := q.db.QueryRow(ctx, createVolume, arg.VolumeName, arg.ProjectName, arg.Identifier)
 	var i Volume
-	err := row.Scan(
-		&i.Identifier,
-		&i.VolumeName,
-		&i.ServiceName,
-		&i.ProjectName,
-	)
+	err := row.Scan(&i.Identifier, &i.VolumeName, &i.ProjectName)
 	return i, err
 }
 
@@ -124,17 +113,16 @@ func (q *Queries) DeleteService(ctx context.Context, arg DeleteServiceParams) er
 
 const deleteUnusedVolumes = `-- name: DeleteUnusedVolumes :exec
 DELETE FROM volumes
-WHERE project_name = $1 AND service_name = $2 AND volume_name NOT IN ($3)
+WHERE project_name = $1 AND NOT volume_name = ANY($2::text[])
 `
 
 type DeleteUnusedVolumesParams struct {
 	ProjectName string
-	ServiceName string
-	VolumeNames []string
+	Column2     []string
 }
 
 func (q *Queries) DeleteUnusedVolumes(ctx context.Context, arg DeleteUnusedVolumesParams) error {
-	_, err := q.db.Exec(ctx, deleteUnusedVolumes, arg.ProjectName, arg.ServiceName, arg.VolumeNames)
+	_, err := q.db.Exec(ctx, deleteUnusedVolumes, arg.ProjectName, arg.Column2)
 	return err
 }
 
@@ -211,17 +199,16 @@ func (q *Queries) GetServicesByProject(ctx context.Context, projectName string) 
 
 const getUnusedVolumeIdentifiers = `-- name: GetUnusedVolumeIdentifiers :many
 SELECT identifier FROM volumes
-WHERE project_name = $1 AND service_name = $2 AND volume_name NOT IN ($3)
+WHERE project_name = $1 AND NOT volume_name = ANY($2::text[])
 `
 
 type GetUnusedVolumeIdentifiersParams struct {
 	ProjectName string
-	ServiceName string
-	VolumeNames []string
+	Column2     []string
 }
 
 func (q *Queries) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectName, arg.ServiceName, arg.VolumeNames)
+	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectName, arg.Column2)
 	if err != nil {
 		return nil, err
 	}
@@ -242,17 +229,16 @@ func (q *Queries) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedV
 
 const getVolumeIdentifier = `-- name: GetVolumeIdentifier :one
 SELECT identifier FROM volumes
-WHERE volume_name = $1 AND project_name = $2 AND service_name = $3 LIMIT 1
+WHERE volume_name = $1 AND project_name = $2 LIMIT 1
 `
 
 type GetVolumeIdentifierParams struct {
 	VolumeName  string
 	ProjectName string
-	ServiceName string
 }
 
 func (q *Queries) GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifierParams) (string, error) {
-	row := q.db.QueryRow(ctx, getVolumeIdentifier, arg.VolumeName, arg.ProjectName, arg.ServiceName)
+	row := q.db.QueryRow(ctx, getVolumeIdentifier, arg.VolumeName, arg.ProjectName)
 	var identifier string
 	err := row.Scan(&identifier)
 	return identifier, err
