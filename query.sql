@@ -70,6 +70,10 @@ INSERT INTO volumes (
   $1, $2, $3, $4
 ) RETURNING *;
 
+-- name: GetUnusedVolumeIdentifiers :many
+SELECT identifier FROM volumes
+WHERE project_name = $1 AND service_name = $2 AND volume_name NOT IN (sqlc.slice(volume_names));
+
 -- name: DeleteUnusedVolumes :exec
 DELETE FROM volumes
 WHERE project_name = $1 AND service_name = $2 AND volume_name NOT IN (sqlc.slice(volume_names));

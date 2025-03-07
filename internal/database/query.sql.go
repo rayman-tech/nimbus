@@ -209,6 +209,37 @@ func (q *Queries) GetServicesByProject(ctx context.Context, projectName string) 
 	return items, nil
 }
 
+const getUnusedVolumeIdentifiers = `-- name: GetUnusedVolumeIdentifiers :many
+SELECT identifier FROM volumes
+WHERE project_name = $1 AND service_name = $2 AND volume_name NOT IN ($3)
+`
+
+type GetUnusedVolumeIdentifiersParams struct {
+	ProjectName string
+	ServiceName string
+	VolumeNames []string
+}
+
+func (q *Queries) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectName, arg.ServiceName, arg.VolumeNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var identifier string
+		if err := rows.Scan(&identifier); err != nil {
+			return nil, err
+		}
+		items = append(items, identifier)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getVolumeIdentifier = `-- name: GetVolumeIdentifier :one
 SELECT identifier FROM volumes
 WHERE volume_name = $1 AND project_name = $2 AND service_name = $3 LIMIT 1

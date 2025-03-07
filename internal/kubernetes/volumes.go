@@ -5,7 +5,9 @@ import (
 	"nimbus/internal/models"
 
 	"context"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/google/uuid"
 )
@@ -37,6 +39,7 @@ func GetVolumeIdentifiers(namespace string, serviceName string, volumes []models
 				log.Printf("Error creating volume: %s\n", err)
 				return nil, err
 			}
+			err = os.MkdirAll(fmt.Sprintf("/volumes/%s/%s", namespace, identifier), 0755)
 		}
 		volumeMap[volume.Name] = VolumeInfo{
 			Identifier: identifier,
@@ -45,14 +48,29 @@ func GetVolumeIdentifiers(namespace string, serviceName string, volumes []models
 		names = append(names, volume.Name)
 	}
 
-	err := database.GetQueries().DeleteUnusedVolumes(context.TODO(), database.DeleteUnusedVolumesParams{
+	unusedIdentifiers, err := database.GetQueries().GetUnusedVolumeIdentifiers(context.TODO(), database.GetUnusedVolumeIdentifiersParams{
+		ProjectName: namespace,
+		ServiceName: serviceName,
+		VolumeNames: names,
+	})
+	if err != nil {
+		log.Printf("Error getting unused volume identifiers: %s\n", err)
+		return volumeMap, nil
+	}
+	for _, identifier := range unusedIdentifiers {
+		err := os.RemoveAll(fmt.Sprintf("/volumes/%s/%s", namespace, identifier))
+		if err != nil {
+			log.Printf("Error removing volume: %s\n", err)
+		}
+	}
+
+	err = database.GetQueries().DeleteUnusedVolumes(context.TODO(), database.DeleteUnusedVolumesParams{
 		ProjectName: namespace,
 		ServiceName: serviceName,
 		VolumeNames: names,
 	})
 	if err != nil {
 		log.Printf("Error deleting unused volumes: %s\n", err)
-		return nil, err
 	}
 
 	return volumeMap, nil
