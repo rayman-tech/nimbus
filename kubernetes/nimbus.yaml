@@ -24,6 +24,8 @@ spec:
           env:
             - name: ENVIRONMENT
               value: "production"
+            - name: DOMAIN
+              value: <server host> # e.g. prayujt.com, specifies base to spin new ingresses
             - name: DB_USER
               value: <database username>
             - name: DB_PASSWORD
@@ -34,8 +36,17 @@ spec:
               value: <database name>
             - name: DB_PORT
               value: 5432
+            - name: NIMBUS_PVC
+              value: <pvc name> # create your own PVC under which all volumes will be created, must be ReadWriteMany
           args:
             - "server"
+          volumeMounts:
+            - mountPath: "/volumes" # must always be mounted to /volumes
+              name: nimbus-volumes
+      volumes:
+        - name: nimbus-volumes
+          persistentVolumeClaim:
+            claimName: <pvc name>
 ---
 apiVersion: v1
 kind: Service
