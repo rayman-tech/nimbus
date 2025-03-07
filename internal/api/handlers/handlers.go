@@ -5,6 +5,8 @@ import (
 	"nimbus/internal/kubernetes"
 	"nimbus/internal/models"
 
+	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -152,6 +154,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var serviceUrls map[string][]string
 	for _, service := range config.Services {
 		// --- Deployment ---
 		log.Printf("Creating deployment for service: %s\n", service.Name)
@@ -185,12 +188,14 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("Created service: %s\n", newService.Name)
+		serviceUrls = make(map[string][]string)
 		if svcExists && service.Template != "http" {
 			// TODO: only run this if the service node ports changed
 			log.Printf("Updating service in database: %s\n", newService.Name)
 			var nodePorts []int32
 			for _, port := range newService.Spec.Ports {
 				nodePorts = append(nodePorts, port.NodePort)
+				serviceUrls[service.Name] = append(serviceUrls[service.Name], fmt.Sprintf("%s:%d", os.Getenv("DOMAIN"), port.NodePort))
 			}
 			err = database.GetQueries().SetServiceNodePorts(r.Context(), database.SetServiceNodePortsParams{
 				Name:        newService.Name,
@@ -208,6 +213,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			if service.Template != "http" {
 				for _, port := range newService.Spec.Ports {
 					nodePorts = append(nodePorts, port.NodePort)
+					serviceUrls[service.Name] = append(serviceUrls[service.Name], fmt.Sprintf("%s:%d", os.Getenv("DOMAIN"), port.NodePort))
 				}
 			}
 			_, err = database.GetQueries().CreateService(r.Context(), database.CreateServiceParams{
@@ -266,8 +272,15 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
+			serviceUrls[service.Name] = append(serviceUrls[service.Name], fmt.Sprintf("https://%s", newIngress.Spec.Rules[0].Host))
 		}
 	}
 
+	type Response struct {
+		Urls map[string][]string `json:"services"`
+	}
+	json.NewEncoder(w).Encode(Response{
+		Urls: serviceUrls,
+	})
 	w.WriteHeader(http.StatusOK)
 }
