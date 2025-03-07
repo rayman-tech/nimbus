@@ -38,6 +38,8 @@ spec:
               value: 5432
             - name: NIMBUS_PV
               value: <pv name> # create your own PV under which all volumes will be created, must be ReadWriteMany
+            - name: NIMBUS_STORAGE_CLASS
+              value: <storage class> # storage class of the created PV
           args:
             - "server"
           volumeMounts:
