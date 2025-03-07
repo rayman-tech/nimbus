@@ -38,9 +38,10 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
-						Name:  service.Name,
-						Image: service.Image,
-						Env:   service.Env,
+						Name:         service.Name,
+						Image:        service.Image,
+						Env:          service.Env,
+						VolumeMounts: []corev1.VolumeMount{},
 					},
 				},
 				Volumes: []corev1.Volume{},
@@ -48,35 +49,18 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 		},
 	}
 
-	if len(service.Volumes) > 0 {
-		volumeMap, err := GetVolumeIdentifiers(namespace, service)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get volume identifiers: %w", err)
-		}
-
-		for name, volume := range volumeMap {
-			spec.Template.Spec.Volumes = append(spec.Template.Spec.Volumes, corev1.Volume{
-				Name: name,
-				VolumeSource: corev1.VolumeSource{
-					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: os.Getenv("NIMBUS_PVC"),
-					},
-				},
-			})
-			spec.Template.Spec.Containers[0].VolumeMounts = append(spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
-				Name:      name,
-				MountPath: volume.MountPath,
-				SubPath:   fmt.Sprintf("%s/%s", namespace, volume.Identifier),
-			})
-		}
-	}
-
 	switch service.Template {
 	case "postgres":
-		// TODO: check existing PV and PVC, if not found then create them
 		if service.Version == "" {
 			service.Version = "13"
 		}
+		if len(service.Volumes) == 0 {
+			service.Volumes = []models.Volume{models.Volume{
+				Name:      fmt.Sprintf("%s-psql", service.Name),
+				MountPath: "/var/lib/postgresql/data",
+			}}
+		}
+
 		spec.Template.Spec.Containers[0].Image = fmt.Sprintf("postgres:%s", service.Version)
 		spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 			{
@@ -98,45 +82,23 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 				ContainerPort: 5432,
 			},
 		}
-		spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
-			{
-				Name:      "postgres-storage",
-				MountPath: "/var/lib/postgresql/data",
-			},
-		}
-		spec.Template.Spec.Volumes = []corev1.Volume{
-			{
-				Name: "postgres-storage",
-				VolumeSource: corev1.VolumeSource{
-					// TODO: use persistent volume
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
-				},
-			},
-		}
 
 	case "redis":
 		if service.Version == "" {
 			service.Version = "6"
 		}
+		if len(service.Volumes) == 0 {
+			service.Volumes = []models.Volume{models.Volume{
+				Name:      fmt.Sprintf("%s-redis", service.Name),
+				MountPath: "/data",
+			}}
+		}
+
 		spec.Template.Spec.Containers[0].Image = fmt.Sprintf("redis:%s", service.Version)
 		spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{
 			{
 				Name:          "redis",
 				ContainerPort: 6379,
-			},
-		}
-		spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
-			{
-				Name:      "redis-storage",
-				MountPath: "/data",
-			},
-		}
-		spec.Template.Spec.Volumes = []corev1.Volume{
-			{
-				Name: "redis-storage",
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
-				},
 			},
 		}
 
@@ -145,6 +107,30 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 			spec.Template.Spec.Containers[0].Ports = append(spec.Template.Spec.Containers[0].Ports, corev1.ContainerPort{
 				Name:          fmt.Sprintf("port-%d", idx),
 				ContainerPort: port,
+			})
+		}
+	}
+
+	if len(service.Volumes) > 0 {
+		volumeMap, err := GetVolumeIdentifiers(namespace, service)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get volume identifiers: %w", err)
+		}
+		log.Printf("Volume map: %+v", volumeMap)
+
+		for name, volume := range volumeMap {
+			spec.Template.Spec.Volumes = append(spec.Template.Spec.Volumes, corev1.Volume{
+				Name: name,
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: os.Getenv("NIMBUS_PVC"),
+					},
+				},
+			})
+			spec.Template.Spec.Containers[0].VolumeMounts = append(spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+				Name:      name,
+				MountPath: volume.MountPath,
+				SubPath:   fmt.Sprintf("%s/%s", namespace, volume.Identifier),
 			})
 		}
 	}
