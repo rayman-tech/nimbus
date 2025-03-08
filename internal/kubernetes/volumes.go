@@ -59,25 +59,26 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 		names = append(names, volume.Name)
 	}
 
-	unusedIdentifiers, err := database.GetQueries().GetUnusedVolumeIdentifiers(context.TODO(), database.GetUnusedVolumeIdentifiersParams{
-		ProjectName: namespace,
-		Column2:     names,
-	})
-	if err != nil {
-		log.Printf("Error getting unused volume identifiers: %s\n", err)
-		return volumeMap, nil
-	}
-	for _, identifier := range unusedIdentifiers {
-		DeletePVC(namespace, fmt.Sprintf("pvc-%s", identifier))
-	}
+	// TODO: migrate to project-wide context to prevent deleting other services' volumes
+	// unusedIdentifiers, err := database.GetQueries().GetUnusedVolumeIdentifiers(context.TODO(), database.GetUnusedVolumeIdentifiersParams{
+	// 	ProjectName: namespace,
+	// 	Column2:     names,
+	// })
+	// if err != nil {
+	// 	log.Printf("Error getting unused volume identifiers: %s\n", err)
+	// 	return volumeMap, nil
+	// }
+	// for _, identifier := range unusedIdentifiers {
+	// 	DeletePVC(namespace, fmt.Sprintf("pvc-%s", identifier))
+	// }
 
-	err = database.GetQueries().DeleteUnusedVolumes(context.TODO(), database.DeleteUnusedVolumesParams{
-		ProjectName: namespace,
-		Column2:     names,
-	})
-	if err != nil {
-		log.Printf("Error deleting unused volumes: %s\n", err)
-	}
+	// err = database.GetQueries().DeleteUnusedVolumes(context.TODO(), database.DeleteUnusedVolumesParams{
+	// 	ProjectName: namespace,
+	// 	Column2:     names,
+	// })
+	// if err != nil {
+	// 	log.Printf("Error deleting unused volumes: %s\n", err)
+	// }
 
 	return volumeMap, nil
 }

@@ -50,8 +50,8 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if os.Getenv("NIMBUS_PV") == "" || os.Getenv("NIMBUS_STORAGE_CLASS") == "" {
-		log.Println("NIMBUS_PV or NIMBUS_STORAGE_CLASS environment variables not set")
+	if os.Getenv("NIMBUS_STORAGE_CLASS") == "" {
+		log.Println("NIMBUS_STORAGE_CLASS environment variable not set")
 		http.Error(w, "Server is missing environment variables", http.StatusInternalServerError)
 		return
 	}
