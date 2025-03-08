@@ -26,15 +26,16 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 	volumeMap := make(map[string]VolumeInfo)
 
 	for _, volume := range service.Volumes {
+		if volume.Size == 0 {
+			volume.Size = 100 // default to 100Mi
+		}
+
 		identifier, err := database.GetQueries().GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
 			VolumeName:  volume.Name,
 			ProjectName: namespace,
 		})
 		if err != nil {
 			identifier = uuid.New().String()
-			if volume.Size == 0 {
-				volume.Size = 100
-			}
 			err = CreatePVC(namespace, identifier, volume.Size)
 			if err != nil {
 				log.Printf("Error creating PVC: %s\n", err)
