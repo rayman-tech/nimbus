@@ -9,6 +9,7 @@ Before setting up Nimbus, ensure you have the following installed:
 - [Docker](https://docs.docker.com/get-docker/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [Make](https://www.gnu.org/software/make/)
+- [Go](https://go.dev/doc/install)
 
 For local development, we recommend using [Minikube](https://minikube.sigs.k8s.io/docs/) to set up a local Kubernetes cluster. Ensure your Kubernetes configuration is available at `~/.kube/config`.
 
@@ -31,6 +32,16 @@ In a production environment, the Nimbus server will have elevated admin permissi
 
 Additionally, to run Nimbus in production, you must set the environment variable `ENVIRONMENT=production`. If this variable is not specified, it defaults to `development`.
 
+### Persistent Storage Requirement
+
+For hosting a Nimbus server, you need some kind of NFS persistent volume provisioner installed. The recommended provisioner is:
+
+[NFS Subdir External Provisioner](https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner)
+
+Ensure that your cluster has a properly configured NFS provisioner before deploying Nimbus to prevent storage-related issues.
+
+You also need to set the environment variable `NIMBUS_STORAGE_CLASS` with the name of the storage class you have configured with the provisioner. By default, this is set to `nfs-client`.
+
 ## Local Development
 
 For local development, follow these steps:
@@ -47,7 +58,3 @@ For local development, follow these steps:
 ## Contributing
 
 We welcome contributions! Feel free to submit issues and pull requests to improve Nimbus.
-
-## License
-
-Nimbus is open-source and licensed under the MIT License.
