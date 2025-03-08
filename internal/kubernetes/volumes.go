@@ -24,7 +24,6 @@ type VolumeInfo struct {
 
 func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string]VolumeInfo, error) {
 	volumeMap := make(map[string]VolumeInfo)
-	names := make([]string, 0, len(service.Volumes))
 
 	for _, volume := range service.Volumes {
 		identifier, err := database.GetQueries().GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
@@ -51,12 +50,19 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 				log.Printf("Error creating volume: %s\n", err)
 				return nil, err
 			}
+		} else if !CheckPVC(namespace, fmt.Sprintf("pvc-%s", identifier)) {
+			// ensure PVC in database actually exists (sanity check)
+			err = CreatePVC(namespace, identifier, volume.Size)
+			if err != nil {
+				log.Printf("Error creating PVC: %s\n", err)
+				return nil, err
+			}
 		}
+
 		volumeMap[volume.Name] = VolumeInfo{
 			PVC:       fmt.Sprintf("pvc-%s", identifier),
 			MountPath: volume.MountPath,
 		}
-		names = append(names, volume.Name)
 	}
 
 	// TODO: migrate to project-wide context to prevent deleting other services' volumes
@@ -81,6 +87,13 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 	// }
 
 	return volumeMap, nil
+}
+
+func CheckPVC(namespace string, name string) bool {
+	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
+
+	_, err := client.Get(context.TODO(), name, metav1.GetOptions{})
+	return err == nil
 }
 
 func CreatePVC(namespace string, identifier string, size int32) error {
