@@ -122,14 +122,13 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 				Name: name,
 				VolumeSource: corev1.VolumeSource{
 					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: "nimbus-data-pvc",
+						ClaimName: volume.PVC,
 					},
 				},
 			})
 			spec.Template.Spec.Containers[0].VolumeMounts = append(spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 				Name:      name,
 				MountPath: volume.MountPath,
-				SubPath:   fmt.Sprintf("%s/%s", namespace, volume.Identifier),
 			})
 		}
 	}

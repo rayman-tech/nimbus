@@ -17,8 +17,9 @@ import (
 )
 
 type VolumeInfo struct {
-	Identifier string
-	MountPath  string
+	PVC       string
+	MountPath string
+	Size      int32
 }
 
 func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string]VolumeInfo, error) {
@@ -32,20 +33,28 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 		})
 		if err != nil {
 			identifier = uuid.New().String()
+			if volume.Size == 0 {
+				volume.Size = 100
+			}
+			err = CreatePVC(namespace, identifier, volume.Size)
+			if err != nil {
+				log.Printf("Error creating PVC: %s\n", err)
+				return nil, err
+			}
 			_, err := database.GetQueries().CreateVolume(context.TODO(), database.CreateVolumeParams{
 				VolumeName:  volume.Name,
 				ProjectName: namespace,
 				Identifier:  identifier,
+				Size:        volume.Size,
 			})
 			if err != nil {
 				log.Printf("Error creating volume: %s\n", err)
 				return nil, err
 			}
-			err = os.MkdirAll(fmt.Sprintf("/volumes/%s/%s", namespace, identifier), 0755)
 		}
 		volumeMap[volume.Name] = VolumeInfo{
-			Identifier: identifier,
-			MountPath:  volume.MountPath,
+			PVC:       fmt.Sprintf("pvc-%s", identifier),
+			MountPath: volume.MountPath,
 		}
 		names = append(names, volume.Name)
 	}
@@ -59,10 +68,7 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 		return volumeMap, nil
 	}
 	for _, identifier := range unusedIdentifiers {
-		err := os.RemoveAll(fmt.Sprintf("/volumes/%s/%s", namespace, identifier))
-		if err != nil {
-			log.Printf("Error removing volume: %s\n", err)
-		}
+		DeletePVC(namespace, fmt.Sprintf("pvc-%s", identifier))
 	}
 
 	err = database.GetQueries().DeleteUnusedVolumes(context.TODO(), database.DeleteUnusedVolumesParams{
@@ -76,18 +82,13 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 	return volumeMap, nil
 }
 
-func InitNamespacePVC(namespace string) error {
+func CreatePVC(namespace string, identifier string, size int32) error {
 	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
 
-	_, err := client.Get(context.TODO(), "nimbus-data-pvc", metav1.GetOptions{})
-	if err == nil {
-		return nil
-	}
-
 	storageClass := os.Getenv("NIMBUS_STORAGE_CLASS")
-	_, err = client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
+	_, err := client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "nimbus-data-pvc",
+			Name:      fmt.Sprintf("pvc-%s", identifier),
 			Namespace: namespace,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
@@ -96,13 +97,19 @@ func InitNamespacePVC(namespace string) error {
 			},
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("100Gi"),
+					corev1.ResourceStorage: resource.MustParse(fmt.Sprintf("%dMi", size)),
 				},
 			},
-			VolumeName:       os.Getenv("NIMBUS_PV"),
 			StorageClassName: &storageClass,
 		},
 	}, metav1.CreateOptions{})
 
+	return err
+}
+
+func DeletePVC(namespace string, name string) error {
+	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
+
+	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
 	return err
 }

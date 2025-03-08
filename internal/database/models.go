@@ -24,4 +24,5 @@ type Volume struct {
 	Identifier  string
 	VolumeName  string
 	ProjectName string
+	Size        int32
 }

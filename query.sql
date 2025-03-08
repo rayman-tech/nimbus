@@ -65,9 +65,9 @@ WHERE volume_name = $1 AND project_name = $2 LIMIT 1;
 
 -- name: CreateVolume :one
 INSERT INTO volumes (
-  volume_name, project_name, identifier
+  volume_name, project_name, identifier, size
 ) VALUES (
-  $1, $2, $3
+  $1, $2, $3, $4
 ) RETURNING *;
 
 -- name: GetUnusedVolumeIdentifiers :many

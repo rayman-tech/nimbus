@@ -16,5 +16,6 @@ CREATE TABLE volumes (
   identifier    TEXT    PRIMARY KEY,
   volume_name   TEXT    NOT NULL,
   project_name  TEXT    NOT NULL,
+  size          INTEGER NOT NULL,
   FOREIGN KEY (project_name) REFERENCES projects(name)
 );

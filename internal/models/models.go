@@ -28,6 +28,7 @@ type Network struct {
 type Volume struct {
 	Name      string `yaml:"name"`
 	MountPath string `yaml:"mountPath"`
+	Size      int32  `yaml:"size,omitempty"`
 }
 
 type ConfigEntry struct {

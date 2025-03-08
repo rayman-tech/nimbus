@@ -67,22 +67,33 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 
 const createVolume = `-- name: CreateVolume :one
 INSERT INTO volumes (
-  volume_name, project_name, identifier
+  volume_name, project_name, identifier, size
 ) VALUES (
-  $1, $2, $3
-) RETURNING identifier, volume_name, project_name
+  $1, $2, $3, $4
+) RETURNING identifier, volume_name, project_name, size
 `
 
 type CreateVolumeParams struct {
 	VolumeName  string
 	ProjectName string
 	Identifier  string
+	Size        int32
 }
 
 func (q *Queries) CreateVolume(ctx context.Context, arg CreateVolumeParams) (Volume, error) {
-	row := q.db.QueryRow(ctx, createVolume, arg.VolumeName, arg.ProjectName, arg.Identifier)
+	row := q.db.QueryRow(ctx, createVolume,
+		arg.VolumeName,
+		arg.ProjectName,
+		arg.Identifier,
+		arg.Size,
+	)
 	var i Volume
-	err := row.Scan(&i.Identifier, &i.VolumeName, &i.ProjectName)
+	err := row.Scan(
+		&i.Identifier,
+		&i.VolumeName,
+		&i.ProjectName,
+		&i.Size,
+	)
 	return i, err
 }
 

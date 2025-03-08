@@ -78,13 +78,6 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = kubernetes.InitNamespacePVC(project.Name)
-	if err != nil {
-		log.Printf("Error initializing namespace PVC: %s\n", err)
-		http.Error(w, "Error initializing namespace PVC", http.StatusInternalServerError)
-		return
-	}
-
 	existingServices, err := database.GetQueries().GetServicesByProject(r.Context(), project.Name)
 	if err != nil {
 		log.Printf("Error retrieving project services: %s\n", err)
