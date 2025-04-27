@@ -36,7 +36,7 @@ func (lrw *logResponseWriter) WriteHeader(code int) {
 func initializeEnv() *nimbusEnv.Env {
 	// Initialize logger
 	logger := slog.New(&logging.ContextHandler{
-		Handler: slog.NewJSONHandler(
+		Handler: slog.NewTextHandler(
 			os.Stderr,
 			&slog.HandlerOptions{
 				Level: slog.LevelDebug,
