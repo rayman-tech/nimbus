@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"nimbus/internal/database"
+	"nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"context"
@@ -100,7 +101,7 @@ func CheckPVC(namespace string, name string) bool {
 func CreatePVC(namespace string, identifier string, size int32) error {
 	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
 
-	storageClass := os.Getenv("NIMBUS_STORAGE_CLASS")
+	storageClass := env.NimbusStorageClass
 	_, err := client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("pvc-%s", identifier),

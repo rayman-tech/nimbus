@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
-	"os"
+	"nimbus/internal/env"
 	"sync"
 
 	"github.com/jackc/pgx/v5"
@@ -20,11 +20,12 @@ func GetQueries() *Queries {
 		conn, err := pgx.Connect(ctx,
 			fmt.Sprintf(
 				"user=%s password=%s host=%s port=%s dbname=%s sslmode=disable",
-				os.Getenv("DB_USER"),
-				os.Getenv("DB_PASSWORD"),
-				os.Getenv("DB_HOST"),
-				os.Getenv("DB_PORT"),
-				os.Getenv("DB_NAME")))
+				env.DbUser,
+				env.DbPassword,
+				env.DbHost,
+				env.DbPort,
+				env.DbName,
+			))
 		if err != nil {
 			panic(err)
 		}

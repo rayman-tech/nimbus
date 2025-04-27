@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"nimbus/internal/database"
+	"nimbus/internal/env"
 	"nimbus/internal/kubernetes"
 	"nimbus/internal/models"
 
@@ -16,6 +17,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const formFile = "file"
+const xApiKey = "X-API-Key"
+
 func Deploy(w http.ResponseWriter, r *http.Request) {
 	log.Println("POST /deploy")
 
@@ -26,7 +30,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, handler, err := r.FormFile("file")
+	file, handler, err := r.FormFile(formFile)
 	if err != nil {
 		log.Printf("Error retrieving the file: %s\n", err)
 		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
@@ -43,14 +47,14 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiKey := r.Header.Get("X-API-Key")
+	apiKey := r.Header.Get(xApiKey)
 	if apiKey == "" {
 		log.Println("API key missing")
 		http.Error(w, "API key missing", http.StatusUnauthorized)
 		return
 	}
 
-	if os.Getenv("NIMBUS_STORAGE_CLASS") == "" {
+	if env.NimbusStorageClass == "" {
 		log.Println("NIMBUS_STORAGE_CLASS environment variable not set")
 		http.Error(w, "Server is missing environment variables", http.StatusInternalServerError)
 		return
@@ -195,7 +199,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			var nodePorts []int32
 			for _, port := range newService.Spec.Ports {
 				nodePorts = append(nodePorts, port.NodePort)
-				serviceUrls[service.Name] = append(serviceUrls[service.Name], fmt.Sprintf("%s:%d", os.Getenv("DOMAIN"), port.NodePort))
+				serviceUrls[service.Name] = append(serviceUrls[service.Name], fmt.Sprintf("%s:%d", env.Domain, port.NodePort))
 			}
 			err = database.GetQueries().SetServiceNodePorts(r.Context(), database.SetServiceNodePortsParams{
 				Name:        newService.Name,
@@ -213,7 +217,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			if service.Template != "http" {
 				for _, port := range newService.Spec.Ports {
 					nodePorts = append(nodePorts, port.NodePort)
-					serviceUrls[service.Name] = append(serviceUrls[service.Name], fmt.Sprintf("%s:%d", os.Getenv("DOMAIN"), port.NodePort))
+					serviceUrls[service.Name] = append(serviceUrls[service.Name], fmt.Sprintf("%s:%d", env.Domain, port.NodePort))
 				}
 			}
 			_, err = database.GetQueries().CreateService(r.Context(), database.CreateServiceParams{

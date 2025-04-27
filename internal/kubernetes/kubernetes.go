@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"context"
 	"log"
-	"os"
+	"nimbus/internal/env"
 	"path/filepath"
 	"sync"
 
@@ -22,7 +22,7 @@ func getClient() *kubernetes.Clientset {
 	once.Do(func() {
 		var config *rest.Config
 		var err error
-		if os.Getenv("ENVIRONMENT") == "production" {
+		if env.Environment == "production" {
 			log.Println("Using in-cluster kubeconfig")
 			config, err = rest.InClusterConfig()
 			if err != nil {
@@ -30,7 +30,7 @@ func getClient() *kubernetes.Clientset {
 			}
 		} else {
 			log.Println("Using local kubeconfig")
-			kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+			kubeconfig := filepath.Join(env.Home, ".kube", "config")
 			config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 			if err != nil {
 				log.Fatalf("Failed to load local config: %v", err)

@@ -54,7 +54,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 			service.Version = "13"
 		}
 		if len(service.Volumes) == 0 {
-			service.Volumes = []models.Volume{models.Volume{
+			service.Volumes = []models.Volume{{
 				Name:      fmt.Sprintf("%s-psql", service.Name),
 				MountPath: "/var/lib/postgresql/data",
 			}}
@@ -87,7 +87,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 			service.Version = "6"
 		}
 		if len(service.Volumes) == 0 {
-			service.Volumes = []models.Volume{models.Volume{
+			service.Volumes = []models.Volume{{
 				Name:      fmt.Sprintf("%s-redis", service.Name),
 				MountPath: "/data",
 			}}
