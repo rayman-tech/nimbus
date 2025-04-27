@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"nimbus/internal/database"
+	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"context"
@@ -74,8 +75,8 @@ func GenerateServiceSpec(namespace string, service *models.Service, existingServ
 	}, nil
 }
 
-func CreateService(namespace string, service *corev1.Service) (*corev1.Service, error) {
-	client := getClient().CoreV1().Services(namespace)
+func CreateService(namespace string, service *corev1.Service, env *nimbusEnv.Env) (*corev1.Service, error) {
+	client := getClient(env).CoreV1().Services(namespace)
 
 	existing, err := client.Get(context.TODO(), service.Name, metav1.GetOptions{})
 	if err != nil {
@@ -102,8 +103,8 @@ func CreateService(namespace string, service *corev1.Service) (*corev1.Service, 
 	return updated, nil
 }
 
-func DeleteService(namespace, name string) error {
-	client := getClient().CoreV1().Services(namespace)
+func DeleteService(namespace, name string, env *nimbusEnv.Env) error {
+	client := getClient(env).CoreV1().Services(namespace)
 
 	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {

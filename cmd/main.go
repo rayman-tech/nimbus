@@ -1,17 +1,13 @@
 package main
 
 import (
-	"nimbus/internal/api"
-	"nimbus/internal/database"
-
 	"fmt"
+	"nimbus/internal/api"
 
 	"github.com/spf13/cobra"
 )
 
 func main() {
-	defer database.Close()
-
 	var rootCmd = &cobra.Command{Use: "nimbus"}
 
 	var serverCmd = &cobra.Command{
@@ -19,7 +15,7 @@ func main() {
 		Short: "Start the server",
 		Run: func(cmd *cobra.Command, args []string) {
 			port, _ := cmd.Flags().GetString("port")
-			api.Start(port)
+			api.Start(port, nil)
 		},
 	}
 	serverCmd.Flags().StringP("port", "p", "8080", "Port to run the server on")

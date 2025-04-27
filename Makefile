@@ -11,7 +11,7 @@ all: run
 
 run:
 	@echo "🚀  Starting client…"
-	go run cmd/*.go
+	go run cmd/*.go client
 
 server:
 	@echo "🖥️  Starting server…"
