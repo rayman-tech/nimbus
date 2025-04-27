@@ -24,7 +24,7 @@ build:
 
 fmt:
 	@echo "🎨  Formatting code…"
-	go fmt -l -s -w .
+	gofmt -l -s -w .
 
 clean:
 	@echo "🧹  Cleaning up…"
