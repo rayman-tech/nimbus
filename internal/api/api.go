@@ -1,19 +1,19 @@
 package api
 
 import (
-	"log/slog"
 	"nimbus/internal/api/handlers"
 	"nimbus/internal/database"
 	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/logging"
 	"nimbus/internal/registrar"
-	"time"
 
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
