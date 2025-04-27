@@ -18,15 +18,6 @@ type ContextHandler struct {
 	slog.Handler
 }
 
-// func init() {
-// 	contextHandler := &ContextHandler{
-// 		slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-// 			Level: slog.LevelDebug,
-// 		})}
-// 	logger = slog.New(contextHandler)
-// 	slog.SetDefault(logger)
-// }
-
 // Adds contextual attributes to the Record before
 // calling the underlying handler
 func (h ContextHandler) Handle(ctx context.Context, r slog.Record) error {
