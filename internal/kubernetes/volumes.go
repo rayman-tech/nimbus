@@ -8,9 +8,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/google/uuid"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -100,7 +100,7 @@ func CheckPVC(namespace string, name string, env *nimbusEnv.Env) bool {
 func CreatePVC(namespace string, identifier string, size int32, env *nimbusEnv.Env) error {
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
-	storageClass := env.Getenv("NIMBUS_STORAGE_CLASS")
+	storageClass := os.Getenv("NIMBUS_STORAGE_CLASS")
 	_, err := client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("pvc-%s", identifier),

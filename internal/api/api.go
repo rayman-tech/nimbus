@@ -5,7 +5,6 @@ import (
 	"nimbus/internal/database"
 	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/logging"
-	"nimbus/internal/registrar"
 
 	"context"
 	"fmt"
@@ -45,11 +44,6 @@ func initializeEnv() *nimbusEnv.Env {
 
 	// Initialize registrar
 	logger.Info("Initializing registrar")
-	registrar := registrar.New()
-	registrar.Set("ENVIRONMENT", os.Getenv("ENVIRONMENT"))
-	registrar.Set("HOME", os.Getenv("HOME"))
-	registrar.Set("DOMAIN", os.Getenv("DOMAIN"))
-	registrar.Set("NIMBUS_STORAGE_CLASS", os.Getenv("NIMBUS_STORAGE_CLASS"))
 
 	conn, err := pgx.Connect(
 		context.Background(),
@@ -67,7 +61,7 @@ func initializeEnv() *nimbusEnv.Env {
 
 	// Initialize the database connection
 	logger.Info("Connecting to database")
-	return nimbusEnv.NewEnvironment(logger, registrar, &database.Database{Queries: database.New(conn)})
+	return nimbusEnv.NewEnvironment(logger, &database.Database{Queries: database.New(conn)})
 }
 
 func Start(port string, env *nimbusEnv.Env) {

@@ -4,6 +4,7 @@ import (
 	nimbusEnv "nimbus/internal/env"
 
 	"log"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -19,7 +20,7 @@ func getClient(env *nimbusEnv.Env) *kubernetes.Clientset {
 	once.Do(func() {
 		var config *rest.Config
 		var err error
-		if env.Getenv("PRODUCTION") == "production" {
+		if os.Getenv("PRODUCTION") == "production" {
 			env.Debug("Using in-cluster kubeconfig")
 			config, err = rest.InClusterConfig()
 			if err != nil {
@@ -27,7 +28,7 @@ func getClient(env *nimbusEnv.Env) *kubernetes.Clientset {
 			}
 		} else {
 			env.Debug("Using local kubeconfig")
-			kubeconfig := filepath.Join(env.Getenv("HOME"), ".kube", "config")
+			kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 			config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 			if err != nil {
 				log.Fatalf("Failed to load local config: %v", err)

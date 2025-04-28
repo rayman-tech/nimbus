@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -25,7 +26,7 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingServ
 		spec := networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: fmt.Sprintf("%s.%s", randomString, env.Getenv("DOMAIN")),
+					Host: fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
@@ -52,7 +53,7 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingServ
 			TLS: []networkingv1.IngressTLS{
 				{
 					Hosts: []string{
-						fmt.Sprintf("%s.%s", randomString, env.Get("DOMAIN")),
+						fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
 					},
 					SecretName: fmt.Sprintf("%s-%s", service.Name, "tls"),
 				},

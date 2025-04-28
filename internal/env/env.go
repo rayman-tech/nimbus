@@ -6,47 +6,30 @@ import (
 	"log/slog"
 	"nimbus/internal/database"
 	"nimbus/internal/logging"
-	"nimbus/internal/registrar"
 )
 
 // Holds the dependencies for the environment
 type Env struct {
 	*slog.Logger
-	*registrar.Registrar
 	*database.Database
 }
 
-// Gets the value stored in the registrar for the given key
-// and converts it to a string.
-func (e *Env) Getenv(key string) string {
-	if e == nil {
-		return ""
-	}
-
-	if value, ok := e.Registrar.Get(key).(string); ok {
-		return value
-	}
-	return ""
-}
-
 // Constructs an Env object with the provided parameters
-func NewEnvironment(logger *slog.Logger, registrar *registrar.Registrar, database *database.Database) *Env {
+func NewEnvironment(logger *slog.Logger, database *database.Database) *Env {
 	if logger == nil {
 		logger = slog.New(logging.NullLogger())
 	}
 
 	return &Env{
-		Logger:    logger,
-		Registrar: registrar,
-		Database:  database,
+		Logger:   logger,
+		Database: database,
 	}
 }
 
 // Constructs a null instance
 func Null() *Env {
 	return &Env{
-		Logger:    slog.New(logging.NullLogger()),
-		Registrar: nil,
-		Database:  nil,
+		Logger:   slog.New(logging.NullLogger()),
+		Database: nil,
 	}
 }
