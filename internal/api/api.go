@@ -67,12 +67,7 @@ func initializeEnv() *nimbusEnv.Env {
 
 	// Initialize the database connection
 	logger.Info("Connecting to database")
-
-	return &nimbusEnv.Env{
-		Logger:    logger,
-		Registrar: registrar,
-		Database:  &database.Database{Queries: database.New(conn)},
-	}
+	return nimbusEnv.NewEnvironment(logger, registrar, &database.Database{Queries: database.New(conn)})
 }
 
 func Start(port string, env *nimbusEnv.Env) {

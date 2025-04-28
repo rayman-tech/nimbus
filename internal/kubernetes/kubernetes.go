@@ -1,18 +1,15 @@
 package kubernetes
 
 import (
-	"context"
-	"log"
 	nimbusEnv "nimbus/internal/env"
+
+	"log"
 	"path/filepath"
 	"sync"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var client *kubernetes.Clientset
@@ -44,18 +41,4 @@ func getClient(env *nimbusEnv.Env) *kubernetes.Clientset {
 	})
 
 	return client
-}
-
-func GetNamespace(name string, env *nimbusEnv.Env) (*corev1.Namespace, error) {
-	return getClient(env).CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
-}
-
-func CreateNamespace(name string, env *nimbusEnv.Env) error {
-	_, err := getClient(env).CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}, metav1.CreateOptions{})
-
-	return err
 }

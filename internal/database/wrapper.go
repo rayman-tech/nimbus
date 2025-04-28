@@ -1,9 +1,11 @@
 package database
 
 import (
+	"fmt"
 	"sync"
 
 	"context"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -22,4 +24,8 @@ func (db *Database) Close() error {
 	}
 
 	return db.connection.Close(context.Background())
+}
+
+func FormatServiceURL(domain string, nodePort int32) string {
+	return fmt.Sprintf("%s:%d", domain, nodePort)
 }

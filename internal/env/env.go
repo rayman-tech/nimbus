@@ -30,7 +30,7 @@ func (e *Env) Getenv(key string) string {
 }
 
 // Constructs an Env object with the provided parameters
-func Environment(logger *slog.Logger, registrar *registrar.Registrar, database *database.Database) *Env {
+func NewEnvironment(logger *slog.Logger, registrar *registrar.Registrar, database *database.Database) *Env {
 	if logger == nil {
 		logger = slog.New(logging.NullLogger())
 	}
