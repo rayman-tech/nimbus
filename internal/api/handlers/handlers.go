@@ -127,14 +127,14 @@ func createDeployment(
 
 func createService(
 	request *deployRequest,
-	newService models.Service,
+	newService *models.Service,
 	oldService *database.Service,
 	w http.ResponseWriter,
 	env *nimbusEnv.Env,
 	ctx context.Context,
 ) (*corev1.Service, error) {
 	env.DebugContext(ctx, "Generating service spec")
-	serviceSpec, err := kubernetes.GenerateServiceSpec(request.ProjectConfig.App, &newService, oldService)
+	serviceSpec, err := kubernetes.GenerateServiceSpec(request.ProjectConfig.App, newService, oldService)
 	if err != nil {
 		env.LogAttrs(ctx, slog.LevelError, "Error creating service spec", slog.Any("error", err))
 		http.Error(w, "Error generating service spec", http.StatusInternalServerError)
@@ -294,7 +294,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		// Create service
 		log.DebugContext(tempCtx, "Creating service for deployment")
 		oldService, svcExists := existingServices[newService.Name]
-		kubeSvc, err := createService(deployRequest, newService, oldService, w, env, ctx)
+		kubeSvc, err := createService(deployRequest, &newService, oldService, w, env, ctx)
 		if err != nil {
 			return
 		}
