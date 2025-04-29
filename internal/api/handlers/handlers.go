@@ -260,15 +260,24 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 
 	deployRequest, ctx, err := buildDeployRequest(w, r, env, ctx)
 	if err != nil {
+		log.LogAttrs(ctx, slog.LevelError, "Error building deploy request", slog.Any("error", err))
+		http.Error(w, "Error building deploy request", http.StatusBadRequest)
 		return
 	}
 
 	log.DebugContext(ctx, "Ensuring namespace")
 	err = kubernetes.EnsureNamespace(deployRequest.ProjectConfig.App, env, ctx)
+	if err != nil {
+		log.LogAttrs(ctx, slog.LevelError, "Error ensuring namespace", slog.Any("error", err))
+		http.Error(w, "Error ensuring namespace", http.StatusInternalServerError)
+		return
+	}
 	ctx = logging.AppendCtx(ctx, slog.String("namespace", deployRequest.ProjectConfig.App))
 
 	err = deleteRemovedServices(deployRequest, env, ctx, w)
 	if err != nil {
+		log.LogAttrs(ctx, slog.LevelError, "Error deleting removed services", slog.Any("error", err))
+		http.Error(w, "Error deleting removed services", http.StatusInternalServerError)
 		return
 	}
 
@@ -287,6 +296,8 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		env.DebugContext(ctx, "Creating deployment")
 		name, err := createDeployment(deployRequest, newService, w, env, ctx)
 		if err != nil {
+			log.LogAttrs(tempCtx, slog.LevelError, "Error creating deployment", slog.Any("error", err))
+			http.Error(w, "Error creating deployment", http.StatusInternalServerError)
 			return
 		}
 		env.LogAttrs(tempCtx, slog.LevelDebug, "Successfully created deployment", slog.String("deployment", name))
@@ -296,6 +307,8 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		oldService, svcExists := existingServices[newService.Name]
 		kubeSvc, err := createService(deployRequest, &newService, oldService, w, env, ctx)
 		if err != nil {
+			log.LogAttrs(tempCtx, slog.LevelError, "Error creating service", slog.Any("error", err))
+			http.Error(w, "Error creating service", http.StatusInternalServerError)
 			return
 		}
 
@@ -308,6 +321,8 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			urls, err = createDBService(kubeSvc, newService.Template, deployRequest, w, env, tempCtx)
 		}
 		if err != nil {
+			env.LogAttrs(tempCtx, slog.LevelError, "Error creating service in database", slog.Any("error", err))
+			http.Error(w, "Error creating service in database", http.StatusInternalServerError)
 			return
 		}
 		env.DebugContext(tempCtx, "Successfully created service")

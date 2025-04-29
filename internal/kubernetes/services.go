@@ -31,7 +31,7 @@ func GenerateServiceSpec(namespace string, newService *models.Service, oldServic
 			Name: "postgres",
 			Port: 5432,
 		})
-		if oldService != nil && len(oldService.NodePorts) > 0 && oldService.NodePorts[0] == 5432 {
+		if oldService != nil && len(oldService.NodePorts) > 0 {
 			spec.Ports[0].NodePort = oldService.NodePorts[0]
 		}
 
@@ -41,7 +41,7 @@ func GenerateServiceSpec(namespace string, newService *models.Service, oldServic
 			Name: "redis",
 			Port: 6379,
 		})
-		if oldService != nil && len(oldService.NodePorts) > 0 && oldService.NodePorts[0] == 6379 {
+		if oldService != nil && len(oldService.NodePorts) > 0 {
 			spec.Ports[0].NodePort = oldService.NodePorts[0]
 		}
 
@@ -50,16 +50,19 @@ func GenerateServiceSpec(namespace string, newService *models.Service, oldServic
 			spec.Type = corev1.ServiceTypeNodePort
 		}
 
-		for _, port := range newService.Network.Ports {
-			if oldService != nil && len(oldService.NodePorts) > 0 && oldService.NodePorts[0] == port {
+		for idx, port := range newService.Network.Ports {
+			if oldService != nil && len(oldService.NodePorts) > idx {
 				spec.Ports = append(spec.Ports, corev1.ServicePort{
-					Name:     fmt.Sprintf("port-%d", port),
+					Name:     fmt.Sprintf("port-%d", idx),
 					Port:     port,
-					NodePort: oldService.NodePorts[0],
+					NodePort: oldService.NodePorts[idx],
 				})
 			} else {
+				// if we set the type as NodePort (not an HTTP template),
+				// then a NodePort will be be randomly selected
+				// otherwise, will use this port as ClusterIP
 				spec.Ports = append(spec.Ports, corev1.ServicePort{
-					Name: fmt.Sprintf("port-%d", port),
+					Name: fmt.Sprintf("port-%d", idx),
 					Port: port,
 				})
 			}
