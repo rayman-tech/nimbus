@@ -20,7 +20,7 @@ func getClient(env *nimbusEnv.Env) *kubernetes.Clientset {
 	once.Do(func() {
 		var config *rest.Config
 		var err error
-		if os.Getenv("PRODUCTION") == "production" {
+		if os.Getenv("ENVIRONMENT") == "production" {
 			env.Debug("Using in-cluster kubeconfig")
 			config, err = rest.InClusterConfig()
 			if err != nil {

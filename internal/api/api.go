@@ -42,9 +42,6 @@ func initializeEnv() *nimbusEnv.Env {
 			})},
 	)
 
-	// Initialize registrar
-	logger.Info("Initializing registrar")
-
 	conn, err := pgx.Connect(
 		context.Background(),
 		fmt.Sprintf(
