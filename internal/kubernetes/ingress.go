@@ -2,13 +2,14 @@ package kubernetes
 
 import (
 	"nimbus/internal/database"
+	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GenerateIngressSpec(namespace string, service *models.Service, existingService *database.Service) (*networkingv1.Ingress, error) {
+func GenerateIngressSpec(namespace string, service *models.Service, existingService *database.Service, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
 	switch service.Template {
 	case "http":
 		randomString := GenerateRandomChars()
@@ -82,25 +83,25 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingServ
 	}
 }
 
-func CreateIngress(namespace string, ingress *networkingv1.Ingress) (*networkingv1.Ingress, error) {
-	_, err := getClient().NetworkingV1().Ingresses(namespace).Create(context.Background(), ingress, metav1.CreateOptions{})
+func CreateIngress(namespace string, ingress *networkingv1.Ingress, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
+	_, err := getClient(env).NetworkingV1().Ingresses(namespace).Create(context.Background(), ingress, metav1.CreateOptions{})
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
-			log.Printf("Ingress already exists: %s\n", ingress.Name)
+			env.LogAttrs(context.Background(), slog.LevelDebug, "Ingress already exists", slog.String("name", ingress.Name))
 			return ingress, nil
 		}
 		return nil, err
 	}
-	log.Printf("Created ingress: %s\n", ingress.Name)
+	env.LogAttrs(context.Background(), slog.LevelDebug, "Ingress created", slog.String("name", ingress.Name))
 	return ingress, nil
 }
 
-func DeleteIngress(namespace, name string) error {
-	err := getClient().NetworkingV1().Ingresses(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+func DeleteIngress(namespace, name string, env *nimbusEnv.Env) error {
+	err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}
-	log.Printf("Deleted ingress: %s\n", name)
+	env.LogAttrs(context.Background(), slog.LevelDebug, "Ingress deleted", slog.String("name", name))
 	return nil
 }
 

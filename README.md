@@ -46,11 +46,15 @@ You also need to set the environment variable `NIMBUS_STORAGE_CLASS` with the na
 
 For local development, follow these steps:
 
-1. Ensure Kubernetes is running locally (Minikube is recommended):
+1. Copy the `.env.example` file to `.env` and set the required environment variables:
+   ```sh
+   cp .env.example .env
+   ```
+2. Ensure Kubernetes is running locally (Minikube is recommended):
    ```sh
    minikube start
    ```
-2. Run the Nimbus server locally:
+3. Run the Nimbus server locally:
    ```sh
    make server
    ```

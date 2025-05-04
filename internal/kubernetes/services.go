@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"nimbus/internal/database"
+	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"context"
@@ -13,25 +14,26 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	intstr "k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func GenerateServiceSpec(namespace string, service *models.Service, existingService *database.Service) (*corev1.Service, error) {
+func GenerateServiceSpec(namespace string, newService *models.Service, oldService *database.Service) (*corev1.Service, error) {
 	spec := corev1.ServiceSpec{
 		Selector: map[string]string{
-			"app": service.Name,
+			"app": newService.Name,
 		},
 		Ports: []corev1.ServicePort{},
 	}
 
-	switch service.Template {
+	switch newService.Template {
 	case "postgres":
 		spec.Type = corev1.ServiceTypeNodePort
 		spec.Ports = append(spec.Ports, corev1.ServicePort{
 			Name: "postgres",
 			Port: 5432,
 		})
-		if existingService != nil && len(existingService.NodePorts) > 0 && existingService.NodePorts[0] == 5432 {
-			spec.Ports[0].NodePort = existingService.NodePorts[0]
+		if oldService != nil && len(oldService.NodePorts) > 0 {
+			spec.Ports[0].NodePort = oldService.NodePorts[0]
 		}
 
 	case "redis":
@@ -40,26 +42,30 @@ func GenerateServiceSpec(namespace string, service *models.Service, existingServ
 			Name: "redis",
 			Port: 6379,
 		})
-		if existingService != nil && len(existingService.NodePorts) > 0 && existingService.NodePorts[0] == 6379 {
-			spec.Ports[0].NodePort = existingService.NodePorts[0]
+		if oldService != nil && len(oldService.NodePorts) > 0 {
+			spec.Ports[0].NodePort = oldService.NodePorts[0]
 		}
 
 	default:
-		if service.Template != "http" {
+		if newService.Template != "http" {
 			spec.Type = corev1.ServiceTypeNodePort
 		}
 
-		for _, port := range service.Network.Ports {
-			if existingService != nil && len(existingService.NodePorts) > 0 && existingService.NodePorts[0] == port {
+		for idx, port := range newService.Network.Ports {
+			if oldService != nil && len(oldService.NodePorts) > idx {
 				spec.Ports = append(spec.Ports, corev1.ServicePort{
-					Name:     fmt.Sprintf("port-%d", port),
+					Name:     fmt.Sprintf("port-%d", idx),
 					Port:     port,
-					NodePort: existingService.NodePorts[0],
+					NodePort: oldService.NodePorts[idx],
 				})
 			} else {
+				// if we set the type as NodePort (not an HTTP template),
+				// then a NodePort will be be randomly selected
+				// otherwise, will use this port as ClusterIP
 				spec.Ports = append(spec.Ports, corev1.ServicePort{
-					Name: fmt.Sprintf("port-%d", port),
-					Port: port,
+					Name:       fmt.Sprintf("port-%d", idx),
+					Port:       port,
+					TargetPort: intstr.FromInt(80),
 				})
 			}
 		}
@@ -67,15 +73,15 @@ func GenerateServiceSpec(namespace string, service *models.Service, existingServ
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      service.Name,
+			Name:      newService.Name,
 			Namespace: namespace,
 		},
 		Spec: spec,
 	}, nil
 }
 
-func CreateService(namespace string, service *corev1.Service) (*corev1.Service, error) {
-	client := getClient().CoreV1().Services(namespace)
+func CreateService(namespace string, service *corev1.Service, env *nimbusEnv.Env) (*corev1.Service, error) {
+	client := getClient(env).CoreV1().Services(namespace)
 
 	existing, err := client.Get(context.TODO(), service.Name, metav1.GetOptions{})
 	if err != nil {
@@ -102,8 +108,8 @@ func CreateService(namespace string, service *corev1.Service) (*corev1.Service, 
 	return updated, nil
 }
 
-func DeleteService(namespace, name string) error {
-	client := getClient().CoreV1().Services(namespace)
+func DeleteService(namespace, name string, env *nimbusEnv.Env) error {
+	client := getClient(env).CoreV1().Services(namespace)
 
 	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {

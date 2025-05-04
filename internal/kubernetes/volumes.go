@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"nimbus/internal/database"
+	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"context"
@@ -10,7 +11,6 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,7 +22,7 @@ type VolumeInfo struct {
 	Size      int32
 }
 
-func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string]VolumeInfo, error) {
+func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbusEnv.Env) (map[string]VolumeInfo, error) {
 	volumeMap := make(map[string]VolumeInfo)
 
 	for _, volume := range service.Volumes {
@@ -30,18 +30,18 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 			volume.Size = 100 // default to 100Mi
 		}
 
-		identifier, err := database.GetQueries().GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
+		identifier, err := env.GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
 			VolumeName:  volume.Name,
 			ProjectName: namespace,
 		})
 		if err != nil {
 			identifier = uuid.New().String()
-			err = CreatePVC(namespace, identifier, volume.Size)
+			err = CreatePVC(namespace, identifier, volume.Size, env)
 			if err != nil {
 				log.Printf("Error creating PVC: %s\n", err)
 				return nil, err
 			}
-			_, err := database.GetQueries().CreateVolume(context.TODO(), database.CreateVolumeParams{
+			_, err := env.CreateVolume(context.TODO(), database.CreateVolumeParams{
 				VolumeName:  volume.Name,
 				ProjectName: namespace,
 				Identifier:  identifier,
@@ -51,9 +51,9 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 				log.Printf("Error creating volume: %s\n", err)
 				return nil, err
 			}
-		} else if !CheckPVC(namespace, fmt.Sprintf("pvc-%s", identifier)) {
+		} else if !CheckPVC(namespace, fmt.Sprintf("pvc-%s", identifier), env) {
 			// ensure PVC in database actually exists (sanity check)
-			err = CreatePVC(namespace, identifier, volume.Size)
+			err = CreatePVC(namespace, identifier, volume.Size, env)
 			if err != nil {
 				log.Printf("Error creating PVC: %s\n", err)
 				return nil, err
@@ -90,15 +90,15 @@ func GetVolumeIdentifiers(namespace string, service *models.Service) (map[string
 	return volumeMap, nil
 }
 
-func CheckPVC(namespace string, name string) bool {
-	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
+func CheckPVC(namespace string, name string, env *nimbusEnv.Env) bool {
+	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
 	_, err := client.Get(context.TODO(), name, metav1.GetOptions{})
 	return err == nil
 }
 
-func CreatePVC(namespace string, identifier string, size int32) error {
-	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
+func CreatePVC(namespace string, identifier string, size int32, env *nimbusEnv.Env) error {
+	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
 	storageClass := os.Getenv("NIMBUS_STORAGE_CLASS")
 	_, err := client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
@@ -122,8 +122,8 @@ func CreatePVC(namespace string, identifier string, size int32) error {
 	return err
 }
 
-func DeletePVC(namespace string, name string) error {
-	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
+func DeletePVC(namespace string, name string, env *nimbusEnv.Env) error {
+	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
 	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
 	return err

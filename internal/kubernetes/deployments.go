@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"context"
@@ -15,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.Deployment, error) {
+func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimbusEnv.Env) (*appsv1.Deployment, error) {
 	var defaultReplicas int32 = 1
 	spec := appsv1.DeploymentSpec{
 		Replicas: &defaultReplicas,
@@ -54,7 +55,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 			service.Version = "13"
 		}
 		if len(service.Volumes) == 0 {
-			service.Volumes = []models.Volume{models.Volume{
+			service.Volumes = []models.Volume{{
 				Name:      fmt.Sprintf("%s-psql", service.Name),
 				MountPath: "/var/lib/postgresql/data",
 			}}
@@ -87,7 +88,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 			service.Version = "6"
 		}
 		if len(service.Volumes) == 0 {
-			service.Volumes = []models.Volume{models.Volume{
+			service.Volumes = []models.Volume{{
 				Name:      fmt.Sprintf("%s-redis", service.Name),
 				MountPath: "/data",
 			}}
@@ -111,7 +112,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 	}
 
 	if len(service.Volumes) > 0 {
-		volumeMap, err := GetVolumeIdentifiers(namespace, service)
+		volumeMap, err := GetVolumeIdentifiers(namespace, service, env)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get volume identifiers: %w", err)
 		}
@@ -142,8 +143,8 @@ func GenerateDeploymentSpec(namespace string, service *models.Service) (*appsv1.
 	}, nil
 }
 
-func CreateDeployment(namespace string, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	client := getClient().AppsV1().Deployments(namespace)
+func CreateDeployment(namespace string, deployment *appsv1.Deployment, env *nimbusEnv.Env) (*appsv1.Deployment, error) {
+	client := getClient(env).AppsV1().Deployments(namespace)
 
 	existing, err := client.Get(context.TODO(), deployment.Name, metav1.GetOptions{})
 	if err != nil {
@@ -170,8 +171,8 @@ func CreateDeployment(namespace string, deployment *appsv1.Deployment) (*appsv1.
 	return updated, nil
 }
 
-func DeleteDeployment(namespace, name string) error {
-	client := getClient().AppsV1().Deployments(namespace)
+func DeleteDeployment(namespace, name string, env *nimbusEnv.Env) error {
+	client := getClient(env).AppsV1().Deployments(namespace)
 
 	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
