@@ -64,8 +64,8 @@ func GenerateServiceSpec(namespace string, newService *models.Service, oldServic
 				// otherwise, will use this port as ClusterIP
 				spec.Ports = append(spec.Ports, corev1.ServicePort{
 					Name:       fmt.Sprintf("port-%d", idx),
-					Port:       port,
-					TargetPort: intstr.FromInt(80),
+					Port:       80,
+					TargetPort: intstr.FromInt(int(port)),
 				})
 			}
 		}
