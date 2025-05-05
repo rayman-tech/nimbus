@@ -19,6 +19,8 @@ type Service struct {
 	Template string          `yaml:"template,omitempty"`
 	Version  string          `yaml:"version,omitempty"`
 	Configs  []ConfigEntry   `yaml:"configs,omitempty"`
+	Command  []string        `yaml:"command,omitempty"`
+	Args     []string        `yaml:"args,omitempty"`
 }
 
 type Network struct {

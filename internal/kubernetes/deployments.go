@@ -49,6 +49,13 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 		},
 	}
 
+	if service.Command != nil {
+		spec.Template.Spec.Containers[0].Command = service.Command
+	}
+	if service.Args != nil {
+		spec.Template.Spec.Containers[0].Args = service.Args
+	}
+
 	switch service.Template {
 	case "postgres":
 		if service.Version == "" {
