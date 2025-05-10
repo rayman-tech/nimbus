@@ -1,79 +1,75 @@
 -- name: GetProject :one
 SELECT * FROM projects
-WHERE name = $1 LIMIT 1;
+WHERE id = $1 LIMIT 1;
 
 -- name: GetProjectByApiKey :one
 SELECT * FROM projects
-WHERE projects.api_key = $1 LIMIT 1;
-
--- name: ListProjects :many
-SELECT * FROM projects
-ORDER BY name;
+WHERE api_key = $1 LIMIT 1;
 
 -- name: CreateProject :one
 INSERT INTO projects (
-  name, api_key
+  id, name, api_key
 ) VALUES (
-  $1, $2
+  $1, $2, $3
 )
 RETURNING *;
 
 -- name: DeleteProject :exec
 DELETE FROM projects
-WHERE name = $1;
+WHERE id = $1;
 
 
 -- name: GetService :one
 SELECT * FROM services
-WHERE name = $1 LIMIT 1;
+WHERE id = $1 LIMIT 1;
 
 -- name: GetServicesByProject :many
 SELECT * FROM services
-WHERE project_name = $1;
-
--- name: ListServices :many
-SELECT * FROM services
-WHERE project_name = $1
-ORDER BY name;
+WHERE project_id = $1 AND project_branch = $2
+ORDER BY service_name;
 
 -- name: CreateService :one
 INSERT INTO services (
-  name, project_name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress
 ) VALUES (
-  $1, $2, $3, $4
+  $1, $2, $3, $4, $5, $6
 )
 RETURNING *;
 
--- name: DeleteService :exec
+-- name: DeleteServiceByName :exec
 DELETE FROM services
-WHERE name = $1 AND project_name = $2;
+WHERE service_name = $1 AND project_id = $2 AND project_branch = $3;
+
+-- name: DeleteServiceById :exec
+DELETE FROM services
+WHERE id = $1;
 
 -- name: SetServiceNodePorts :exec
 UPDATE services SET
-  node_ports = $3
-WHERE name = $1 AND project_name = $2 RETURNING *;
+  node_ports = $2
+WHERE id = $1 RETURNING *;
 
 -- name: SetServiceIngress :exec
 UPDATE services SET
-  ingress = $3
-WHERE name = $1 AND project_name = $2 RETURNING *;
+  ingress = $2
+WHERE id = $1 RETURNING *;
 
 
 -- name: GetVolumeIdentifier :one
 SELECT identifier FROM volumes
-WHERE volume_name = $1 AND project_name = $2 LIMIT 1;
+WHERE volume_name = $1 AND project_id = $2 AND project_branch = $3;
 
 -- name: CreateVolume :one
 INSERT INTO volumes (
-  volume_name, project_name, identifier, size
+  identifier, volume_name, project_id, project_branch, size
 ) VALUES (
-  $1, $2, $3, $4
+  $1, $2, $3, $4, $5
 ) RETURNING *;
 
 -- name: GetUnusedVolumeIdentifiers :many
 SELECT identifier FROM volumes
-WHERE project_name = $1 AND NOT volume_name = ANY($2::text[]);
+WHERE project_id = $1 AND project_branch = $2 AND NOT volume_name = ANY($3::text[]);
 
 -- name: DeleteUnusedVolumes :exec
 DELETE FROM volumes
-WHERE project_name = $1 AND NOT volume_name = ANY($2::text[]);
+WHERE project_id = $1 AND project_branch = $2 AND NOT volume_name = ANY($3::text[]);

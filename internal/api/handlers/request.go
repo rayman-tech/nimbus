@@ -5,6 +5,7 @@ import (
 	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/logging"
 	"nimbus/internal/models"
+	"strings"
 
 	"context"
 	"fmt"
@@ -16,15 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type deployRequest struct {
-	FileName         string
-	ProjectConfig    models.Config
-	FileContent      []byte
-	APIKey           string
-	ExistingServices []database.Service
-}
-
-func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.Env, ctx context.Context) (*deployRequest, context.Context, error) {
+func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.Env, ctx context.Context) (*models.DeployRequest, context.Context, error) {
 	env.DebugContext(ctx, "Parsing form")
 	err := r.ParseMultipartForm(512 << 20)
 	if err != nil {
@@ -89,7 +82,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	}
 
 	env.DebugContext(ctx, "Retrieving project by API key")
-	project, err := env.GetProjectByApiKey(r.Context(), apiKey)
+	project, err := env.Database.GetProjectByApiKey(r.Context(), apiKey)
 	if err != nil {
 		env.LogAttrs(
 			ctx, slog.LevelError,
@@ -100,19 +93,26 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	}
 
 	env.DebugContext(ctx, "Validating project name")
-	if config.App != project.Name {
+	// AppName is optional
+	if config.AppName != "" && config.AppName != project.Name {
 		env.LogAttrs(
 			ctx, slog.LevelError,
-			"App name does not match project name", slog.String("app", config.App),
+			"App name does not match project name", slog.String("app", project.Name),
 			slog.String("project", project.Name),
 		)
 		http.Error(w, "App name does not match project name", http.StatusBadRequest)
 		return nil, nil, fmt.Errorf("app name does not match project name")
 	}
-	ctx = logging.AppendCtx(ctx, slog.String("app", config.App))
+	ctx = logging.AppendCtx(ctx, slog.String("app", project.Name))
+
+	branch := r.FormValue(formBranch)
+	ctx = logging.AppendCtx(ctx, slog.String("branch", branch))
 
 	env.DebugContext(ctx, "Retrieving project services")
-	existingServices, err := env.GetServicesByProject(r.Context(), project.Name)
+	existingServices, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{
+		ProjectID:     project.ID,
+		ProjectBranch: branch,
+	})
 	if err != nil {
 		env.LogAttrs(
 			ctx, slog.LevelError,
@@ -122,12 +122,19 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		return nil, nil, err
 	}
 
+	// SPECIFY WHETHER TO USE NAME GIVEN IN YAML OR PROJECT NAME IN THE DATABASE
+	namespace := project.Name
+	if branch != "main" && branch != "master" {
+		namespace = fmt.Sprintf("%s-%s", project.Name, strings.ReplaceAll(branch, "/", "-"))
+	}
+
 	env.DebugContext(ctx, "Constructing request struct")
-	return &deployRequest{
-		FileName:         handler.Filename,
+	return &models.DeployRequest{
+		Namespace:        namespace,
+		ProjectID:        project.ID,
+		BranchName:       branch,
 		ProjectConfig:    config,
 		FileContent:      content,
-		APIKey:           apiKey,
 		ExistingServices: existingServices,
 	}, ctx, nil
 }
