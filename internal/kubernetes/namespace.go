@@ -29,8 +29,8 @@ func EnsureNamespace(name string, env *nimbusEnv.Env, ctx context.Context) error
 		return nil
 	}
 	env.LogAttrs(
-		ctx, slog.LevelError,
-		"Error retrieving namespace. Attempting to create it", slog.Any("error", err),
+		ctx, slog.LevelWarn,
+		"Namespace does not exist. Attempting to create it", slog.Any("error", err),
 	)
 
 	err = CreateNamespace(name, env)

@@ -155,7 +155,7 @@ func CreateDeployment(namespace string, deployment *appsv1.Deployment, env *nimb
 	existing, err := client.Get(context.TODO(), deployment.Name, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			log.Printf("Deployment %s not found, creating new one.", deployment.Name)
+			env.Logger.Debug("Deployment not found, creating new one.", "name", deployment.Name)
 			return client.Create(context.TODO(), deployment, metav1.CreateOptions{})
 		}
 		return nil, fmt.Errorf("failed to get deployment: %w", err)

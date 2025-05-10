@@ -240,7 +240,6 @@ func createIngress(
 		http.Error(w, "Error creating ingress", http.StatusInternalServerError)
 		return nil, err
 	}
-	env.LogAttrs(ctx, slog.LevelDebug, "Successfully created ingress")
 
 	return newIngress, nil
 }
@@ -251,7 +250,6 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		env = nimbusEnv.Null()
 	}
 
-	db := env.Database
 	log := env.Logger
 	ctx := r.Context()
 
@@ -338,7 +336,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 
 			if svcExists {
 				log.DebugContext(tempCtx, "Updating ingress in database")
-				err = db.SetServiceIngress(r.Context(), database.SetServiceIngressParams{
+				err = env.Database.SetServiceIngress(r.Context(), database.SetServiceIngressParams{
 					ID:      oldService.ID,
 					Ingress: pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
 				})
@@ -349,7 +347,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				log.DebugContext(tempCtx, "Creating ingress in database")
-				_, err = db.CreateService(r.Context(), database.CreateServiceParams{
+				_, err = env.Database.CreateService(r.Context(), database.CreateServiceParams{
 					ID:            uuid.New(),
 					ProjectID:     deployRequest.ProjectID,
 					ProjectBranch: deployRequest.BranchName,
