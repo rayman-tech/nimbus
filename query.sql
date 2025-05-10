@@ -25,7 +25,7 @@ WHERE id = $1 LIMIT 1;
 
 -- name: GetServicesByProject :many
 SELECT * FROM services
-WHERE project_id = $1
+WHERE project_id = $1 AND project_branch = $2
 ORDER BY name;
 
 -- name: CreateService :one

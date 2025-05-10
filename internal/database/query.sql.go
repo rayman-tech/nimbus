@@ -204,12 +204,17 @@ func (q *Queries) GetService(ctx context.Context, id pgtype.UUID) (Service, erro
 
 const getServicesByProject = `-- name: GetServicesByProject :many
 SELECT id, project_id, project_branch, name, node_ports, ingress FROM services
-WHERE project_id = $1
+WHERE project_id = $1 AND project_branch = $2
 ORDER BY name
 `
 
-func (q *Queries) GetServicesByProject(ctx context.Context, projectID string) ([]Service, error) {
-	rows, err := q.db.Query(ctx, getServicesByProject, projectID)
+type GetServicesByProjectParams struct {
+	ProjectID     string
+	ProjectBranch string
+}
+
+func (q *Queries) GetServicesByProject(ctx context.Context, arg GetServicesByProjectParams) ([]Service, error) {
+	rows, err := q.db.Query(ctx, getServicesByProject, arg.ProjectID, arg.ProjectBranch)
 	if err != nil {
 		return nil, err
 	}
