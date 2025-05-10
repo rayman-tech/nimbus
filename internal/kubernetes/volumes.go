@@ -36,7 +36,7 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 			ProjectName: namespace,
 		})
 		if err != nil {
-			identifier = uuid.New().String()
+			identifier = uuid.New()
 			err = CreatePVC(namespace, identifier, volume.Size, env)
 			if err != nil {
 				log.Printf("Error creating PVC: %s\n", err)
@@ -98,13 +98,13 @@ func CheckPVC(namespace string, name string, env *nimbusEnv.Env) bool {
 	return err == nil
 }
 
-func CreatePVC(namespace string, identifier string, size int32, env *nimbusEnv.Env) error {
+func CreatePVC(namespace string, identifier uuid.UUID, size int32, env *nimbusEnv.Env) error {
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
 	storageClass := os.Getenv("NIMBUS_STORAGE_CLASS")
 	_, err := client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("pvc-%s", identifier),
+			Name:      fmt.Sprintf("pvc-%s", identifier.String()),
 			Namespace: namespace,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{

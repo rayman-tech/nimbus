@@ -8,6 +8,7 @@ package database
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -21,7 +22,7 @@ RETURNING id, name, api_key
 `
 
 type CreateProjectParams struct {
-	ID     pgtype.UUID
+	ID     uuid.UUID
 	Name   string
 	ApiKey string
 }
@@ -35,18 +36,18 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 
 const createService = `-- name: CreateService :one
 INSERT INTO services (
-  id, project_id, project_branch, name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress
 ) VALUES (
   $1, $2, $3, $4, $5, $6
 )
-RETURNING id, project_id, project_branch, name, node_ports, ingress
+RETURNING id, project_id, project_branch, service_name, node_ports, ingress
 `
 
 type CreateServiceParams struct {
-	ID            pgtype.UUID
-	ProjectID     string
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
 	ProjectBranch string
-	Name          string
+	ServiceName   string
 	NodePorts     []int32
 	Ingress       pgtype.Text
 }
@@ -56,7 +57,7 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		arg.ID,
 		arg.ProjectID,
 		arg.ProjectBranch,
-		arg.Name,
+		arg.ServiceName,
 		arg.NodePorts,
 		arg.Ingress,
 	)
@@ -65,7 +66,7 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		&i.ID,
 		&i.ProjectID,
 		&i.ProjectBranch,
-		&i.Name,
+		&i.ServiceName,
 		&i.NodePorts,
 		&i.Ingress,
 	)
@@ -81,9 +82,9 @@ INSERT INTO volumes (
 `
 
 type CreateVolumeParams struct {
-	Identifier    pgtype.UUID
+	Identifier    uuid.UUID
 	VolumeName    string
-	ProjectID     string
+	ProjectID     uuid.UUID
 	ProjectBranch string
 	Size          int32
 }
@@ -112,7 +113,7 @@ DELETE FROM projects
 WHERE id = $1
 `
 
-func (q *Queries) DeleteProject(ctx context.Context, id pgtype.UUID) error {
+func (q *Queries) DeleteProject(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteProject, id)
 	return err
 }
@@ -122,24 +123,24 @@ DELETE FROM services
 WHERE id = $1
 `
 
-func (q *Queries) DeleteServiceById(ctx context.Context, id pgtype.UUID) error {
+func (q *Queries) DeleteServiceById(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteServiceById, id)
 	return err
 }
 
 const deleteServiceByName = `-- name: DeleteServiceByName :exec
 DELETE FROM services
-WHERE name = $1 AND project_id = $2 AND project_branch = $3
+WHERE service_name = $1 AND project_id = $2 AND project_branch = $3
 `
 
 type DeleteServiceByNameParams struct {
-	Name          string
-	ProjectID     string
+	ServiceName   string
+	ProjectID     uuid.UUID
 	ProjectBranch string
 }
 
 func (q *Queries) DeleteServiceByName(ctx context.Context, arg DeleteServiceByNameParams) error {
-	_, err := q.db.Exec(ctx, deleteServiceByName, arg.Name, arg.ProjectID, arg.ProjectBranch)
+	_, err := q.db.Exec(ctx, deleteServiceByName, arg.ServiceName, arg.ProjectID, arg.ProjectBranch)
 	return err
 }
 
@@ -149,7 +150,7 @@ WHERE project_id = $1 AND project_branch = $2 AND NOT volume_name = ANY($3::text
 `
 
 type DeleteUnusedVolumesParams struct {
-	ProjectID     string
+	ProjectID     uuid.UUID
 	ProjectBranch string
 	Column3       []string
 }
@@ -164,7 +165,7 @@ SELECT id, name, api_key FROM projects
 WHERE id = $1 LIMIT 1
 `
 
-func (q *Queries) GetProject(ctx context.Context, id pgtype.UUID) (Project, error) {
+func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (Project, error) {
 	row := q.db.QueryRow(ctx, getProject, id)
 	var i Project
 	err := row.Scan(&i.ID, &i.Name, &i.ApiKey)
@@ -184,18 +185,18 @@ func (q *Queries) GetProjectByApiKey(ctx context.Context, apiKey string) (Projec
 }
 
 const getService = `-- name: GetService :one
-SELECT id, project_id, project_branch, name, node_ports, ingress FROM services
+SELECT id, project_id, project_branch, service_name, node_ports, ingress FROM services
 WHERE id = $1 LIMIT 1
 `
 
-func (q *Queries) GetService(ctx context.Context, id pgtype.UUID) (Service, error) {
+func (q *Queries) GetService(ctx context.Context, id uuid.UUID) (Service, error) {
 	row := q.db.QueryRow(ctx, getService, id)
 	var i Service
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
 		&i.ProjectBranch,
-		&i.Name,
+		&i.ServiceName,
 		&i.NodePorts,
 		&i.Ingress,
 	)
@@ -203,13 +204,13 @@ func (q *Queries) GetService(ctx context.Context, id pgtype.UUID) (Service, erro
 }
 
 const getServicesByProject = `-- name: GetServicesByProject :many
-SELECT id, project_id, project_branch, name, node_ports, ingress FROM services
+SELECT id, project_id, project_branch, service_name, node_ports, ingress FROM services
 WHERE project_id = $1 AND project_branch = $2
-ORDER BY name
+ORDER BY service_name
 `
 
 type GetServicesByProjectParams struct {
-	ProjectID     string
+	ProjectID     uuid.UUID
 	ProjectBranch string
 }
 
@@ -226,7 +227,7 @@ func (q *Queries) GetServicesByProject(ctx context.Context, arg GetServicesByPro
 			&i.ID,
 			&i.ProjectID,
 			&i.ProjectBranch,
-			&i.Name,
+			&i.ServiceName,
 			&i.NodePorts,
 			&i.Ingress,
 		); err != nil {
@@ -246,20 +247,20 @@ WHERE project_id = $1 AND project_branch = $2 AND NOT volume_name = ANY($3::text
 `
 
 type GetUnusedVolumeIdentifiersParams struct {
-	ProjectID     string
+	ProjectID     uuid.UUID
 	ProjectBranch string
 	Column3       []string
 }
 
-func (q *Queries) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]pgtype.UUID, error) {
+func (q *Queries) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectID, arg.ProjectBranch, arg.Column3)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var identifier pgtype.UUID
+		var identifier uuid.UUID
 		if err := rows.Scan(&identifier); err != nil {
 			return nil, err
 		}
@@ -278,13 +279,13 @@ WHERE volume_name = $1 AND project_id = $2 AND project_branch = $3
 
 type GetVolumeIdentifierParams struct {
 	VolumeName    string
-	ProjectID     string
+	ProjectID     uuid.UUID
 	ProjectBranch string
 }
 
-func (q *Queries) GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifierParams) (pgtype.UUID, error) {
+func (q *Queries) GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifierParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, getVolumeIdentifier, arg.VolumeName, arg.ProjectID, arg.ProjectBranch)
-	var identifier pgtype.UUID
+	var identifier uuid.UUID
 	err := row.Scan(&identifier)
 	return identifier, err
 }
@@ -292,11 +293,11 @@ func (q *Queries) GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifi
 const setServiceIngress = `-- name: SetServiceIngress :exec
 UPDATE services SET
   ingress = $2
-WHERE id = $1 RETURNING id, project_id, project_branch, name, node_ports, ingress
+WHERE id = $1 RETURNING id, project_id, project_branch, service_name, node_ports, ingress
 `
 
 type SetServiceIngressParams struct {
-	ID      pgtype.UUID
+	ID      uuid.UUID
 	Ingress pgtype.Text
 }
 
@@ -308,11 +309,11 @@ func (q *Queries) SetServiceIngress(ctx context.Context, arg SetServiceIngressPa
 const setServiceNodePorts = `-- name: SetServiceNodePorts :exec
 UPDATE services SET
   node_ports = $2
-WHERE id = $1 RETURNING id, project_id, project_branch, name, node_ports, ingress
+WHERE id = $1 RETURNING id, project_id, project_branch, service_name, node_ports, ingress
 `
 
 type SetServiceNodePortsParams struct {
-	ID        pgtype.UUID
+	ID        uuid.UUID
 	NodePorts []int32
 }
 

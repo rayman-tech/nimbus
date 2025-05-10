@@ -26,11 +26,11 @@ WHERE id = $1 LIMIT 1;
 -- name: GetServicesByProject :many
 SELECT * FROM services
 WHERE project_id = $1 AND project_branch = $2
-ORDER BY name;
+ORDER BY service_name;
 
 -- name: CreateService :one
 INSERT INTO services (
-  id, project_id, project_branch, name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress
 ) VALUES (
   $1, $2, $3, $4, $5, $6
 )
@@ -38,7 +38,7 @@ RETURNING *;
 
 -- name: DeleteServiceByName :exec
 DELETE FROM services
-WHERE name = $1 AND project_id = $2 AND project_branch = $3;
+WHERE service_name = $1 AND project_id = $2 AND project_branch = $3;
 
 -- name: DeleteServiceById :exec
 DELETE FROM services

@@ -14,15 +14,16 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
 
 type deployRequest struct {
 	Namespace        string
-	FileName         string
+	ProjectID        uuid.UUID
+	BranchName       string
 	ProjectConfig    models.Config
 	FileContent      []byte
-	APIKey           string
 	ExistingServices []database.Service
 }
 
@@ -140,10 +141,10 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	env.DebugContext(ctx, "Constructing request struct")
 	return &deployRequest{
 		Namespace:        namespace,
-		FileName:         handler.Filename,
+		ProjectID:        project.ID,
+		BranchName:       branch,
 		ProjectConfig:    config,
 		FileContent:      content,
-		APIKey:           apiKey,
 		ExistingServices: existingServices,
 	}, ctx, nil
 }

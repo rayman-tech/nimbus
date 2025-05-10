@@ -5,28 +5,29 @@
 package database
 
 import (
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Project struct {
-	ID     pgtype.UUID
+	ID     uuid.UUID
 	Name   string
 	ApiKey string
 }
 
 type Service struct {
-	ID            pgtype.UUID
-	ProjectID     string
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
 	ProjectBranch string
-	Name          string
+	ServiceName   string
 	NodePorts     []int32
 	Ingress       pgtype.Text
 }
 
 type Volume struct {
-	Identifier    pgtype.UUID
+	Identifier    uuid.UUID
 	VolumeName    string
-	ProjectID     string
+	ProjectID     uuid.UUID
 	ProjectBranch string
 	Size          int32
 }
