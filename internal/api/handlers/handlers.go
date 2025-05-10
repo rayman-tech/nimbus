@@ -156,9 +156,9 @@ func createDBService(
 	w http.ResponseWriter,
 	env *nimbusEnv.Env,
 	ctx context.Context,
-) error {
+) (*database.Service, error) {
 	env.DebugContext(ctx, "Inserting service into database")
-	_, err := env.Database.CreateService(ctx, database.CreateServiceParams{
+	newSvc, err := env.Database.CreateService(ctx, database.CreateServiceParams{
 		ID:            uuid.New(),
 		ProjectID:     env.ProjectID,
 		ProjectBranch: env.BranchName,
@@ -168,14 +168,15 @@ func createDBService(
 	if err != nil {
 		env.LogAttrs(ctx, slog.LevelError, "Error creating service in database", slog.Any("error", err))
 		http.Error(w, "Error creating service", http.StatusInternalServerError)
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &newSvc, nil
 }
 
 func updateDBService(
-	oldService *database.Service,
+	serviceID uuid.UUID,
+	existingIngress *string,
 	serviceConfig *models.Service,
 	kubeSvc *corev1.Service,
 	w http.ResponseWriter,
@@ -196,7 +197,7 @@ func updateDBService(
 
 		env.DebugContext(ctx, "Updating row in database")
 		err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
-			ID:        oldService.ID,
+			ID:        serviceID,
 			NodePorts: nodePorts,
 		})
 
@@ -207,7 +208,7 @@ func updateDBService(
 		}
 	} else {
 		env.DebugContext(ctx, "Creating ingress for service")
-		newIngress, err := createIngress(serviceConfig, oldService, w, env, ctx)
+		newIngress, err := createIngress(serviceConfig, existingIngress, w, env, ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -215,7 +216,7 @@ func updateDBService(
 
 		env.DebugContext(ctx, "Updating ingress in database")
 		err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-			ID:      oldService.ID,
+			ID:      serviceID,
 			Ingress: pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
 		})
 		if err != nil {
@@ -231,13 +232,13 @@ func updateDBService(
 
 func createIngress(
 	serviceConfig *models.Service,
-	oldService *database.Service,
+	existingIngress *string,
 	w http.ResponseWriter,
 	env *nimbusEnv.Env,
 	ctx context.Context,
 ) (*networkingv1.Ingress, error) {
 	env.DebugContext(ctx, "Generating ingress spec")
-	ingressSpec, err := kubernetes.GenerateIngressSpec(env.Namespace, serviceConfig, oldService, env)
+	ingressSpec, err := kubernetes.GenerateIngressSpec(env.Namespace, serviceConfig, existingIngress, env)
 	if err != nil {
 		env.LogAttrs(ctx, slog.LevelError, "Error generating ingress spec", slog.Any("error", err))
 		http.Error(w, "Error generating ingress spec", http.StatusInternalServerError)
@@ -318,17 +319,28 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		}
 
 		urls := make([]string, 0)
+		var newSvc *database.Service
 		if !svcExists {
 			env.DebugContext(tempCtx, "Creating service in database")
-			err = createDBService(serviceConfig.Name, kubeSvc, w, env, tempCtx)
+			newSvc, err = createDBService(serviceConfig.Name, kubeSvc, w, env, tempCtx)
 			if err != nil {
 				env.LogAttrs(tempCtx, slog.LevelError, "Error creating service in database", slog.Any("error", err))
 				http.Error(w, "Error creating service in database", http.StatusInternalServerError)
 				return
 			}
 		}
+		var serviceID uuid.UUID
+		var existingIngress *string
+		if svcExists {
+			serviceID = oldService.ID
+			if oldService.Ingress.Valid {
+				existingIngress = &oldService.Ingress.String
+			}
+		} else {
+			serviceID = newSvc.ID
+		}
 		env.DebugContext(tempCtx, "Updating service networking in database")
-		urls, err = updateDBService(oldService, &serviceConfig, kubeSvc, w, env, tempCtx)
+		urls, err = updateDBService(serviceID, existingIngress, &serviceConfig, kubeSvc, w, env, tempCtx)
 		if err != nil {
 			env.LogAttrs(tempCtx, slog.LevelError, "Error updating service networking in database", slog.Any("error", err))
 			http.Error(w, "Error updating service networking in database", http.StatusInternalServerError)
