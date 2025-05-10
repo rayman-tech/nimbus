@@ -9,20 +9,24 @@ import (
 )
 
 type Project struct {
+	ID     pgtype.UUID
 	Name   string
 	ApiKey string
 }
 
 type Service struct {
-	Name        string
-	ProjectName string
-	NodePorts   []int32
-	Ingress     pgtype.Text
+	ID            pgtype.UUID
+	ProjectID     string
+	ProjectBranch string
+	Name          string
+	NodePorts     []int32
+	Ingress       pgtype.Text
 }
 
 type Volume struct {
-	Identifier  string
-	VolumeName  string
-	ProjectName string
-	Size        int32
+	Identifier    pgtype.UUID
+	VolumeName    string
+	ProjectID     string
+	ProjectBranch string
+	Size          int32
 }

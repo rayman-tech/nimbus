@@ -17,6 +17,7 @@ import (
 )
 
 type deployRequest struct {
+	Namespace        string
 	FileName         string
 	ProjectConfig    models.Config
 	FileContent      []byte
@@ -100,7 +101,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	}
 
 	env.DebugContext(ctx, "Validating project name")
-	if config.App != project.Name {
+	if config.AppName != project.Name {
 		env.LogAttrs(
 			ctx, slog.LevelError,
 			"App name does not match project name", slog.String("app", config.App),
@@ -109,7 +110,10 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		http.Error(w, "App name does not match project name", http.StatusBadRequest)
 		return nil, nil, fmt.Errorf("app name does not match project name")
 	}
-	ctx = logging.AppendCtx(ctx, slog.String("app", config.App))
+	ctx = logging.AppendCtx(ctx, slog.String("app", project.Name))
+
+	branch := r.FormValue(formBranch)
+	ctx = logging.AppendCtx(ctx, slog.String("branch", branch))
 
 	env.DebugContext(ctx, "Retrieving project services")
 	existingServices, err := env.GetServicesByProject(r.Context(), project.Name)
@@ -124,6 +128,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 
 	env.DebugContext(ctx, "Constructing request struct")
 	return &deployRequest{
+		Namespace:        namespace,
 		FileName:         handler.Filename,
 		ProjectConfig:    config,
 		FileContent:      content,
