@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"nimbus/internal/database"
 	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
 
@@ -19,7 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GenerateIngressSpec(namespace string, service *models.Service, existingService *database.Service, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
+func GenerateIngressSpec(namespace string, service *models.Service, existingIngress *string, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
 	switch service.Template {
 	case "http":
 		randomString := GenerateRandomChars()
@@ -59,8 +58,8 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingServ
 				},
 			},
 		}
-		if existingService != nil && existingService.Ingress.Valid {
-			spec.Rules[0].Host = existingService.Ingress.String
+		if existingIngress != nil {
+			spec.Rules[0].Host = *existingIngress
 		}
 
 		return &networkingv1.Ingress{
