@@ -1,6 +1,10 @@
 package models
 
 import (
+	"nimbus/internal/database"
+
+	"github.com/google/uuid"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -43,4 +47,13 @@ type Volume struct {
 type ConfigEntry struct {
 	Path  string `yaml:"path"`
 	Value string `yaml:"value"`
+}
+
+type DeployRequest struct {
+	Namespace        string
+	ProjectID        uuid.UUID
+	BranchName       string
+	ProjectConfig    Config
+	FileContent      []byte
+	ExistingServices []database.Service
 }

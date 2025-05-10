@@ -14,20 +14,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
 
-type deployRequest struct {
-	Namespace        string
-	ProjectID        uuid.UUID
-	BranchName       string
-	ProjectConfig    models.Config
-	FileContent      []byte
-	ExistingServices []database.Service
-}
-
-func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.Env, ctx context.Context) (*deployRequest, context.Context, error) {
+func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.Env, ctx context.Context) (*models.DeployRequest, context.Context, error) {
 	env.DebugContext(ctx, "Parsing form")
 	err := r.ParseMultipartForm(512 << 20)
 	if err != nil {
@@ -92,7 +82,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	}
 
 	env.DebugContext(ctx, "Retrieving project by API key")
-	project, err := env.GetProjectByApiKey(r.Context(), apiKey)
+	project, err := env.Database.GetProjectByApiKey(r.Context(), apiKey)
 	if err != nil {
 		env.LogAttrs(
 			ctx, slog.LevelError,
@@ -119,8 +109,8 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	ctx = logging.AppendCtx(ctx, slog.String("branch", branch))
 
 	env.DebugContext(ctx, "Retrieving project services")
-	existingServices, err := env.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{
-		ProjectID:     project.ID.String(),
+	existingServices, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{
+		ProjectID:     project.ID,
 		ProjectBranch: branch,
 	})
 	if err != nil {
@@ -139,7 +129,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	}
 
 	env.DebugContext(ctx, "Constructing request struct")
-	return &deployRequest{
+	return &models.DeployRequest{
 		Namespace:        namespace,
 		ProjectID:        project.ID,
 		BranchName:       branch,

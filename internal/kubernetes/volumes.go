@@ -31,9 +31,10 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 			volume.Size = 100 // default to 100Mi
 		}
 
-		identifier, err := env.GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
-			VolumeName:  volume.Name,
-			ProjectName: namespace,
+		identifier, err := env.Database.GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
+			VolumeName:    volume.Name,
+			ProjectID:     env.ProjectID,
+			ProjectBranch: env.BranchName,
 		})
 		if err != nil {
 			identifier = uuid.New()
@@ -42,11 +43,12 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 				log.Printf("Error creating PVC: %s\n", err)
 				return nil, err
 			}
-			_, err := env.CreateVolume(context.TODO(), database.CreateVolumeParams{
-				VolumeName:  volume.Name,
-				ProjectName: namespace,
-				Identifier:  identifier,
-				Size:        volume.Size,
+			_, err := env.Database.CreateVolume(context.TODO(), database.CreateVolumeParams{
+				Identifier:    identifier,
+				VolumeName:    volume.Name,
+				ProjectID:     env.ProjectID,
+				ProjectBranch: env.BranchName,
+				Size:          volume.Size,
 			})
 			if err != nil {
 				log.Printf("Error creating volume: %s\n", err)
@@ -66,27 +68,6 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 			MountPath: volume.MountPath,
 		}
 	}
-
-	// TODO: migrate to project-wide context to prevent deleting other services' volumes
-	// unusedIdentifiers, err := database.GetQueries().GetUnusedVolumeIdentifiers(context.TODO(), database.GetUnusedVolumeIdentifiersParams{
-	// 	ProjectName: namespace,
-	// 	Column2:     names,
-	// })
-	// if err != nil {
-	// 	log.Printf("Error getting unused volume identifiers: %s\n", err)
-	// 	return volumeMap, nil
-	// }
-	// for _, identifier := range unusedIdentifiers {
-	// 	DeletePVC(namespace, fmt.Sprintf("pvc-%s", identifier))
-	// }
-
-	// err = database.GetQueries().DeleteUnusedVolumes(context.TODO(), database.DeleteUnusedVolumesParams{
-	// 	ProjectName: namespace,
-	// 	Column2:     names,
-	// })
-	// if err != nil {
-	// 	log.Printf("Error deleting unused volumes: %s\n", err)
-	// }
 
 	return volumeMap, nil
 }
