@@ -124,8 +124,17 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 
 	// SPECIFY WHETHER TO USE NAME GIVEN IN YAML OR PROJECT NAME IN THE DATABASE
 	namespace := project.Name
+	replacer := strings.NewReplacer(
+		"/", "-",
+		"_", "-",
+		" ", "-",
+		"#", "",
+		"!", "",
+		"@", "",
+		".", "",
+	)
 	if branch != "main" && branch != "master" {
-		namespace = fmt.Sprintf("%s-%s", project.Name, strings.ReplaceAll(branch, "/", "-"))
+		namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
 	}
 
 	env.DebugContext(ctx, "Constructing request struct")

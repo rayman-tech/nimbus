@@ -271,11 +271,11 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 	env.DeployRequest = deployRequest
 
-	env.DebugContext(ctx, "Ensuring namespace")
-	err = kubernetes.EnsureNamespace(deployRequest.Namespace, env, ctx)
+	env.DebugContext(ctx, "Validating namespace")
+	err = kubernetes.ValidateNamespace(deployRequest.Namespace, env, ctx)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error ensuring namespace", slog.Any("error", err))
-		http.Error(w, "Error ensuring namespace", http.StatusInternalServerError)
+		env.LogAttrs(ctx, slog.LevelError, "Error validating namespace", slog.Any("error", err))
+		http.Error(w, "Error validating namespace", http.StatusInternalServerError)
 		return
 	}
 	ctx = logging.AppendCtx(ctx, slog.String("namespace", deployRequest.Namespace))

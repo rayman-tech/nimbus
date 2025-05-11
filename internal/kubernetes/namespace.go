@@ -23,7 +23,7 @@ func CreateNamespace(name string, env *nimbusEnv.Env) error {
 	return err
 }
 
-func EnsureNamespace(name string, env *nimbusEnv.Env, ctx context.Context) error {
+func ValidateNamespace(name string, env *nimbusEnv.Env, ctx context.Context) error {
 	ns, err := GetNamespace(name, env)
 	if err == nil && ns != nil {
 		return nil
