@@ -24,6 +24,14 @@ jobs:
           username: ${{ secrets.PRAYUJ_DOCKER_USERNAME }}
           password: ${{ secrets.PRAYUJ_DOCKER_PASSWORD }}
 
-      - name: Build and Push Docker image
-        run: |
-          docker buildx build --platform linux/amd64,linux/arm64 -t docker.prayujt.com/nimbus --push .
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            docker.prayujt.com/nimbus:latest
+            docker.prayujt.com/nimbus:${{ github.sha }}
+          cache-from: type=registry,ref=docker.prayujt.com/nimbus:cache
+          cache-to: type=registry,ref=docker.prayujt.com/nimbus:cache,mode=max
