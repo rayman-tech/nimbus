@@ -68,19 +68,23 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 		}
 
 		spec.Template.Spec.Containers[0].Image = fmt.Sprintf("postgres:%s", service.Version)
-		spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
-			{
+		if checkEnvironment(service.Env, "POSTGRES_USER") == nil {
+			spec.Template.Spec.Containers[0].Env = append(spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
 				Name:  "POSTGRES_USER",
 				Value: "postgres",
-			},
-			{
+			})
+		}
+		if checkEnvironment(service.Env, "POSTGRES_PASSWORD") == nil {
+			spec.Template.Spec.Containers[0].Env = append(spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
 				Name:  "POSTGRES_PASSWORD",
 				Value: "postgres",
-			},
-			{
+			})
+		}
+		if checkEnvironment(service.Env, "POSTGRES_DB") == nil {
+			spec.Template.Spec.Containers[0].Env = append(spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
 				Name:  "POSTGRES_DB",
 				Value: "postgres",
-			},
+			})
 		}
 		spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{
 			{
@@ -185,5 +189,14 @@ func DeleteDeployment(namespace, name string, env *nimbusEnv.Env) error {
 		return fmt.Errorf("failed to delete deployment: %w", err)
 	}
 
+	return nil
+}
+
+func checkEnvironment(vars []corev1.EnvVar, key string) *string {
+	for _, v := range vars {
+		if v.Name == key {
+			return &v.Value
+		}
+	}
 	return nil
 }
