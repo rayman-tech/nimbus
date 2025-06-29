@@ -21,13 +21,13 @@ func getClient(env *nimbusEnv.Env) *kubernetes.Clientset {
 		var config *rest.Config
 		var err error
 		if os.Getenv("ENVIRONMENT") == "production" {
-			env.Debug("Using in-cluster kubeconfig")
+			env.Logger.Debug("Using in-cluster kubeconfig")
 			config, err = rest.InClusterConfig()
 			if err != nil {
 				log.Fatalf("Failed to load in-cluster config: %v", err)
 			}
 		} else {
-			env.Debug("Using local kubeconfig")
+			env.Logger.Debug("Using local kubeconfig")
 			kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 			config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 			if err != nil {

@@ -28,14 +28,14 @@ func ValidateNamespace(name string, env *nimbusEnv.Env, ctx context.Context) err
 	if err == nil && ns != nil {
 		return nil
 	}
-	env.LogAttrs(
+	env.Logger.LogAttrs(
 		ctx, slog.LevelWarn,
 		"Namespace does not exist. Attempting to create it", slog.Any("error", err),
 	)
 
 	err = CreateNamespace(name, env)
 	if err != nil {
-		env.LogAttrs(
+		env.Logger.LogAttrs(
 			ctx, slog.LevelError,
 			"Error creating namespace", slog.Any("error", err),
 		)

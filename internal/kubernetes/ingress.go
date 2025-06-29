@@ -86,12 +86,12 @@ func CreateIngress(namespace string, ingress *networkingv1.Ingress, env *nimbusE
 	_, err := getClient(env).NetworkingV1().Ingresses(namespace).Create(context.Background(), ingress, metav1.CreateOptions{})
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
-			env.LogAttrs(context.Background(), slog.LevelDebug, "Ingress already exists", slog.String("name", ingress.Name))
+			env.Logger.LogAttrs(context.Background(), slog.LevelDebug, "Ingress already exists", slog.String("name", ingress.Name))
 			return ingress, nil
 		}
 		return nil, err
 	}
-	env.LogAttrs(context.Background(), slog.LevelDebug, "Ingress created", slog.String("name", ingress.Name))
+	env.Logger.LogAttrs(context.Background(), slog.LevelDebug, "Ingress created", slog.String("name", ingress.Name))
 	return ingress, nil
 }
 
@@ -100,7 +100,7 @@ func DeleteIngress(namespace, name string, env *nimbusEnv.Env) error {
 	if err != nil {
 		return err
 	}
-	env.LogAttrs(context.Background(), slog.LevelDebug, "Ingress deleted", slog.String("name", name))
+	env.Logger.LogAttrs(context.Background(), slog.LevelDebug, "Ingress deleted", slog.String("name", name))
 	return nil
 }
 

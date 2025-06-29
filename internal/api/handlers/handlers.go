@@ -34,27 +34,27 @@ func deleteRemovedServices(
 	ctx context.Context,
 	w http.ResponseWriter,
 ) error {
-	env.DebugContext(ctx, "Processing services in config file")
+	env.Logger.DebugContext(ctx, "Processing services in config file")
 	serviceNames := make(map[string]bool)
-	for _, service := range env.ProjectConfig.Services {
-		env.LogAttrs(ctx, slog.LevelDebug, "Processing service", slog.String("service", service.Name))
+	for _, service := range env.Deployment.ProjectConfig.Services {
+		env.Logger.LogAttrs(ctx, slog.LevelDebug, "Processing service", slog.String("service", service.Name))
 		if serviceNames[service.Name] {
-			env.LogAttrs(ctx, slog.LevelError, "Service names must be unique", slog.String("service", service.Name))
+			env.Logger.LogAttrs(ctx, slog.LevelError, "Service names must be unique", slog.String("service", service.Name))
 			http.Error(w, "Service names must be unique, duplicate of "+service.Name, http.StatusBadRequest)
 			return nil
 		}
 		serviceNames[service.Name] = true
 	}
 
-	env.DebugContext(ctx, "Deleting services not in config file")
-	for _, service := range env.ExistingServices {
-		env.LogAttrs(ctx, slog.LevelDebug, "Processing service", slog.String("service", service.ServiceName))
+	env.Logger.DebugContext(ctx, "Deleting services not in config file")
+	for _, service := range env.Deployment.ExistingServices {
+		env.Logger.LogAttrs(ctx, slog.LevelDebug, "Processing service", slog.String("service", service.ServiceName))
 
 		if _, ok := serviceNames[service.ServiceName]; !ok {
-			env.LogAttrs(ctx, slog.LevelDebug, "Deleting deployment", slog.String("service", service.ServiceName))
-			err := kubernetes.DeleteDeployment(env.Namespace, service.ServiceName, env)
+			env.Logger.LogAttrs(ctx, slog.LevelDebug, "Deleting deployment", slog.String("service", service.ServiceName))
+			err := kubernetes.DeleteDeployment(env.Deployment.Namespace, service.ServiceName, env)
 			if err != nil {
-				env.LogAttrs(
+				env.Logger.LogAttrs(
 					ctx, slog.LevelError, "Error deleting deployment",
 					slog.String("service", service.ServiceName), slog.Any("error", err),
 				)
@@ -62,10 +62,10 @@ func deleteRemovedServices(
 				return err
 			}
 
-			env.LogAttrs(ctx, slog.LevelDebug, "Deleting service", slog.String("service", service.ServiceName))
-			err = kubernetes.DeleteService(env.Namespace, service.ServiceName, env)
+			env.Logger.LogAttrs(ctx, slog.LevelDebug, "Deleting service", slog.String("service", service.ServiceName))
+			err = kubernetes.DeleteService(env.Deployment.Namespace, service.ServiceName, env)
 			if err != nil {
-				env.LogAttrs(
+				env.Logger.LogAttrs(
 					ctx, slog.LevelError, "Error deleting service",
 					slog.String("service", service.ServiceName), slog.Any("error", err),
 				)
@@ -74,10 +74,10 @@ func deleteRemovedServices(
 			}
 
 			if service.Ingress.Valid {
-				env.LogAttrs(ctx, slog.LevelDebug, "Deleting ingress", slog.String("service", service.ServiceName))
-				err = kubernetes.DeleteIngress(env.Namespace, service.Ingress.String, env)
+				env.Logger.LogAttrs(ctx, slog.LevelDebug, "Deleting ingress", slog.String("service", service.ServiceName))
+				err = kubernetes.DeleteIngress(env.Deployment.Namespace, service.Ingress.String, env)
 				if err != nil {
-					env.LogAttrs(
+					env.Logger.LogAttrs(
 						ctx, slog.LevelError, "Error deleting ingress",
 						slog.String("service", service.ServiceName), slog.Any("error", err),
 					)
@@ -86,10 +86,10 @@ func deleteRemovedServices(
 				}
 			}
 
-			env.LogAttrs(ctx, slog.LevelDebug, "Deleting service in database", slog.String("service", service.ServiceName))
+			env.Logger.LogAttrs(ctx, slog.LevelDebug, "Deleting service in database", slog.String("service", service.ServiceName))
 			err = env.Database.DeleteServiceById(ctx, service.ID)
 			if err != nil {
-				env.LogAttrs(
+				env.Logger.LogAttrs(
 					ctx, slog.LevelError, "Error deleting service in databse",
 					slog.String("service", service.ServiceName), slog.Any("error", err),
 				)
@@ -107,17 +107,17 @@ func createDeployment(
 	env *nimbusEnv.Env,
 	ctx context.Context,
 ) (string, error) {
-	env.DebugContext(ctx, "Generating deployment spec")
-	deploymentSpec, err := kubernetes.GenerateDeploymentSpec(env.Namespace, service, env)
+	env.Logger.DebugContext(ctx, "Generating deployment spec")
+	deploymentSpec, err := kubernetes.GenerateDeploymentSpec(env.Deployment.Namespace, service, env)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error creating deployment", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error creating deployment", slog.Any("error", err))
 		http.Error(w, "Error generating deployment spec", http.StatusInternalServerError)
 		return "", err
 	}
-	env.DebugContext(ctx, "Applying deployment spec")
-	deployment, err := kubernetes.CreateDeployment(env.Namespace, deploymentSpec, env)
+	env.Logger.DebugContext(ctx, "Applying deployment spec")
+	deployment, err := kubernetes.CreateDeployment(env.Deployment.Namespace, deploymentSpec, env)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error creating deployment", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error creating deployment", slog.Any("error", err))
 		http.Error(w, "Error creating deployment", http.StatusInternalServerError)
 		return "", err
 	}
@@ -131,18 +131,18 @@ func createService(
 	env *nimbusEnv.Env,
 	ctx context.Context,
 ) (*corev1.Service, error) {
-	env.DebugContext(ctx, "Generating service spec")
-	serviceSpec, err := kubernetes.GenerateServiceSpec(env.Namespace, serviceConfig, oldService)
+	env.Logger.DebugContext(ctx, "Generating service spec")
+	serviceSpec, err := kubernetes.GenerateServiceSpec(env.Deployment.Namespace, serviceConfig, oldService)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error creating service spec", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error creating service spec", slog.Any("error", err))
 		http.Error(w, "Error generating service spec", http.StatusInternalServerError)
 		return nil, err
 	}
 
-	env.DebugContext(ctx, "Applying service spec")
-	kubeSvc, err := kubernetes.CreateService(env.Namespace, serviceSpec, env)
+	env.Logger.DebugContext(ctx, "Applying service spec")
+	kubeSvc, err := kubernetes.CreateService(env.Deployment.Namespace, serviceSpec, env)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error apply service spec", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error apply service spec", slog.Any("error", err))
 		http.Error(w, "Error creating service", http.StatusInternalServerError)
 		return nil, err
 	}
@@ -152,21 +152,21 @@ func createService(
 
 func createDBService(
 	name string,
-	kubeSvc *corev1.Service,
+	_ *corev1.Service,
 	w http.ResponseWriter,
 	env *nimbusEnv.Env,
 	ctx context.Context,
 ) (*database.Service, error) {
-	env.DebugContext(ctx, "Inserting service into database")
+	env.Logger.DebugContext(ctx, "Inserting service into database")
 	newSvc, err := env.Database.CreateService(ctx, database.CreateServiceParams{
 		ID:            uuid.New(),
-		ProjectID:     env.ProjectID,
-		ProjectBranch: env.BranchName,
+		ProjectID:     env.Deployment.ProjectID,
+		ProjectBranch: env.Deployment.BranchName,
 		ServiceName:   name,
 	})
 
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error creating service in database", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error creating service in database", slog.Any("error", err))
 		http.Error(w, "Error creating service", http.StatusInternalServerError)
 		return nil, err
 	}
@@ -188,39 +188,39 @@ func updateDBService(
 	if serviceConfig.Template != "http" {
 		// TODO: only run this if the service node ports changed
 		var nodePorts []int32
-		env.DebugContext(ctx, "Retrieving node ports from spec")
+		env.Logger.DebugContext(ctx, "Retrieving node ports from spec")
 		for _, port := range kubeSvc.Spec.Ports {
-			env.LogAttrs(ctx, slog.LevelDebug, "Node port", slog.Int("port", int(port.NodePort)))
+			env.Logger.LogAttrs(ctx, slog.LevelDebug, "Node port", slog.Int("port", int(port.NodePort)))
 			nodePorts = append(nodePorts, port.NodePort)
 			serviceUrls = append(serviceUrls, utils.FormatServiceURL(os.Getenv("DOMAIN"), port.NodePort))
 		}
 
-		env.DebugContext(ctx, "Updating row in database")
+		env.Logger.DebugContext(ctx, "Updating row in database")
 		err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
 			ID:        serviceID,
 			NodePorts: nodePorts,
 		})
 
 		if err != nil {
-			env.LogAttrs(ctx, slog.LevelError, "Error updating service in database", slog.Any("error", err))
+			env.Logger.LogAttrs(ctx, slog.LevelError, "Error updating service in database", slog.Any("error", err))
 			http.Error(w, "Error updating service", http.StatusInternalServerError)
 			return nil, err
 		}
 	} else {
-		env.DebugContext(ctx, "Creating ingress for service")
+		env.Logger.DebugContext(ctx, "Creating ingress for service")
 		newIngress, err := createIngress(serviceConfig, existingIngress, w, env, ctx)
 		if err != nil {
 			return nil, err
 		}
-		env.LogAttrs(ctx, slog.LevelDebug, "Successfully created ingress")
+		env.Logger.LogAttrs(ctx, slog.LevelDebug, "Successfully created ingress")
 
-		env.DebugContext(ctx, "Updating ingress in database")
+		env.Logger.DebugContext(ctx, "Updating ingress in database")
 		err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
 			ID:      serviceID,
 			Ingress: pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
 		})
 		if err != nil {
-			env.LogAttrs(ctx, slog.LevelError, "Error updating ingress in database", slog.Any("error", err))
+			env.Logger.LogAttrs(ctx, slog.LevelError, "Error updating ingress in database", slog.Any("error", err))
 			http.Error(w, "Error updating ingress", http.StatusInternalServerError)
 			return nil, err
 		}
@@ -237,17 +237,17 @@ func createIngress(
 	env *nimbusEnv.Env,
 	ctx context.Context,
 ) (*networkingv1.Ingress, error) {
-	env.DebugContext(ctx, "Generating ingress spec")
-	ingressSpec, err := kubernetes.GenerateIngressSpec(env.Namespace, serviceConfig, existingIngress, env)
+	env.Logger.DebugContext(ctx, "Generating ingress spec")
+	ingressSpec, err := kubernetes.GenerateIngressSpec(env.Deployment.Namespace, serviceConfig, existingIngress, env)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error generating ingress spec", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error generating ingress spec", slog.Any("error", err))
 		http.Error(w, "Error generating ingress spec", http.StatusInternalServerError)
 		return nil, err
 	}
-	env.DebugContext(ctx, "Applying ingress spec")
-	newIngress, err := kubernetes.CreateIngress(env.Namespace, ingressSpec, env)
+	env.Logger.DebugContext(ctx, "Applying ingress spec")
+	newIngress, err := kubernetes.CreateIngress(env.Deployment.Namespace, ingressSpec, env)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error applying ingress spec", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error applying ingress spec", slog.Any("error", err))
 		http.Error(w, "Error creating ingress", http.StatusInternalServerError)
 		return nil, err
 	}
@@ -265,16 +265,16 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 
 	deployRequest, ctx, err := buildDeployRequest(w, r, env, ctx)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error building deploy request", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error building deploy request", slog.Any("error", err))
 		http.Error(w, "Error building deploy request", http.StatusBadRequest)
 		return
 	}
-	env.DeployRequest = deployRequest
+	env.Deployment = deployRequest
 
-	env.DebugContext(ctx, "Validating namespace")
+	env.Logger.DebugContext(ctx, "Validating namespace")
 	err = kubernetes.ValidateNamespace(deployRequest.Namespace, env, ctx)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error validating namespace", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error validating namespace", slog.Any("error", err))
 		http.Error(w, "Error validating namespace", http.StatusInternalServerError)
 		return
 	}
@@ -282,14 +282,14 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 
 	err = deleteRemovedServices(env, ctx, w)
 	if err != nil {
-		env.LogAttrs(ctx, slog.LevelError, "Error deleting removed services", slog.Any("error", err))
+		env.Logger.LogAttrs(ctx, slog.LevelError, "Error deleting removed services", slog.Any("error", err))
 		http.Error(w, "Error deleting removed services", http.StatusInternalServerError)
 		return
 	}
 
-	env.DebugContext(ctx, "Creating services and deployments")
+	env.Logger.DebugContext(ctx, "Creating services and deployments")
 	serviceUrls := make(map[string][]string)
-	env.DebugContext(ctx, "Creating service map for existing services")
+	env.Logger.DebugContext(ctx, "Creating service map for existing services")
 	var existingServices = make(map[string]*database.Service)
 	for _, service := range deployRequest.ExistingServices {
 		existingServices[service.ServiceName] = &service
@@ -299,21 +299,21 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		tempCtx := logging.AppendCtx(ctx, slog.String("service", serviceConfig.Name))
 
 		// Create deployment
-		env.DebugContext(ctx, "Creating Kubernetes deployment")
+		env.Logger.DebugContext(ctx, "Creating Kubernetes deployment")
 		name, err := createDeployment(&serviceConfig, w, env, ctx)
 		if err != nil {
-			env.LogAttrs(tempCtx, slog.LevelError, "Error creating Kubernetes deployment", slog.Any("error", err))
+			env.Logger.LogAttrs(tempCtx, slog.LevelError, "Error creating Kubernetes deployment", slog.Any("error", err))
 			http.Error(w, "Error creating Kubernetes deployment", http.StatusInternalServerError)
 			return
 		}
-		env.LogAttrs(tempCtx, slog.LevelDebug, "Successfully created Kubernetes deployment", slog.String("deployment", name))
+		env.Logger.LogAttrs(tempCtx, slog.LevelDebug, "Successfully created Kubernetes deployment", slog.String("deployment", name))
 
 		// Create service
-		env.DebugContext(tempCtx, "Creating Kubernetes service")
+		env.Logger.DebugContext(tempCtx, "Creating Kubernetes service")
 		oldService, svcExists := existingServices[serviceConfig.Name]
 		kubeSvc, err := createService(&serviceConfig, oldService, w, env, ctx)
 		if err != nil {
-			env.LogAttrs(tempCtx, slog.LevelError, "Error creating Kubernetes service", slog.Any("error", err))
+			env.Logger.LogAttrs(tempCtx, slog.LevelError, "Error creating Kubernetes service", slog.Any("error", err))
 			http.Error(w, "Error creating Kubernetes service", http.StatusInternalServerError)
 			return
 		}
@@ -321,10 +321,10 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		urls := make([]string, 0)
 		var newSvc *database.Service
 		if !svcExists {
-			env.DebugContext(tempCtx, "Creating service in database")
+			env.Logger.DebugContext(tempCtx, "Creating service in database")
 			newSvc, err = createDBService(serviceConfig.Name, kubeSvc, w, env, tempCtx)
 			if err != nil {
-				env.LogAttrs(tempCtx, slog.LevelError, "Error creating service in database", slog.Any("error", err))
+				env.Logger.LogAttrs(tempCtx, slog.LevelError, "Error creating service in database", slog.Any("error", err))
 				http.Error(w, "Error creating service in database", http.StatusInternalServerError)
 				return
 			}
@@ -339,19 +339,19 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		} else {
 			serviceID = newSvc.ID
 		}
-		env.DebugContext(tempCtx, "Updating service networking in database")
+		env.Logger.DebugContext(tempCtx, "Updating service networking in database")
 		urls, err = updateDBService(serviceID, existingIngress, &serviceConfig, kubeSvc, w, env, tempCtx)
 		if err != nil {
-			env.LogAttrs(tempCtx, slog.LevelError, "Error updating service networking in database", slog.Any("error", err))
+			env.Logger.LogAttrs(tempCtx, slog.LevelError, "Error updating service networking in database", slog.Any("error", err))
 			http.Error(w, "Error updating service networking in database", http.StatusInternalServerError)
 			return
 		}
-		env.DebugContext(tempCtx, "Successfully created service in database")
+		env.Logger.DebugContext(tempCtx, "Successfully created service in database")
 		serviceUrls[serviceConfig.Name] = urls
 	}
 
-	env.DebugContext(ctx, "Deployment completed successfully")
-	env.DebugContext(ctx, "Encoding response")
+	env.Logger.DebugContext(ctx, "Deployment completed successfully")
+	env.Logger.DebugContext(ctx, "Encoding response")
 	json.NewEncoder(w).Encode(deployResponse{
 		Urls: serviceUrls,
 	})

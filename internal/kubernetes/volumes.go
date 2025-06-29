@@ -33,8 +33,8 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 
 		identifier, err := env.Database.GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
 			VolumeName:    volume.Name,
-			ProjectID:     env.ProjectID,
-			ProjectBranch: env.BranchName,
+			ProjectID:     env.Deployment.ProjectID,
+			ProjectBranch: env.Deployment.BranchName,
 		})
 		if err != nil {
 			identifier = uuid.New()
@@ -46,8 +46,8 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 			_, err := env.Database.CreateVolume(context.TODO(), database.CreateVolumeParams{
 				Identifier:    identifier,
 				VolumeName:    volume.Name,
-				ProjectID:     env.ProjectID,
-				ProjectBranch: env.BranchName,
+				ProjectID:     env.Deployment.ProjectID,
+				ProjectBranch: env.Deployment.BranchName,
 				Size:          volume.Size,
 			})
 			if err != nil {

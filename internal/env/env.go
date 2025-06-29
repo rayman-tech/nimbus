@@ -12,9 +12,9 @@ import (
 
 // Holds the dependencies for the environment
 type Env struct {
-	*slog.Logger
-	*models.DeployRequest
-	Database *database.Database
+	Logger     *slog.Logger
+	Deployment *models.DeployRequest
+	Database   *database.Database
 }
 
 // Constructs an Env object with the provided parameters
@@ -24,17 +24,17 @@ func NewEnvironment(logger *slog.Logger, database *database.Database) *Env {
 	}
 
 	return &Env{
-		Logger:        logger,
-		Database:      database,
-		DeployRequest: nil,
+		Logger:     logger,
+		Database:   database,
+		Deployment: nil,
 	}
 }
 
 // Constructs a null instance
 func Null() *Env {
 	return &Env{
-		Logger:        slog.New(logging.NullLogger()),
-		Database:      nil,
-		DeployRequest: nil,
+		Logger:     slog.New(logging.NullLogger()),
+		Database:   nil,
+		Deployment: nil,
 	}
 }
