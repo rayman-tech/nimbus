@@ -1,4 +1,4 @@
-.PHONY: all run server build clean
+.PHONY: all run server build fmt clean help
 
 
 ifneq (,$(wildcard ./.env))

@@ -8,7 +8,6 @@ import (
 
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -67,7 +66,7 @@ func Start(port string, env *nimbusEnv.Env) {
 	}
 	defer env.Database.Close()
 
-	log.Printf("Serving at 0.0.0.0:%s...", port)
+	env.Logger.Info(fmt.Sprintf("Serving at 0.0.0.0:%s...", port))
 	router := mux.NewRouter()
 	router.Use(injectEnvironment(env))
 	router.Use(recoverMiddleware)

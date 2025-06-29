@@ -11,8 +11,9 @@ CREATE TABLE services (
   service_name      TEXT        NOT NULL,
   node_ports        INTEGER[]   NULL,
   ingress           TEXT        NULL,
-  FOREIGN KEY (project_id) REFERENCES projects(id),
-  UNIQUE (project_id, project_branch, name)
+  FOREIGN KEY (project_id) REFERENCES projects(id)
+    ON DELETE CASCADE,
+  UNIQUE (project_id, project_branch, service_name)
 );
 
 CREATE TABLE volumes (
@@ -22,4 +23,5 @@ CREATE TABLE volumes (
   project_branch    TEXT    NOT NULL,
   size              INTEGER NOT NULL,
   FOREIGN KEY (project_id) REFERENCES projects(id)
+    ON DELETE CASCADE
 );
