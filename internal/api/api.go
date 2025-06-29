@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
+	"github.com/oklog/ulid/v2"
 )
 
 const envKey = "env"
@@ -70,6 +71,7 @@ func Start(port string, env *nimbusEnv.Env) {
 	router := mux.NewRouter()
 	router.Use(injectEnvironment(env))
 	router.Use(recoverMiddleware)
+	router.Use(logRequest)
 	addRoutes(router)
 
 	http.Handle("/", router)
@@ -107,7 +109,7 @@ func injectEnvironment(env *nimbusEnv.Env) func(http.Handler) http.Handler {
 	}
 }
 
-func logHTTPContext(next http.Handler) http.Handler {
+func logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		environment, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
@@ -115,6 +117,9 @@ func logHTTPContext(next http.Handler) http.Handler {
 			environment = nimbusEnv.Null()
 		}
 
+		ctx := r.Context()
+		logId := ulid.MustNew(ulid.Timestamp(start), ulid.DefaultEntropy())
+		r = r.WithContext(logging.AppendCtx(ctx, slog.String("log_id", logId.String())))
 		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("method", r.Method)))
 		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("path", r.URL.RequestURI())))
 		lrw := &logResponseWriter{w, http.StatusOK}
