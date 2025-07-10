@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"nimbus/internal/api"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -31,5 +32,8 @@ func main() {
 	clientCmd.Flags().StringP("host", "H", "http://localhost:8080", "URL of the host server")
 
 	rootCmd.AddCommand(serverCmd, clientCmd)
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

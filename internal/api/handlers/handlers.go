@@ -90,7 +90,7 @@ func deleteRemovedServices(
 			err = env.Database.DeleteServiceById(ctx, service.ID)
 			if err != nil {
 				env.Logger.LogAttrs(
-					ctx, slog.LevelError, "Error deleting service in databse",
+					ctx, slog.LevelError, "Error deleting service in database",
 					slog.String("service", service.ServiceName), slog.Any("error", err),
 				)
 				http.Error(w, "Error deleting service", http.StatusInternalServerError)

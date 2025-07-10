@@ -156,11 +156,11 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 func CreateDeployment(namespace string, deployment *appsv1.Deployment, env *nimbusEnv.Env) (*appsv1.Deployment, error) {
 	client := getClient(env).AppsV1().Deployments(namespace)
 
-	existing, err := client.Get(context.TODO(), deployment.Name, metav1.GetOptions{})
+	existing, err := client.Get(context.Background(), deployment.Name, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			env.Logger.Debug("Deployment not found, creating new one.", "name", deployment.Name)
-			return client.Create(context.TODO(), deployment, metav1.CreateOptions{})
+			return client.Create(context.Background(), deployment, metav1.CreateOptions{})
 		}
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
@@ -173,7 +173,7 @@ func CreateDeployment(namespace string, deployment *appsv1.Deployment, env *nimb
 	existing.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
 
 	log.Printf("Updating deployment %s...", deployment.Name)
-	updated, err := client.Update(context.TODO(), existing, metav1.UpdateOptions{})
+	updated, err := client.Update(context.Background(), existing, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update deployment: %w", err)
 	}
@@ -184,7 +184,7 @@ func CreateDeployment(namespace string, deployment *appsv1.Deployment, env *nimb
 func DeleteDeployment(namespace, name string, env *nimbusEnv.Env) error {
 	client := getClient(env).AppsV1().Deployments(namespace)
 
-	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
+	err := client.Delete(context.Background(), name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to delete deployment: %w", err)
 	}
