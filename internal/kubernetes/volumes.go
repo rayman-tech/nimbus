@@ -31,7 +31,7 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 			volume.Size = 100 // default to 100Mi
 		}
 
-		identifier, err := env.Database.GetVolumeIdentifier(context.TODO(), database.GetVolumeIdentifierParams{
+		identifier, err := env.Database.GetVolumeIdentifier(context.Background(), database.GetVolumeIdentifierParams{
 			VolumeName:    volume.Name,
 			ProjectID:     env.Deployment.ProjectID,
 			ProjectBranch: env.Deployment.BranchName,
@@ -43,7 +43,7 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 				log.Printf("Error creating PVC: %s\n", err)
 				return nil, err
 			}
-			_, err := env.Database.CreateVolume(context.TODO(), database.CreateVolumeParams{
+			_, err := env.Database.CreateVolume(context.Background(), database.CreateVolumeParams{
 				Identifier:    identifier,
 				VolumeName:    volume.Name,
 				ProjectID:     env.Deployment.ProjectID,
@@ -75,7 +75,7 @@ func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbus
 func CheckPVC(namespace string, name string, env *nimbusEnv.Env) bool {
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
-	_, err := client.Get(context.TODO(), name, metav1.GetOptions{})
+	_, err := client.Get(context.Background(), name, metav1.GetOptions{})
 	return err == nil
 }
 
@@ -83,7 +83,7 @@ func CreatePVC(namespace string, identifier uuid.UUID, size int32, env *nimbusEn
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
 	storageClass := os.Getenv("NIMBUS_STORAGE_CLASS")
-	_, err := client.Create(context.TODO(), &corev1.PersistentVolumeClaim{
+	_, err := client.Create(context.Background(), &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("pvc-%s", identifier.String()),
 			Namespace: namespace,
@@ -107,6 +107,6 @@ func CreatePVC(namespace string, identifier uuid.UUID, size int32, env *nimbusEn
 func DeletePVC(namespace string, name string, env *nimbusEnv.Env) error {
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
-	err := client.Delete(context.TODO(), name, metav1.DeleteOptions{})
+	err := client.Delete(context.Background(), name, metav1.DeleteOptions{})
 	return err
 }

@@ -10,11 +10,11 @@ import (
 )
 
 func GetNamespace(name string, env *nimbusEnv.Env) (*corev1.Namespace, error) {
-	return getClient(env).CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
+	return getClient(env).CoreV1().Namespaces().Get(context.Background(), name, metav1.GetOptions{})
 }
 
 func CreateNamespace(name string, env *nimbusEnv.Env) error {
-	_, err := getClient(env).CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
+	_, err := getClient(env).CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
