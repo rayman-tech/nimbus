@@ -56,8 +56,14 @@ For local development, follow these steps:
    ```
 3. Run the Nimbus server locally:
    ```sh
-   make server
-   ```
+make server
+```
+
+## Service Configuration
+
+Each service defined in your deployment file accepts a `public` flag. When set
+to `true`, Nimbus exposes the service publicly via a NodePort or Ingress.
+Without this flag, services are created as `ClusterIP` and remain internal only.
 
 ## Contributing
 

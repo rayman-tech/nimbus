@@ -186,6 +186,20 @@ func updateDBService(
 	serviceUrls := make([]string, 0)
 
 	if serviceConfig.Template != "http" {
+		if !serviceConfig.Public {
+			env.Logger.DebugContext(ctx, "Clearing node ports for private service")
+			err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
+				ID:        serviceID,
+				NodePorts: []int32{},
+			})
+			if err != nil {
+				env.Logger.LogAttrs(ctx, slog.LevelError, "Error updating service in database", slog.Any("error", err))
+				http.Error(w, "Error updating service", http.StatusInternalServerError)
+				return nil, err
+			}
+			return serviceUrls, nil
+		}
+
 		// TODO: only run this if the service node ports changed
 		var nodePorts []int32
 		env.Logger.DebugContext(ctx, "Retrieving node ports from spec")
@@ -207,6 +221,28 @@ func updateDBService(
 			return nil, err
 		}
 	} else {
+		if !serviceConfig.Public {
+			if existingIngress != nil {
+				env.Logger.DebugContext(ctx, "Deleting existing ingress for private service")
+				err := kubernetes.DeleteIngress(env.Deployment.Namespace, *existingIngress, env)
+				if err != nil {
+					env.Logger.LogAttrs(ctx, slog.LevelError, "Error deleting ingress", slog.Any("error", err))
+					http.Error(w, "Error deleting ingress", http.StatusInternalServerError)
+					return nil, err
+				}
+			}
+			err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
+				ID:      serviceID,
+				Ingress: pgtype.Text{Valid: false},
+			})
+			if err != nil {
+				env.Logger.LogAttrs(ctx, slog.LevelError, "Error updating ingress in database", slog.Any("error", err))
+				http.Error(w, "Error updating ingress", http.StatusInternalServerError)
+				return nil, err
+			}
+			return serviceUrls, nil
+		}
+
 		env.Logger.DebugContext(ctx, "Creating ingress for service")
 		newIngress, err := createIngress(serviceConfig, existingIngress, w, env, ctx)
 		if err != nil {

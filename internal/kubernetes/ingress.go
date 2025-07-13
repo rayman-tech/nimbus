@@ -19,28 +19,29 @@ import (
 )
 
 func GenerateIngressSpec(namespace string, service *models.Service, existingIngress *string, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
-	switch service.Template {
-	case "http":
-		randomString := GenerateRandomChars()
-		spec := networkingv1.IngressSpec{
-			Rules: []networkingv1.IngressRule{
-				{
-					Host: fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
-					IngressRuleValue: networkingv1.IngressRuleValue{
-						HTTP: &networkingv1.HTTPIngressRuleValue{
-							Paths: []networkingv1.HTTPIngressPath{
-								{
-									Path: "/",
-									PathType: func() *networkingv1.PathType {
-										pt := networkingv1.PathTypePrefix
-										return &pt
-									}(),
-									Backend: networkingv1.IngressBackend{
-										Service: &networkingv1.IngressServiceBackend{
-											Name: service.Name,
-											Port: networkingv1.ServiceBackendPort{
-												Number: 80,
-											},
+	if service.Template != "http" || !service.Public {
+		return nil, nil
+	}
+
+	randomString := GenerateRandomChars()
+	spec := networkingv1.IngressSpec{
+		Rules: []networkingv1.IngressRule{
+			{
+				Host: fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
+				IngressRuleValue: networkingv1.IngressRuleValue{
+					HTTP: &networkingv1.HTTPIngressRuleValue{
+						Paths: []networkingv1.HTTPIngressPath{
+							{
+								Path: "/",
+								PathType: func() *networkingv1.PathType {
+									pt := networkingv1.PathTypePrefix
+									return &pt
+								}(),
+								Backend: networkingv1.IngressBackend{
+									Service: &networkingv1.IngressServiceBackend{
+										Name: service.Name,
+										Port: networkingv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
@@ -49,37 +50,34 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingIngr
 					},
 				},
 			},
-			TLS: []networkingv1.IngressTLS{
-				{
-					Hosts: []string{
-						fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
-					},
-					SecretName: fmt.Sprintf("%s-%s", service.Name, "tls"),
+		},
+		TLS: []networkingv1.IngressTLS{
+			{
+				Hosts: []string{
+					fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
 				},
+				SecretName: fmt.Sprintf("%s-%s", service.Name, "tls"),
 			},
-		}
-		if existingIngress != nil {
-			spec.Rules[0].Host = *existingIngress
-		}
-
-		return &networkingv1.Ingress{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("%s-%s", service.Name, "ingress"),
-				Namespace: namespace,
-				Annotations: map[string]string{
-					"created": time.Now().Format(time.RFC3339),
-					"nginx.ingress.kubernetes.io/rewrite-target":    "/",
-					"nginx.ingress.kubernetes.io/ssl-redirect":      "true",
-					"nginx.ingress.kubernetes.io/cors-allow-origin": "*",
-					"cert-manager.io/cluster-issuer":                "letsencrypt-prod",
-				},
-			},
-			Spec: spec,
-		}, nil
-
-	default:
-		return nil, nil
+		},
 	}
+	if existingIngress != nil {
+		spec.Rules[0].Host = *existingIngress
+	}
+
+	return &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", service.Name, "ingress"),
+			Namespace: namespace,
+			Annotations: map[string]string{
+				"created": time.Now().Format(time.RFC3339),
+				"nginx.ingress.kubernetes.io/rewrite-target":    "/",
+				"nginx.ingress.kubernetes.io/ssl-redirect":      "true",
+				"nginx.ingress.kubernetes.io/cors-allow-origin": "*",
+				"cert-manager.io/cluster-issuer":                "letsencrypt-prod",
+			},
+		},
+		Spec: spec,
+	}, nil
 }
 
 func CreateIngress(namespace string, ingress *networkingv1.Ingress, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
