@@ -240,20 +240,21 @@ func main() {
 			}
 			var out struct {
 				Services []struct {
-					ProjectName   string
-					ProjectBranch string
-					ServiceName   string
+					ProjectName   string `json:"project"`
+					ProjectBranch string `json:"branch"`
+					ServiceName   string `json:"name"`
+					Status        string `json:"status"`
 				}
 			}
 			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 				return err
 			}
-			tree := make(map[string]map[string][]string)
+			tree := make(map[string]map[string][]struct{ Name, Status string })
 			for _, s := range out.Services {
 				if tree[s.ProjectName] == nil {
-					tree[s.ProjectName] = make(map[string][]string)
+					tree[s.ProjectName] = make(map[string][]struct{ Name, Status string })
 				}
-				tree[s.ProjectName][s.ProjectBranch] = append(tree[s.ProjectName][s.ProjectBranch], s.ServiceName)
+				tree[s.ProjectName][s.ProjectBranch] = append(tree[s.ProjectName][s.ProjectBranch], struct{ Name, Status string }{s.ServiceName, s.Status})
 			}
 			projects := make([]string, 0, len(tree))
 			for p := range tree {
@@ -261,7 +262,7 @@ func main() {
 			}
 			sort.Strings(projects)
 			for _, project := range projects {
-				fmt.Println(project)
+				fmt.Printf("Project: %s\n", project)
 				branchesMap := tree[project]
 				branches := make([]string, 0, len(branchesMap))
 				for b := range branchesMap {
@@ -280,11 +281,11 @@ func main() {
 					return a < b
 				})
 				for _, branch := range branches {
-					fmt.Printf("  %s\n", branch)
+					fmt.Printf("  Branch: %s\n", branch)
 					services := branchesMap[branch]
-					sort.Strings(services)
-					for _, name := range services {
-						fmt.Printf("    - %s\n", name)
+					sort.Slice(services, func(i, j int) bool { return services[i].Name < services[j].Name })
+					for _, svc := range services {
+						fmt.Printf("    - Service: %s (Status: %s)\n", svc.Name, svc.Status)
 					}
 				}
 			}
@@ -334,7 +335,16 @@ func main() {
 				fmt.Printf("  Ingress: %s\n", *out.Ingress)
 			}
 			if len(out.NodePorts) > 0 {
-				fmt.Printf("  NodePorts: %v\n", out.NodePorts)
+				host := os.Getenv("NIMBUS_HOST")
+				ports := make([]string, len(out.NodePorts))
+				for i, p := range out.NodePorts {
+					if host != "" {
+						ports[i] = fmt.Sprintf("%s:%d", host, p)
+					} else {
+						ports[i] = fmt.Sprintf("%d", p)
+					}
+				}
+				fmt.Printf("  NodePorts: [%s]\n", strings.Join(ports, ", "))
 			}
 			fmt.Println("  Pods:")
 			for _, p := range out.Pods {
@@ -345,7 +355,43 @@ func main() {
 	}
 	serviceGetCmd.Flags().String("project", "", "Project name")
 	serviceGetCmd.Flags().String("branch", "", "Branch name")
-	serviceCmd.AddCommand(serviceListCmd, serviceGetCmd)
+
+	var serviceLogsCmd = &cobra.Command{
+		Use:   "logs [name]",
+		Short: "Stream logs from a service",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			host := getHost(cmd)
+			apiKey := getAPIKey(cmd)
+			project, _ := cmd.Flags().GetString("project")
+			branch, _ := cmd.Flags().GetString("branch")
+			if branch == "" {
+				branch = "main"
+			}
+			url := fmt.Sprintf("%s/services/%s/logs?project=%s&branch=%s", host, args[0], project, branch)
+			req, _ := http.NewRequest("GET", url, nil)
+			if apiKey != "" {
+				req.Header.Set("X-API-Key", apiKey)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				data, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed: %s", string(data))
+			}
+			_, err = io.Copy(os.Stdout, resp.Body)
+			return err
+		},
+	}
+	serviceLogsCmd.Flags().String("project", "", "Project name")
+	serviceLogsCmd.Flags().String("branch", "", "Branch name")
+	serviceLogsCmd.Flags().StringP("host", "H", "", "Nimbus host")
+	serviceLogsCmd.Flags().StringP("apikey", "a", "", "API key")
+
+	serviceCmd.AddCommand(serviceListCmd, serviceGetCmd, serviceLogsCmd)
 	serviceListCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	serviceListCmd.Flags().StringP("apikey", "a", "", "API key")
 	serviceGetCmd.Flags().StringP("host", "H", "", "Nimbus host")

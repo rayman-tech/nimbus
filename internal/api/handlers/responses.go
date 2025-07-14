@@ -10,8 +10,15 @@ type projectsResponse struct {
 	Projects []database.Project `json:"projects"`
 }
 
+type serviceListItem struct {
+	ProjectName   string `json:"project"`
+	ProjectBranch string `json:"branch"`
+	ServiceName   string `json:"name"`
+	Status        string `json:"status"`
+}
+
 type servicesResponse struct {
-	Services []database.GetServicesByUserRow `json:"services"`
+	Services []serviceListItem `json:"services"`
 }
 
 type podStatus struct {

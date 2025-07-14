@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -473,7 +474,27 @@ func GetServices(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error fetching services", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(servicesResponse{Services: services})
+
+	items := make([]serviceListItem, 0, len(services))
+	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
+	for _, svc := range services {
+		namespace := svc.ProjectName
+		if svc.ProjectBranch != "main" && svc.ProjectBranch != "master" {
+			namespace = fmt.Sprintf("%s-%s", svc.ProjectName, replacer.Replace(svc.ProjectBranch))
+		}
+		pods, err := kubernetes.GetPods(namespace, svc.ServiceName, env)
+		status := "Unknown"
+		if err == nil && len(pods) > 0 {
+			status = string(pods[0].Status.Phase)
+		}
+		items = append(items, serviceListItem{
+			ProjectName:   svc.ProjectName,
+			ProjectBranch: svc.ProjectBranch,
+			ServiceName:   svc.ServiceName,
+			Status:        status,
+		})
+	}
+	json.NewEncoder(w).Encode(servicesResponse{Services: items})
 }
 
 func GetService(w http.ResponseWriter, r *http.Request) {
@@ -540,6 +561,57 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 		PodStatuses: podStatuses,
 	}
 	json.NewEncoder(w).Encode(resp)
+}
+
+// StreamLogs streams logs for the first pod of a given service.
+func StreamLogs(w http.ResponseWriter, r *http.Request) {
+	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
+	if !ok {
+		env = nimbusEnv.Null()
+	}
+
+	vars := mux.Vars(r)
+	name := vars["name"]
+	projectName := r.URL.Query().Get("project")
+	branch := r.URL.Query().Get("branch")
+	if branch == "" {
+		branch = "main"
+	}
+
+	apiKey := r.Header.Get(xApiKey)
+	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	project, err := env.Database.GetProjectByName(r.Context(), projectName)
+	if err != nil {
+		http.Error(w, "project not found", http.StatusNotFound)
+		return
+	}
+
+	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
+	if err != nil || !authorized {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	namespace := project.Name
+	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
+	if branch != "main" && branch != "master" {
+		namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
+	}
+
+	stream, err := kubernetes.StreamServiceLogs(namespace, name, env)
+	if err != nil {
+		http.Error(w, "error streaming logs", http.StatusInternalServerError)
+		return
+	}
+	defer stream.Close()
+
+	w.Header().Set("Content-Type", "text/plain")
+	io.Copy(w, stream)
 }
 
 func DeleteBranch(w http.ResponseWriter, r *http.Request) {
