@@ -2,15 +2,12 @@
 SELECT * FROM projects
 WHERE id = $1 LIMIT 1;
 
--- name: GetProjectByApiKey :one
-SELECT * FROM projects
-WHERE api_key = $1 LIMIT 1;
 
 -- name: CreateProject :one
 INSERT INTO projects (
-  id, name, api_key
+  id, name
 ) VALUES (
-  $1, $2, $3
+  $1, $2
 )
 RETURNING *;
 
@@ -69,6 +66,20 @@ INSERT INTO volumes (
 -- name: GetUnusedVolumeIdentifiers :many
 SELECT identifier FROM volumes
 WHERE project_id = $1 AND project_branch = $2 AND NOT volume_name = ANY($3::text[]);
+
+-- name: GetUserByApiKey :one
+SELECT * FROM users
+WHERE api_key = $1 LIMIT 1;
+
+-- name: GetProjectByName :one
+SELECT * FROM projects
+WHERE name = $1 LIMIT 1;
+
+-- name: IsUserInProject :one
+SELECT EXISTS (
+  SELECT 1 FROM user_projects
+  WHERE user_id = $1 AND project_id = $2
+);
 
 -- name: DeleteUnusedVolumes :exec
 DELETE FROM volumes
