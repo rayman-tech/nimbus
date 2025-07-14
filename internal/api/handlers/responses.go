@@ -35,3 +35,11 @@ type serviceDetailResponse struct {
 	PodStatuses []podStatus `json:"pods"`
 	Logs        string      `json:"logs,omitempty"`
 }
+
+type secretsNamesResponse struct {
+	Secrets []string `json:"secrets"`
+}
+
+type secretsValuesResponse struct {
+	Secrets map[string]string `json:"secrets"`
+}

@@ -447,6 +447,133 @@ func main() {
 	serviceGetCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	serviceGetCmd.Flags().StringP("apikey", "a", "", "API key")
 
+	var secretsCmd = &cobra.Command{Use: "secrets", Short: "Manage project secrets"}
+	var secretsListCmd = &cobra.Command{
+		Use:   "list",
+		Short: "List secret names",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			host := getHost(cmd)
+			apiKey := getAPIKey(cmd)
+			project, _ := cmd.Flags().GetString("project")
+			url := fmt.Sprintf("%s/projects/%s/secrets", host, project)
+			req, _ := http.NewRequest("GET", url, nil)
+			if apiKey != "" {
+				req.Header.Set("X-API-Key", apiKey)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				data, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed: %s", string(data))
+			}
+			var out struct{ Secrets []string }
+			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+				return err
+			}
+			fmt.Println("Secrets:")
+			for _, n := range out.Secrets {
+				fmt.Printf("- %s\n", n)
+			}
+			return nil
+		},
+	}
+	secretsListCmd.Flags().String("project", "", "Project name")
+	secretsListCmd.Flags().StringP("host", "H", "", "Nimbus host")
+	secretsListCmd.Flags().StringP("apikey", "a", "", "API key")
+
+	var secretsEditCmd = &cobra.Command{
+		Use:   "edit",
+		Short: "Edit project secrets",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			host := getHost(cmd)
+			apiKey := getAPIKey(cmd)
+			project, _ := cmd.Flags().GetString("project")
+			url := fmt.Sprintf("%s/projects/%s/secrets?values=true", host, project)
+			req, _ := http.NewRequest("GET", url, nil)
+			if apiKey != "" {
+				req.Header.Set("X-API-Key", apiKey)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				data, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed: %s", string(data))
+			}
+			var out struct{ Secrets map[string]string }
+			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+				return err
+			}
+			lines := make([]string, 0, len(out.Secrets))
+			for k, v := range out.Secrets {
+				lines = append(lines, fmt.Sprintf("%s=%s", k, v))
+			}
+			sort.Strings(lines)
+			tmp, err := os.CreateTemp("", "nimbus-secrets-*.tmp")
+			if err != nil {
+				return err
+			}
+			defer os.Remove(tmp.Name())
+			if _, err := tmp.WriteString(strings.Join(lines, "\n")); err != nil {
+				return err
+			}
+			tmp.Close()
+			editor := os.Getenv("EDITOR")
+			if editor == "" {
+				editor = "vi"
+			}
+			editCmd := exec.Command(editor, tmp.Name())
+			editCmd.Stdin = os.Stdin
+			editCmd.Stdout = os.Stdout
+			editCmd.Stderr = os.Stderr
+			if err := editCmd.Run(); err != nil {
+				return err
+			}
+			data, err := os.ReadFile(tmp.Name())
+			if err != nil {
+				return err
+			}
+			secrets := map[string]string{}
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) != 2 {
+					continue
+				}
+				secrets[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+			}
+			body, _ := json.Marshal(map[string]map[string]string{"secrets": secrets})
+			req2, _ := http.NewRequest("PUT", fmt.Sprintf("%s/projects/%s/secrets", host, project), bytes.NewBuffer(body))
+			req2.Header.Set("Content-Type", "application/json")
+			if apiKey != "" {
+				req2.Header.Set("X-API-Key", apiKey)
+			}
+			resp2, err := http.DefaultClient.Do(req2)
+			if err != nil {
+				return err
+			}
+			defer resp2.Body.Close()
+			if resp2.StatusCode != http.StatusOK {
+				data, _ := io.ReadAll(resp2.Body)
+				return fmt.Errorf("failed: %s", string(data))
+			}
+			fmt.Println("Secrets updated!")
+			return nil
+		},
+	}
+	secretsEditCmd.Flags().String("project", "", "Project name")
+	secretsEditCmd.Flags().StringP("host", "H", "", "Nimbus host")
+	secretsEditCmd.Flags().StringP("apikey", "a", "", "API key")
+	secretsCmd.AddCommand(secretsListCmd, secretsEditCmd)
+
 	var branchCmd = &cobra.Command{Use: "branch", Short: "Manage branches"}
 	var branchDeleteCmd = &cobra.Command{
 		Use:   "delete",
@@ -483,7 +610,7 @@ func main() {
 	branchDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
 	branchCmd.AddCommand(branchDeleteCmd)
 
-	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd, branchCmd)
+	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd, branchCmd, secretsCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

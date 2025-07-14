@@ -3,6 +3,7 @@ package handlers
 import (
 	"nimbus/internal/database"
 	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/kubernetes"
 	"nimbus/internal/logging"
 	"nimbus/internal/models"
 	"strings"
@@ -140,7 +141,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		return nil, nil, err
 	}
 
-	// SPECIFY WHETHER TO USE NAME GIVEN IN YAML OR PROJECT NAME IN THE DATABASE
+	// TODO: SPECIFY WHETHER TO USE NAME GIVEN IN YAML OR PROJECT NAME IN THE DATABASE
 	namespace := project.Name
 	replacer := strings.NewReplacer(
 		"/", "-",
@@ -153,6 +154,22 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	)
 	if branch != "main" && branch != "master" {
 		namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
+	}
+
+	env.Logger.DebugContext(ctx, "Applying project secrets")
+	secrets, err := kubernetes.GetSecretValues(namespace, env)
+	if err == nil {
+		for i := range config.Services {
+			for j := range config.Services[i].Env {
+				val := config.Services[i].Env[j].Value
+				if strings.HasPrefix(val, "${") && strings.HasSuffix(val, "}") {
+					key := strings.TrimSuffix(strings.TrimPrefix(val, "${"), "}")
+					if secretVal, ok := secrets[key]; ok {
+						config.Services[i].Env[j].Value = secretVal
+					}
+				}
+			}
+		}
 	}
 
 	env.Logger.DebugContext(ctx, "Constructing request struct")
