@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -239,9 +240,9 @@ func main() {
 			}
 			var out struct {
 				Services []struct {
-					ProjectName   string `json:"project_name"`
-					ProjectBranch string `json:"project_branch"`
-					ServiceName   string `json:"service_name"`
+					ProjectName   string
+					ProjectBranch string
+					ServiceName   string
 				}
 			}
 			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -254,10 +255,34 @@ func main() {
 				}
 				tree[s.ProjectName][s.ProjectBranch] = append(tree[s.ProjectName][s.ProjectBranch], s.ServiceName)
 			}
-			for project, branches := range tree {
+			projects := make([]string, 0, len(tree))
+			for p := range tree {
+				projects = append(projects, p)
+			}
+			sort.Strings(projects)
+			for _, project := range projects {
 				fmt.Println(project)
-				for branch, services := range branches {
+				branchesMap := tree[project]
+				branches := make([]string, 0, len(branchesMap))
+				for b := range branchesMap {
+					branches = append(branches, b)
+				}
+				sort.SliceStable(branches, func(i, j int) bool {
+					a, b := branches[i], branches[j]
+					isMainA := a == "main" || a == "master"
+					isMainB := b == "main" || b == "master"
+					if isMainA && !isMainB {
+						return true
+					}
+					if !isMainA && isMainB {
+						return false
+					}
+					return a < b
+				})
+				for _, branch := range branches {
 					fmt.Printf("  %s\n", branch)
+					services := branchesMap[branch]
+					sort.Strings(services)
 					for _, name := range services {
 						fmt.Printf("    - %s\n", name)
 					}
