@@ -810,14 +810,14 @@ func GetProjectSecrets(w http.ResponseWriter, r *http.Request) {
 	showValues := r.URL.Query().Get("values") == "true"
 	var resp interface{}
 	if showValues {
-		vals, err := kubernetes.GetSecretValues(project.Name, kubernetes.ProjectSecretName, env)
+		vals, err := kubernetes.GetSecretValues(project.Name, env)
 		if err != nil {
 			http.Error(w, "error getting secrets", http.StatusInternalServerError)
 			return
 		}
 		resp = secretsValuesResponse{Secrets: vals}
 	} else {
-		names, err := kubernetes.ListSecretNames(project.Name, kubernetes.ProjectSecretName, env)
+		names, err := kubernetes.ListSecretNames(project.Name, env)
 		if err != nil {
 			http.Error(w, "error getting secrets", http.StatusInternalServerError)
 			return
@@ -879,7 +879,7 @@ func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
 		if branch != "main" && branch != "master" {
 			ns = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
 		}
-		if err := kubernetes.CreateOrUpdateSecret(ns, kubernetes.ProjectSecretName, req.Secrets, env); err != nil {
+		if err := kubernetes.UpdateSecret(ns, fmt.Sprintf("%s-env", project.Name), req.Secrets, env); err != nil {
 			http.Error(w, "error updating secrets", http.StatusInternalServerError)
 			return
 		}

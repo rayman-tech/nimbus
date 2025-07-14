@@ -141,7 +141,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		return nil, nil, err
 	}
 
-	// SPECIFY WHETHER TO USE NAME GIVEN IN YAML OR PROJECT NAME IN THE DATABASE
+	// TODO: SPECIFY WHETHER TO USE NAME GIVEN IN YAML OR PROJECT NAME IN THE DATABASE
 	namespace := project.Name
 	replacer := strings.NewReplacer(
 		"/", "-",
@@ -157,7 +157,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	}
 
 	env.Logger.DebugContext(ctx, "Applying project secrets")
-	secrets, err := kubernetes.GetSecretValues(namespace, kubernetes.ProjectSecretName, env)
+	secrets, err := kubernetes.GetSecretValues(namespace, env)
 	if err == nil {
 		for i := range config.Services {
 			for j := range config.Services[i].Env {

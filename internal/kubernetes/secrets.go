@@ -4,6 +4,7 @@ import (
 	nimbusEnv "nimbus/internal/env"
 
 	"context"
+	"fmt"
 	"sort"
 
 	corev1 "k8s.io/api/core/v1"
@@ -11,19 +12,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const ProjectSecretName = "project-secrets"
-
-func GetSecret(namespace, name string, env *nimbusEnv.Env) (*corev1.Secret, error) {
+func GetSecret(namespace string, env *nimbusEnv.Env) (*corev1.Secret, error) {
 	client := getClient(env).CoreV1().Secrets(namespace)
-	secret, err := client.Get(context.Background(), name, metav1.GetOptions{})
+	secret, err := client.Get(context.Background(), fmt.Sprintf("%s-env", namespace), metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 	return secret, nil
 }
 
-func GetSecretValues(namespace, name string, env *nimbusEnv.Env) (map[string]string, error) {
-	secret, err := GetSecret(namespace, name, env)
+func GetSecretValues(namespace string, env *nimbusEnv.Env) (map[string]string, error) {
+	secret, err := GetSecret(namespace, env)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return map[string]string{}, nil
@@ -37,8 +36,8 @@ func GetSecretValues(namespace, name string, env *nimbusEnv.Env) (map[string]str
 	return out, nil
 }
 
-func ListSecretNames(namespace, name string, env *nimbusEnv.Env) ([]string, error) {
-	secret, err := GetSecret(namespace, name, env)
+func ListSecretNames(namespace string, env *nimbusEnv.Env) ([]string, error) {
+	secret, err := GetSecret(namespace, env)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return []string{}, nil
@@ -53,7 +52,7 @@ func ListSecretNames(namespace, name string, env *nimbusEnv.Env) ([]string, erro
 	return keys, nil
 }
 
-func CreateOrUpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv.Env) error {
+func UpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv.Env) error {
 	client := getClient(env).CoreV1().Secrets(namespace)
 	existing, err := client.Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
