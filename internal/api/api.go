@@ -142,4 +142,8 @@ func addRoutes(router *mux.Router) {
 	}).Methods("GET")
 
 	router.HandleFunc("/deploy", handlers.Deploy).Methods("POST")
+	router.HandleFunc("/projects", handlers.CreateProject).Methods("POST")
+	router.HandleFunc("/projects", handlers.GetProjects).Methods("GET")
+	router.HandleFunc("/services", handlers.GetServices).Methods("GET")
+	router.HandleFunc("/services/{name}", handlers.GetService).Methods("GET")
 }
