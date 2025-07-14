@@ -3,7 +3,6 @@ package kubernetes
 import (
 	nimbusEnv "nimbus/internal/env"
 
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -43,18 +42,13 @@ func StreamServiceLogs(namespace, serviceName string, env *nimbusEnv.Env) (io.Re
 		return nil, fmt.Errorf("no pods found for service %s", serviceName)
 	}
 
-	logs, err := GetPodLogs(namespace, pods[0].Name, env)
+	lines := int64(20)
+	req := getClient(env).CoreV1().Pods(namespace).GetLogs(pods[0].Name, &corev1.PodLogOptions{Follow: true, TailLines: &lines})
+	stream, err := req.Stream(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to stream logs: %w", err)
 	}
-
-	stream, err := StreamPodLogs(namespace, pods[0].Name, env)
-	if err != nil {
-		return nil, err
-	}
-
-	reader := io.NopCloser(io.MultiReader(bytes.NewReader(logs), stream))
-	return reader, nil
+	return stream, nil
 }
 
 // GetPodLogs retrieves the full logs for a given pod.
