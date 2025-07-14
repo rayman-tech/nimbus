@@ -706,3 +706,76 @@ func DeleteBranch(w http.ResponseWriter, r *http.Request) {
 	kubernetes.DeleteNamespace(namespace, env)
 	w.WriteHeader(http.StatusOK)
 }
+
+func DeleteProject(w http.ResponseWriter, r *http.Request) {
+	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
+	if !ok {
+		env = nimbusEnv.Null()
+	}
+
+	vars := mux.Vars(r)
+	projectName := vars["name"]
+	if projectName == "" {
+		http.Error(w, "missing project", http.StatusBadRequest)
+		return
+	}
+
+	apiKey := r.Header.Get(xApiKey)
+	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	project, err := env.Database.GetProjectByName(r.Context(), projectName)
+	if err != nil {
+		http.Error(w, "project not found", http.StatusNotFound)
+		return
+	}
+
+	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
+	if err != nil || !authorized {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	branches, err := env.Database.GetProjectBranches(r.Context(), project.ID)
+	if err != nil {
+		http.Error(w, "error fetching branches", http.StatusInternalServerError)
+		return
+	}
+
+	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
+	for _, branch := range branches {
+		services, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
+		if err != nil {
+			continue
+		}
+
+		namespace := project.Name
+		if branch != "main" && branch != "master" {
+			namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
+		}
+
+		for _, svc := range services {
+			kubernetes.DeleteDeployment(namespace, svc.ServiceName, env)
+			kubernetes.DeleteService(namespace, svc.ServiceName, env)
+			if svc.Ingress.Valid {
+				kubernetes.DeleteIngress(namespace, svc.Ingress.String, env)
+			}
+			env.Database.DeleteServiceById(r.Context(), svc.ID)
+		}
+
+		ids, err := env.Database.GetUnusedVolumeIdentifiers(r.Context(), database.GetUnusedVolumeIdentifiersParams{ProjectID: project.ID, ProjectBranch: branch, Column3: []string{}})
+		if err == nil {
+			for _, id := range ids {
+				kubernetes.DeletePVC(namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+			}
+		}
+		env.Database.DeleteUnusedVolumes(r.Context(), database.DeleteUnusedVolumesParams{ProjectID: project.ID, ProjectBranch: branch, Column3: []string{}})
+		kubernetes.DeleteNamespace(namespace, env)
+	}
+
+	env.Database.DeleteProject(r.Context(), project.ID)
+	w.WriteHeader(http.StatusOK)
+}

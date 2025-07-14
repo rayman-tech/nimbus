@@ -186,6 +186,32 @@ func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (Project, error)
 	return i, err
 }
 
+const getProjectBranches = `-- name: GetProjectBranches :many
+SELECT project_branch FROM services s WHERE s.project_id = $1
+UNION
+SELECT project_branch FROM volumes v WHERE v.project_id = $1
+`
+
+func (q *Queries) GetProjectBranches(ctx context.Context, projectID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getProjectBranches, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var project_branch string
+		if err := rows.Scan(&project_branch); err != nil {
+			return nil, err
+		}
+		items = append(items, project_branch)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProjectByName = `-- name: GetProjectByName :one
 SELECT id, name FROM projects
 WHERE name = $1 LIMIT 1

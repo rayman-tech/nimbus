@@ -213,11 +213,38 @@ func main() {
 			return nil
 		},
 	}
-	projectCmd.AddCommand(projectCreateCmd, projectListCmd)
+	var projectDeleteCmd = &cobra.Command{
+		Use:   "delete [name]",
+		Short: "Delete a project and all branches",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			host := getHost(cmd)
+			apiKey := getAPIKey(cmd)
+			url := fmt.Sprintf("%s/projects/%s", host, args[0])
+			req, _ := http.NewRequest("DELETE", url, nil)
+			if apiKey != "" {
+				req.Header.Set("X-API-Key", apiKey)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				data, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed: %s", string(data))
+			}
+			fmt.Println("Project deleted!")
+			return nil
+		},
+	}
+	projectCmd.AddCommand(projectCreateCmd, projectListCmd, projectDeleteCmd)
 	projectCreateCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	projectCreateCmd.Flags().StringP("apikey", "a", "", "API key")
 	projectListCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	projectListCmd.Flags().StringP("apikey", "a", "", "API key")
+	projectDeleteCmd.Flags().StringP("host", "H", "", "Nimbus host")
+	projectDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
 
 	var serviceCmd = &cobra.Command{Use: "service", Short: "Manage services"}
 	var serviceListCmd = &cobra.Command{

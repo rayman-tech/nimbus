@@ -106,3 +106,8 @@ LIMIT 1;
 -- name: AddUserToProject :exec
 INSERT INTO user_projects (user_id, project_id)
 VALUES ($1, $2);
+
+-- name: GetProjectBranches :many
+SELECT project_branch FROM services s WHERE s.project_id = $1
+UNION
+SELECT project_branch FROM volumes v WHERE v.project_id = $1;
