@@ -332,6 +332,8 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, serviceConfig := range deployRequest.ProjectConfig.Services {
+		env.Logger.LogAttrs(ctx, slog.LevelDebug, "Processing service", slog.Any("serviceConfig", serviceConfig))
+
 		tempCtx := logging.AppendCtx(ctx, slog.String("service", serviceConfig.Name))
 
 		// Create deployment
