@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	urllib "net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -336,10 +337,24 @@ func main() {
 			}
 			if len(out.NodePorts) > 0 {
 				host := os.Getenv("NIMBUS_HOST")
+				baseDomain := ""
+
+				if host != "" {
+					parsed, err := urllib.Parse(host)
+					if err == nil {
+						// parsed.Host gives you "nimbus.prayujt.com"
+						parts := strings.Split(parsed.Hostname(), ".")
+						n := len(parts)
+						if n >= 2 {
+							baseDomain = strings.Join(parts[n-2:], ".")
+						}
+					}
+				}
+
 				ports := make([]string, len(out.NodePorts))
 				for i, p := range out.NodePorts {
-					if host != "" {
-						ports[i] = fmt.Sprintf("%s:%d", host, p)
+					if baseDomain != "" {
+						ports[i] = fmt.Sprintf("%s:%d", baseDomain, p)
 					} else {
 						ports[i] = fmt.Sprintf("%d", p)
 					}
