@@ -68,3 +68,19 @@ Without this flag, services are created as `ClusterIP` and remain internal only.
 ## Contributing
 
 We welcome contributions! Feel free to submit issues and pull requests to improve Nimbus.
+
+## CLI Usage
+
+After building the project, you can deploy your application using the CLI:
+
+```sh
+nimbus deploy -H http://localhost:8080 -f ./nimbus.yaml -a <API_KEY>
+```
+
+Flags:
+
+- `-H`, `--host` – Nimbus server address. Defaults to the `NIMBUS_HOST` environment variable or `http://localhost:8080`.
+- `-f`, `--file` – Path to the `nimbus.yaml` file. Defaults to `./nimbus.yaml`.
+- `-a`, `--apikey` – API key used for authentication. Defaults to the `NIMBUS_API_KEY` environment variable.
+
+Running `nimbus server` will start the server locally.
