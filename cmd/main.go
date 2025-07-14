@@ -587,11 +587,12 @@ func main() {
 	var branchDeleteCmd = &cobra.Command{
 		Use:   "delete",
 		Short: "Delete a branch",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := getHost(cmd)
 			apiKey := getAPIKey(cmd)
 			project, _ := cmd.Flags().GetString("project")
-			branch, _ := cmd.Flags().GetString("branch")
+			branch := args[0]
 			if project == "" || branch == "" {
 				return fmt.Errorf("project and branch are required")
 			}
