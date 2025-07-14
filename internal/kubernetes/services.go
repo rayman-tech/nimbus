@@ -23,36 +23,43 @@ func GenerateServiceSpec(namespace string, newService *models.Service, oldServic
 			"app": newService.Name,
 		},
 		Ports: []corev1.ServicePort{},
+		Type:  corev1.ServiceTypeClusterIP,
 	}
+
+	nodePortEnabled := newService.Public && newService.Template != "http"
 
 	switch newService.Template {
 	case "postgres":
-		spec.Type = corev1.ServiceTypeNodePort
+		if nodePortEnabled {
+			spec.Type = corev1.ServiceTypeNodePort
+		}
 		spec.Ports = append(spec.Ports, corev1.ServicePort{
 			Name: "postgres",
 			Port: 5432,
 		})
-		if oldService != nil && len(oldService.NodePorts) > 0 {
+		if nodePortEnabled && oldService != nil && len(oldService.NodePorts) > 0 {
 			spec.Ports[0].NodePort = oldService.NodePorts[0]
 		}
 
 	case "redis":
-		spec.Type = corev1.ServiceTypeNodePort
+		if nodePortEnabled {
+			spec.Type = corev1.ServiceTypeNodePort
+		}
 		spec.Ports = append(spec.Ports, corev1.ServicePort{
 			Name: "redis",
 			Port: 6379,
 		})
-		if oldService != nil && len(oldService.NodePorts) > 0 {
+		if nodePortEnabled && oldService != nil && len(oldService.NodePorts) > 0 {
 			spec.Ports[0].NodePort = oldService.NodePorts[0]
 		}
 
 	default:
-		if newService.Template != "http" {
+		if nodePortEnabled {
 			spec.Type = corev1.ServiceTypeNodePort
 		}
 
 		for idx, port := range newService.Network.Ports {
-			if oldService != nil && len(oldService.NodePorts) > idx {
+			if nodePortEnabled && oldService != nil && len(oldService.NodePorts) > idx {
 				spec.Ports = append(spec.Ports, corev1.ServicePort{
 					Name:     fmt.Sprintf("port-%d", idx),
 					Port:     port,

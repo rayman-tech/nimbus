@@ -21,6 +21,7 @@ type Service struct {
 	Env          []corev1.EnvVar `yaml:"env,omitempty"`
 	EnvOverrides []Override      `yaml:"envOverrides,omitempty"`
 	Volumes      []Volume        `yaml:"volumes,omitempty"`
+	Public       bool            `yaml:"public,omitempty"`
 	Template     string          `yaml:"template,omitempty"`
 	Version      string          `yaml:"version,omitempty"`
 	Configs      []ConfigEntry   `yaml:"configs,omitempty"`
