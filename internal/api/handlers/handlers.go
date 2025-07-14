@@ -16,9 +16,8 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-
+	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgtype"
-
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 )
@@ -393,4 +392,151 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(deployResponse{
 		Urls: serviceUrls,
 	})
+}
+
+func CreateProject(w http.ResponseWriter, r *http.Request) {
+	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
+	if !ok {
+		env = nimbusEnv.Null()
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	apiKey := r.Header.Get(xApiKey)
+	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	project, err := env.Database.CreateProject(r.Context(), database.CreateProjectParams{
+		ID:   uuid.New(),
+		Name: req.Name,
+	})
+	if err != nil {
+		http.Error(w, "error creating project", http.StatusInternalServerError)
+		return
+	}
+
+	env.Database.AddUserToProject(r.Context(), database.AddUserToProjectParams{
+		UserID:    user.ID,
+		ProjectID: project.ID,
+	})
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(project)
+}
+
+func GetProjects(w http.ResponseWriter, r *http.Request) {
+	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
+	if !ok {
+		env = nimbusEnv.Null()
+	}
+
+	apiKey := r.Header.Get(xApiKey)
+	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	projects, err := env.Database.GetProjectsByUser(r.Context(), user.ID)
+	if err != nil {
+		http.Error(w, "error fetching projects", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(projectsResponse{Projects: projects})
+}
+
+func GetServices(w http.ResponseWriter, r *http.Request) {
+	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
+	if !ok {
+		env = nimbusEnv.Null()
+	}
+
+	apiKey := r.Header.Get(xApiKey)
+	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	services, err := env.Database.GetServicesByUser(r.Context(), user.ID)
+	if err != nil {
+		http.Error(w, "error fetching services", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(servicesResponse{Services: services})
+}
+
+func GetService(w http.ResponseWriter, r *http.Request) {
+	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
+	if !ok {
+		env = nimbusEnv.Null()
+	}
+
+	vars := mux.Vars(r)
+	name := vars["name"]
+	projectName := r.URL.Query().Get("project")
+	branch := r.URL.Query().Get("branch")
+	if branch == "" {
+		branch = "main"
+	}
+
+	apiKey := r.Header.Get(xApiKey)
+	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	project, err := env.Database.GetProjectByName(r.Context(), projectName)
+	if err != nil {
+		http.Error(w, "project not found", http.StatusNotFound)
+		return
+	}
+
+	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
+	if err != nil || !authorized {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	svc, err := env.Database.GetServiceByName(r.Context(), database.GetServiceByNameParams{ServiceName: name, ProjectID: project.ID, ProjectBranch: branch})
+	if err != nil {
+		http.Error(w, "service not found", http.StatusNotFound)
+		return
+	}
+
+	pods, err := kubernetes.GetPods(project.Name, name, env)
+	if err != nil {
+		http.Error(w, "error getting pods", http.StatusInternalServerError)
+		return
+	}
+
+	podStatuses := make([]podStatus, 0)
+	for _, p := range pods {
+		podStatuses = append(podStatuses, podStatus{p.Name, string(p.Status.Phase)})
+	}
+
+	var ingress *string
+	if svc.Ingress.Valid {
+		ingress = &svc.Ingress.String
+	}
+
+	resp := serviceDetailResponse{
+		Project:     project.Name,
+		Branch:      branch,
+		Name:        name,
+		NodePorts:   svc.NodePorts,
+		Ingress:     ingress,
+		PodStatuses: podStatuses,
+	}
+	json.NewEncoder(w).Encode(resp)
 }

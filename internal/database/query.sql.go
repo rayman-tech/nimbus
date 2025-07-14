@@ -12,6 +12,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addUserToProject = `-- name: AddUserToProject :exec
+INSERT INTO user_projects (user_id, project_id)
+VALUES ($1, $2)
+`
+
+type AddUserToProjectParams struct {
+	UserID    uuid.UUID
+	ProjectID uuid.UUID
+}
+
+func (q *Queries) AddUserToProject(ctx context.Context, arg AddUserToProjectParams) error {
+	_, err := q.db.Exec(ctx, addUserToProject, arg.UserID, arg.ProjectID)
+	return err
+}
+
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (
   id, name
@@ -183,6 +198,33 @@ func (q *Queries) GetProjectByName(ctx context.Context, name string) (Project, e
 	return i, err
 }
 
+const getProjectsByUser = `-- name: GetProjectsByUser :many
+SELECT p.id, p.name FROM projects p
+JOIN user_projects up ON p.id = up.project_id
+WHERE up.user_id = $1
+ORDER BY p.name
+`
+
+func (q *Queries) GetProjectsByUser(ctx context.Context, userID uuid.UUID) ([]Project, error) {
+	rows, err := q.db.Query(ctx, getProjectsByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Project
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getService = `-- name: GetService :one
 SELECT id, project_id, project_branch, service_name, node_ports, ingress FROM services
 WHERE id = $1 LIMIT 1
@@ -190,6 +232,32 @@ WHERE id = $1 LIMIT 1
 
 func (q *Queries) GetService(ctx context.Context, id uuid.UUID) (Service, error) {
 	row := q.db.QueryRow(ctx, getService, id)
+	var i Service
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ProjectBranch,
+		&i.ServiceName,
+		&i.NodePorts,
+		&i.Ingress,
+	)
+	return i, err
+}
+
+const getServiceByName = `-- name: GetServiceByName :one
+SELECT id, project_id, project_branch, service_name, node_ports, ingress FROM services
+WHERE service_name = $1 AND project_id = $2 AND project_branch = $3
+LIMIT 1
+`
+
+type GetServiceByNameParams struct {
+	ServiceName   string
+	ProjectID     uuid.UUID
+	ProjectBranch string
+}
+
+func (q *Queries) GetServiceByName(ctx context.Context, arg GetServiceByNameParams) (Service, error) {
+	row := q.db.QueryRow(ctx, getServiceByName, arg.ServiceName, arg.ProjectID, arg.ProjectBranch)
 	var i Service
 	err := row.Scan(
 		&i.ID,
@@ -229,6 +297,52 @@ func (q *Queries) GetServicesByProject(ctx context.Context, arg GetServicesByPro
 			&i.ServiceName,
 			&i.NodePorts,
 			&i.Ingress,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getServicesByUser = `-- name: GetServicesByUser :many
+SELECT s.id, s.project_id, s.project_branch, s.service_name, s.node_ports, s.ingress, p.name AS project_name FROM services s
+JOIN projects p ON s.project_id = p.id
+JOIN user_projects up ON up.project_id = p.id
+WHERE up.user_id = $1
+ORDER BY p.name, s.service_name
+`
+
+type GetServicesByUserRow struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	ProjectBranch string
+	ServiceName   string
+	NodePorts     []int32
+	Ingress       pgtype.Text
+	ProjectName   string
+}
+
+func (q *Queries) GetServicesByUser(ctx context.Context, userID uuid.UUID) ([]GetServicesByUserRow, error) {
+	rows, err := q.db.Query(ctx, getServicesByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetServicesByUserRow
+	for rows.Next() {
+		var i GetServicesByUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.ProjectBranch,
+			&i.ServiceName,
+			&i.NodePorts,
+			&i.Ingress,
+			&i.ProjectName,
 		); err != nil {
 			return nil, err
 		}

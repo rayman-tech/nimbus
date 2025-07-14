@@ -84,3 +84,25 @@ SELECT EXISTS (
 -- name: DeleteUnusedVolumes :exec
 DELETE FROM volumes
 WHERE project_id = $1 AND project_branch = $2 AND NOT volume_name = ANY($3::text[]);
+
+-- name: GetProjectsByUser :many
+SELECT p.* FROM projects p
+JOIN user_projects up ON p.id = up.project_id
+WHERE up.user_id = $1
+ORDER BY p.name;
+
+-- name: GetServicesByUser :many
+SELECT s.*, p.name AS project_name FROM services s
+JOIN projects p ON s.project_id = p.id
+JOIN user_projects up ON up.project_id = p.id
+WHERE up.user_id = $1
+ORDER BY p.name, s.service_name;
+
+-- name: GetServiceByName :one
+SELECT * FROM services
+WHERE service_name = $1 AND project_id = $2 AND project_branch = $3
+LIMIT 1;
+
+-- name: AddUserToProject :exec
+INSERT INTO user_projects (user_id, project_id)
+VALUES ($1, $2);
