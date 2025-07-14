@@ -56,8 +56,8 @@ For local development, follow these steps:
    ```
 3. Run the Nimbus server locally:
    ```sh
-make server
-```
+    make server
+    ```
 
 ## Service Configuration
 
