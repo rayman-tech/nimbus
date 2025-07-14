@@ -474,6 +474,10 @@ func main() {
 				return err
 			}
 			fmt.Println("Secrets:")
+			if len(out.Secrets) == 0 {
+				fmt.Println("No secrets found")
+				return nil
+			}
 			for _, n := range out.Secrets {
 				fmt.Printf("- %s\n", n)
 			}
@@ -491,6 +495,9 @@ func main() {
 			host := getHost(cmd)
 			apiKey := getAPIKey(cmd)
 			project, _ := cmd.Flags().GetString("project")
+			if project == "" {
+				return fmt.Errorf("project not specified")
+			}
 			url := fmt.Sprintf("%s/projects/%s/secrets?values=true", host, project)
 			req, _ := http.NewRequest("GET", url, nil)
 			if apiKey != "" {
@@ -514,6 +521,8 @@ func main() {
 				lines = append(lines, fmt.Sprintf("%s=%s", k, v))
 			}
 			sort.Strings(lines)
+			header := "# Example: SECRET_NAME=value (use '=' not ':')"
+			lines = append([]string{header}, lines...)
 			tmp, err := os.CreateTemp("", "nimbus-secrets-*.tmp")
 			if err != nil {
 				return err
