@@ -70,7 +70,12 @@ func UpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv
 		return err
 	}
 
-	existing.StringData = data
+	// Replace the existing data entirely so removed keys are deleted
+	existing.Data = map[string][]byte{}
+	for k, v := range data {
+		existing.Data[k] = []byte(v)
+	}
+	existing.StringData = nil
 	existing.Type = corev1.SecretTypeOpaque
 	_, err = client.Update(context.Background(), existing, metav1.UpdateOptions{})
 	return err
