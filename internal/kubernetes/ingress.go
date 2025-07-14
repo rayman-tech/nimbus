@@ -93,13 +93,26 @@ func CreateIngress(namespace string, ingress *networkingv1.Ingress, env *nimbusE
 	return ingress, nil
 }
 
-func DeleteIngress(namespace, name string, env *nimbusEnv.Env) error {
-	err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+func DeleteIngress(namespace, host string, env *nimbusEnv.Env) error {
+	ingresses, err := getClient(env).NetworkingV1().Ingresses(namespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to list ingresses: %w", err)
 	}
-	env.Logger.LogAttrs(context.Background(), slog.LevelDebug, "Ingress deleted", slog.String("name", name))
-	return nil
+
+	for _, ingress := range ingresses.Items {
+		for _, rule := range ingress.Spec.Rules {
+			if rule.Host == host {
+				err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(context.Background(), ingress.Name, metav1.DeleteOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to delete ingress %s: %w", ingress.Name, err)
+				}
+				env.Logger.LogAttrs(context.Background(), slog.LevelDebug, "Ingress deleted", slog.String("name", ingress.Name), slog.String("host", host))
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("no ingress found with host %s", host)
 }
 
 func GenerateRandomChars() string {

@@ -8,7 +8,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"nimbus/internal/api"
@@ -38,7 +40,7 @@ func main() {
 				host = os.Getenv("NIMBUS_HOST")
 			}
 			if host == "" {
-				host = "http://localhost:8080"
+				return fmt.Errorf("NIMBUS_HOST environment variable is not set, please provide a host using --host or set NIMBUS_HOST")
 			}
 
 			filePath, _ := cmd.Flags().GetString("file")
@@ -66,6 +68,18 @@ func main() {
 			if _, err := io.Copy(part, file); err != nil {
 				return err
 			}
+
+			branchCmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+			branchOutput, err := branchCmd.Output()
+			if err != nil {
+				return fmt.Errorf("failed to get current git branch: %w", err)
+			}
+			branch := strings.TrimSpace(string(branchOutput))
+
+			if err := writer.WriteField("branch", branch); err != nil {
+				return fmt.Errorf("failed to add branch field: %w", err)
+			}
+
 			writer.Close()
 
 			req, err := http.NewRequest("POST", host+"/deploy", body)
@@ -88,7 +102,7 @@ func main() {
 						return
 					default:
 						fmt.Printf("\r%s Processing...", spinner[i%len(spinner)])
-						time.Sleep(100 * time.Millisecond)
+						time.Sleep(10 * time.Millisecond)
 						i++
 					}
 				}
@@ -107,7 +121,7 @@ func main() {
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				return fmt.Errorf("deployment failed: %s", string(data))
+				return fmt.Errorf("\ndeployment failed: %s", string(data))
 			}
 
 			var out struct {
@@ -117,9 +131,9 @@ func main() {
 				return err
 			}
 
-			fmt.Println("Deployment successful!")
+			fmt.Println("\nDeployment successful!")
 			if len(out.Services) > 0 {
-				fmt.Println("Exposed services:")
+				fmt.Println("\nExposed services:")
 				for name, urls := range out.Services {
 					fmt.Printf("  %s:\n", name)
 					if len(urls) == 0 {
