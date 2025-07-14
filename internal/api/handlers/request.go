@@ -81,27 +81,45 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		return nil, nil, err
 	}
 
-	env.Logger.DebugContext(ctx, "Retrieving project by API key")
-	project, err := env.Database.GetProjectByApiKey(r.Context(), apiKey)
+	env.Logger.DebugContext(ctx, "Retrieving user by API key")
+	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
 	if err != nil {
 		env.Logger.LogAttrs(
 			ctx, slog.LevelError,
-			"Error getting project by API key", slog.Any("error", err),
+			"Error getting user by API key", slog.Any("error", err),
 		)
-		http.Error(w, "Error getting project", http.StatusUnauthorized)
+		http.Error(w, "Invalid API key", http.StatusUnauthorized)
 		return nil, nil, err
 	}
 
-	env.Logger.DebugContext(ctx, "Validating project name")
-	// AppName is optional
-	if config.AppName != "" && config.AppName != project.Name {
+	if config.AppName == "" {
+		env.Logger.ErrorContext(ctx, "App name missing in config")
+		http.Error(w, "app field is required", http.StatusBadRequest)
+		return nil, nil, fmt.Errorf("app field missing")
+	}
+
+	env.Logger.DebugContext(ctx, "Retrieving project by name")
+	project, err := env.Database.GetProjectByName(r.Context(), config.AppName)
+	if err != nil {
 		env.Logger.LogAttrs(
 			ctx, slog.LevelError,
-			"App name does not match project name", slog.String("app", project.Name),
-			slog.String("project", project.Name),
+			"Error getting project by name", slog.Any("error", err),
 		)
-		http.Error(w, "App name does not match project name", http.StatusBadRequest)
-		return nil, nil, fmt.Errorf("app name does not match project name")
+		http.Error(w, "Project not found", http.StatusBadRequest)
+		return nil, nil, err
+	}
+
+	env.Logger.DebugContext(ctx, "Checking user project access")
+	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{
+		UserID:    user.ID,
+		ProjectID: project.ID,
+	})
+	if err != nil || !authorized {
+		if err != nil {
+			env.Logger.LogAttrs(ctx, slog.LevelError, "Error checking user project access", slog.Any("error", err))
+		}
+		http.Error(w, "User not authorized for project", http.StatusUnauthorized)
+		return nil, nil, fmt.Errorf("user not authorized")
 	}
 	ctx = logging.AppendCtx(ctx, slog.String("app", project.Name))
 
