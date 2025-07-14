@@ -327,6 +327,7 @@ func main() {
 				NodePorts []int32                        `json:"nodePorts"`
 				Ingress   *string                        `json:"ingress"`
 				Pods      []struct{ Name, Phase string } `json:"pods"`
+				Logs      string                         `json:"logs"`
 			}
 			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 				return err
@@ -364,6 +365,13 @@ func main() {
 			fmt.Println("  Pods:")
 			for _, p := range out.Pods {
 				fmt.Printf("    %s - %s\n", p.Name, p.Phase)
+			}
+			if out.Logs != "" {
+				fmt.Println("  Last Logs:")
+				lines := strings.Split(strings.TrimSpace(out.Logs), "\n")
+				for _, l := range lines {
+					fmt.Printf("    %s\n", l)
+				}
 			}
 			return nil
 		},

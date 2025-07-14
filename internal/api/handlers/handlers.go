@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -536,7 +535,13 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pods, err := kubernetes.GetPods(project.Name, name, env)
+	namespace := project.Name
+	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
+	if branch != "main" && branch != "master" {
+		namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
+	}
+
+	pods, err := kubernetes.GetPods(namespace, name, env)
 	if err != nil {
 		http.Error(w, "error getting pods", http.StatusInternalServerError)
 		return
@@ -552,6 +557,14 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 		ingress = &svc.Ingress.String
 	}
 
+	var logs string
+	if len(pods) > 0 {
+		data, err := kubernetes.GetPodLogsTail(namespace, pods[0].Name, 20, env)
+		if err == nil {
+			logs = string(data)
+		}
+	}
+
 	resp := serviceDetailResponse{
 		Project:     project.Name,
 		Branch:      branch,
@@ -559,6 +572,7 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 		NodePorts:   svc.NodePorts,
 		Ingress:     ingress,
 		PodStatuses: podStatuses,
+		Logs:        logs,
 	}
 	json.NewEncoder(w).Encode(resp)
 }
@@ -611,7 +625,21 @@ func StreamLogs(w http.ResponseWriter, r *http.Request) {
 	defer stream.Close()
 
 	w.Header().Set("Content-Type", "text/plain")
-	io.Copy(w, stream)
+
+	flusher, _ := w.(http.Flusher)
+	buf := make([]byte, 1024)
+	for {
+		n, err := stream.Read(buf)
+		if n > 0 {
+			w.Write(buf[:n])
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
 }
 
 func DeleteBranch(w http.ResponseWriter, r *http.Request) {

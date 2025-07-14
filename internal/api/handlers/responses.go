@@ -33,4 +33,5 @@ type serviceDetailResponse struct {
 	NodePorts   []int32     `json:"nodePorts"`
 	Ingress     *string     `json:"ingress,omitempty"`
 	PodStatuses []podStatus `json:"pods"`
+	Logs        string      `json:"logs,omitempty"`
 }
