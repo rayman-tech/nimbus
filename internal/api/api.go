@@ -146,4 +146,5 @@ func addRoutes(router *mux.Router) {
 	router.HandleFunc("/projects", handlers.GetProjects).Methods("GET")
 	router.HandleFunc("/services", handlers.GetServices).Methods("GET")
 	router.HandleFunc("/services/{name}", handlers.GetService).Methods("GET")
+	router.HandleFunc("/branch", handlers.DeleteBranch).Methods("DELETE")
 }

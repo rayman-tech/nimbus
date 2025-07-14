@@ -351,7 +351,43 @@ func main() {
 	serviceGetCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	serviceGetCmd.Flags().StringP("apikey", "a", "", "API key")
 
-	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd)
+	var branchCmd = &cobra.Command{Use: "branch", Short: "Manage branches"}
+	var branchDeleteCmd = &cobra.Command{
+		Use:   "delete",
+		Short: "Delete a branch",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			host := getHost(cmd)
+			apiKey := getAPIKey(cmd)
+			project, _ := cmd.Flags().GetString("project")
+			branch, _ := cmd.Flags().GetString("branch")
+			if project == "" || branch == "" {
+				return fmt.Errorf("project and branch are required")
+			}
+			url := fmt.Sprintf("%s/branch?project=%s&branch=%s", host, project, branch)
+			req, _ := http.NewRequest("DELETE", url, nil)
+			if apiKey != "" {
+				req.Header.Set("X-API-Key", apiKey)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				data, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed: %s", string(data))
+			}
+			fmt.Println("Branch deleted!")
+			return nil
+		},
+	}
+	branchDeleteCmd.Flags().String("project", "", "Project name")
+	branchDeleteCmd.Flags().String("branch", "", "Branch name")
+	branchDeleteCmd.Flags().StringP("host", "H", "", "Nimbus host")
+	branchDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
+	branchCmd.AddCommand(branchDeleteCmd)
+
+	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd, branchCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

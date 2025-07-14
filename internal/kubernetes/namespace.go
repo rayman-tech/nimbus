@@ -44,3 +44,11 @@ func ValidateNamespace(name string, env *nimbusEnv.Env, ctx context.Context) err
 
 	return nil
 }
+
+func DeleteNamespace(name string, env *nimbusEnv.Env) error {
+	err := getClient(env).CoreV1().Namespaces().Delete(context.Background(), name, metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
