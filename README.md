@@ -73,6 +73,17 @@ pods only run on nodes with the selected architecture.
 
 We welcome contributions! Feel free to submit issues and pull requests to improve Nimbus.
 
+## CLI Installation
+
+Install the Nimbus CLI locally with:
+
+```sh
+sudo make install
+```
+
+This command builds the `nimbus` binary and copies it to `/usr/local/bin`,
+allowing you to run `nimbus` from any directory.
+
 ## CLI Usage
 
 After building the project, you can deploy your application using the CLI:
@@ -86,5 +97,14 @@ Flags:
 - `-H`, `--host` – Nimbus server address. Defaults to the `NIMBUS_HOST` environment variable or `http://localhost:8080`.
 - `-f`, `--file` – Path to the `nimbus.yaml` file. Defaults to `./nimbus.yaml`.
 - `-a`, `--apikey` – API key used for authentication. Defaults to the `NIMBUS_API_KEY` environment variable.
+
+The CLI exposes several subcommands:
+
+- `nimbus server` – start the server locally.
+- `nimbus deploy` – deploy a project using a `nimbus.yaml` file.
+- `nimbus projects` – manage projects (`create`, `list`, `delete`).
+- `nimbus services` – inspect services (`list`, `get`, `logs`).
+- `nimbus secrets` – manage project secrets (`list`, `edit`).
+- `nimbus branch delete` – remove a branch and its resources.
 
 Running `nimbus server` will start the server locally.
