@@ -9,8 +9,9 @@ import (
 )
 
 type Config struct {
-	AppName  string    `yaml:"app"`
-	Services []Service `yaml:"services"`
+	AppName             string    `yaml:"app"`
+	AllowBranchPreviews bool      `yaml:"allowBranchPreviews,omitempty"`
+	Services            []Service `yaml:"services"`
 }
 
 type Service struct {

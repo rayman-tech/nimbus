@@ -42,6 +42,8 @@ Ensure that your cluster has a properly configured NFS provisioner before deploy
 
 You also need to set the environment variable `NIMBUS_STORAGE_CLASS` with the name of the storage class you have configured with the provisioner. By default, this is set to `nfs-client`.
 
+To restrict deployments to only the `main` or `master` branches for a project, add `allowBranchPreviews: false` to your project's `nimbus.yaml`. When disabled, deploy requests from any other branch will be rejected.
+
 ## Local Development
 
 For local development, follow these steps:
