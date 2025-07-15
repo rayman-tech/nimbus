@@ -174,6 +174,18 @@ func createDBService(
 	return &newSvc, nil
 }
 
+func shouldCreateKubeService(service *models.Service) bool {
+	if len(service.Network.Ports) > 0 {
+		return true
+	}
+	switch service.Template {
+	case "postgres", "redis", "http":
+		return true
+	default:
+		return false
+	}
+}
+
 func updateDBService(
 	serviceID uuid.UUID,
 	existingIngress *string,
@@ -184,6 +196,41 @@ func updateDBService(
 	ctx context.Context,
 ) ([]string, error) {
 	serviceUrls := make([]string, 0)
+
+	if kubeSvc == nil {
+		if serviceConfig.Template != "http" {
+			env.Logger.DebugContext(ctx, "No service ports specified, clearing node ports")
+			err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
+				ID:        serviceID,
+				NodePorts: []int32{},
+			})
+			if err != nil {
+				env.Logger.LogAttrs(ctx, slog.LevelError, "Error updating service in database", slog.Any("error", err))
+				http.Error(w, "Error updating service", http.StatusInternalServerError)
+				return nil, err
+			}
+		} else {
+			if existingIngress != nil {
+				env.Logger.DebugContext(ctx, "Deleting existing ingress for service with no ports")
+				err := kubernetes.DeleteIngress(env.Deployment.Namespace, *existingIngress, env)
+				if err != nil {
+					env.Logger.LogAttrs(ctx, slog.LevelError, "Error deleting ingress", slog.Any("error", err))
+					http.Error(w, "Error deleting ingress", http.StatusInternalServerError)
+					return nil, err
+				}
+			}
+			err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
+				ID:      serviceID,
+				Ingress: pgtype.Text{Valid: false},
+			})
+			if err != nil {
+				env.Logger.LogAttrs(ctx, slog.LevelError, "Error updating ingress in database", slog.Any("error", err))
+				http.Error(w, "Error updating ingress", http.StatusInternalServerError)
+				return nil, err
+			}
+		}
+		return serviceUrls, nil
+	}
 
 	if serviceConfig.Template != "http" {
 		if !serviceConfig.Public {
@@ -346,14 +393,19 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		}
 		env.Logger.LogAttrs(tempCtx, slog.LevelDebug, "Successfully created Kubernetes deployment", slog.String("deployment", name))
 
-		// Create service
-		env.Logger.DebugContext(tempCtx, "Creating Kubernetes service")
+		// Create service if ports specified or template requires it
 		oldService, svcExists := existingServices[serviceConfig.Name]
-		kubeSvc, err := createService(&serviceConfig, oldService, w, env, ctx)
-		if err != nil {
-			env.Logger.LogAttrs(tempCtx, slog.LevelError, "Error creating Kubernetes service", slog.Any("error", err))
-			http.Error(w, "Error creating Kubernetes service", http.StatusInternalServerError)
-			return
+		var kubeSvc *corev1.Service
+		if shouldCreateKubeService(&serviceConfig) {
+			env.Logger.DebugContext(tempCtx, "Creating Kubernetes service")
+			kubeSvc, err = createService(&serviceConfig, oldService, w, env, ctx)
+			if err != nil {
+				env.Logger.LogAttrs(tempCtx, slog.LevelError, "Error creating Kubernetes service", slog.Any("error", err))
+				http.Error(w, "Error creating Kubernetes service", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			env.Logger.DebugContext(tempCtx, "No ports specified, skipping Kubernetes service creation")
 		}
 
 		urls := make([]string, 0)
