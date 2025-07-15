@@ -65,6 +65,10 @@ Each service defined in your deployment file accepts a `public` flag. When set
 to `true`, Nimbus exposes the service publicly via a NodePort or Ingress.
 Without this flag, services are created as `ClusterIP` and remain internal only.
 
+Services can also specify an `arch` field with either `amd64` or `arm64` to
+target a specific node architecture. Nimbus applies a matching node affinity so
+pods only run on nodes with the selected architecture.
+
 ## Contributing
 
 We welcome contributions! Feel free to submit issues and pull requests to improve Nimbus.

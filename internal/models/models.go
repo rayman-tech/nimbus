@@ -24,6 +24,7 @@ type Service struct {
 	Public       bool            `yaml:"public,omitempty"`
 	Template     string          `yaml:"template,omitempty"`
 	Version      string          `yaml:"version,omitempty"`
+	Arch         string          `yaml:"arch,omitempty"`
 	Configs      []ConfigEntry   `yaml:"configs,omitempty"`
 	Command      []string        `yaml:"command,omitempty"`
 	Args         []string        `yaml:"args,omitempty"`
