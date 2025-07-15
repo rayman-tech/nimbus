@@ -5,7 +5,6 @@ import (
 
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 
 	corev1 "k8s.io/api/core/v1"

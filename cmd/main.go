@@ -521,8 +521,10 @@ func main() {
 				lines = append(lines, fmt.Sprintf("%s=%s", k, v))
 			}
 			sort.Strings(lines)
-			header := "# Example: SECRET_NAME=value (use '=' not ':')"
-			lines = append([]string{header}, lines...)
+			line1 := "# Example: SECRET_NAME=value (use '=' not ':')"
+			line2 := "# DO NOT USE QUOTES IN SECRET VALUES UNLESS IT IS PART OF THE VALUE"
+			line3 := ""
+			lines = append([]string{line1, line2, line3}, lines...)
 			tmp, err := os.CreateTemp("", "nimbus-secrets-*.tmp")
 			if err != nil {
 				return err
