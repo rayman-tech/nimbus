@@ -6,6 +6,7 @@ import (
 	"nimbus/internal/kubernetes"
 	"nimbus/internal/logging"
 	"nimbus/internal/models"
+	"nimbus/internal/utils"
 	"strings"
 
 	"context"
@@ -141,20 +142,8 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		return nil, nil, err
 	}
 
-	// TODO: SPECIFY WHETHER TO USE NAME GIVEN IN YAML OR PROJECT NAME IN THE DATABASE
-	namespace := project.Name
-	replacer := strings.NewReplacer(
-		"/", "-",
-		"_", "-",
-		" ", "-",
-		"#", "",
-		"!", "",
-		"@", "",
-		".", "",
-	)
-	if branch != "main" && branch != "master" {
-		namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
-	}
+	namespace := utils.GetSanitizedNamespace(project.Name, branch)
+	ctx = logging.AppendCtx(ctx, slog.String("namespace", namespace))
 
 	env.Logger.DebugContext(ctx, "Applying project secrets")
 	secrets, err := kubernetes.GetSecretValues(namespace, env)

@@ -76,7 +76,7 @@ func UpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv
 		return err
 	}
 
-	// Replace the existing data entirely so removed keys are deleted
+	// replace the existing data entirely so removed keys are deleted
 	existing.Data = map[string][]byte{}
 	for k, v := range data {
 		existing.Data[k] = []byte(v)

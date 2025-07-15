@@ -14,7 +14,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -527,12 +526,8 @@ func GetServices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := make([]serviceListItem, 0, len(services))
-	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
 	for _, svc := range services {
-		namespace := svc.ProjectName
-		if svc.ProjectBranch != "main" && svc.ProjectBranch != "master" {
-			namespace = fmt.Sprintf("%s-%s", svc.ProjectName, replacer.Replace(svc.ProjectBranch))
-		}
+		namespace := utils.GetSanitizedNamespace(svc.ProjectName, svc.ProjectBranch)
 		pods, err := kubernetes.GetPods(namespace, svc.ServiceName, env)
 		status := "Unknown"
 		if err == nil && len(pods) > 0 {
@@ -587,12 +582,7 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namespace := project.Name
-	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
-	if branch != "main" && branch != "master" {
-		namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
-	}
-
+	namespace := utils.GetSanitizedNamespace(project.Name, branch)
 	pods, err := kubernetes.GetPods(namespace, name, env)
 	if err != nil {
 		http.Error(w, "error getting pods", http.StatusInternalServerError)
@@ -663,12 +653,7 @@ func StreamLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namespace := project.Name
-	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
-	if branch != "main" && branch != "master" {
-		namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
-	}
-
+	namespace := utils.GetSanitizedNamespace(project.Name, branch)
 	stream, err := kubernetes.StreamServiceLogs(namespace, name, env)
 	if err != nil {
 		http.Error(w, "error streaming logs", http.StatusInternalServerError)
@@ -733,12 +718,7 @@ func DeleteBranch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namespace := project.Name
-	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
-	if branch != "main" && branch != "master" {
-		namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
-	}
-
+	namespace := utils.GetSanitizedNamespace(project.Name, branch)
 	for _, svc := range services {
 		kubernetes.DeleteDeployment(namespace, svc.ServiceName, env)
 		kubernetes.DeleteService(namespace, svc.ServiceName, env)
@@ -799,7 +779,6 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
 	for _, branch := range branches {
 		services, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
 		if err != nil {
@@ -807,11 +786,7 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		namespace := project.Name
-		if branch != "main" && branch != "master" {
-			namespace = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
-		}
-
+		namespace := utils.GetSanitizedNamespace(project.Name, branch)
 		for _, svc := range services {
 			kubernetes.DeleteDeployment(namespace, svc.ServiceName, env)
 			kubernetes.DeleteService(namespace, svc.ServiceName, env)
@@ -931,12 +906,9 @@ func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
 	if len(branches) == 0 {
 		branches = []string{"main"}
 	}
-	replacer := strings.NewReplacer("/", "-", "_", "-", " ", "-", "#", "", "!", "", "@", "", ".", "")
+
 	for _, branch := range branches {
-		ns := project.Name
-		if branch != "main" && branch != "master" {
-			ns = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
-		}
+		ns := utils.GetSanitizedNamespace(project.Name, branch)
 		if err := kubernetes.UpdateSecret(ns, fmt.Sprintf("%s-env", project.Name), req.Secrets, env); err != nil {
 			env.Logger.ErrorContext(context.Background(), err.Error())
 			http.Error(w, "error updating secrets", http.StatusInternalServerError)
