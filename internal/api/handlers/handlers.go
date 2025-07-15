@@ -7,6 +7,7 @@ import (
 	"nimbus/internal/logging"
 	"nimbus/internal/models"
 	"nimbus/internal/utils"
+	"slices"
 
 	"context"
 	"encoding/json"
@@ -899,10 +900,14 @@ func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
 	if len(branches) == 0 {
 		branches = []string{"main"}
 	}
+	if !slices.Contains(branches, "main") && !slices.Contains(branches, "master") {
+		branches = append(branches, "main")
+	}
 
 	for _, branch := range branches {
-		ns := utils.GetSanitizedNamespace(project.Name, branch)
-		if err := kubernetes.UpdateSecret(ns, fmt.Sprintf("%s-env", project.Name), req.Secrets, env); err != nil {
+		namespace := utils.GetSanitizedNamespace(project.Name, branch)
+		env.Logger.DebugContext(r.Context(), "Updating secrets for namespace", slog.String("namespace", namespace))
+		if err := kubernetes.UpdateSecret(namespace, fmt.Sprintf("%s-env", project.Name), req.Secrets, env); err != nil {
 			env.Logger.ErrorContext(context.Background(), err.Error())
 			http.Error(w, "error updating secrets", http.StatusInternalServerError)
 			return

@@ -5,6 +5,7 @@ import (
 
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 
 	corev1 "k8s.io/api/core/v1"
@@ -59,8 +60,8 @@ func UpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv
 	}
 
 	client := getClient(env).CoreV1().Secrets(namespace)
-	var existing *corev1.Secret
-	existing, err = client.Get(context.Background(), name, metav1.GetOptions{})
+	var secret *corev1.Secret
+	secret, err = client.Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			_, err = client.Create(context.Background(), &corev1.Secret{
@@ -77,12 +78,15 @@ func UpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv
 	}
 
 	// replace the existing data entirely so removed keys are deleted
-	existing.Data = map[string][]byte{}
+	newData := make(map[string][]byte)
 	for k, v := range data {
-		existing.Data[k] = []byte(v)
+		newData[k] = []byte(v)
 	}
-	existing.StringData = nil
-	existing.Type = corev1.SecretTypeOpaque
-	_, err = client.Update(context.Background(), existing, metav1.UpdateOptions{})
+
+	secret.Data = newData
+	secret.StringData = nil
+	secret.Type = corev1.SecretTypeOpaque
+
+	_, err = client.Update(context.Background(), secret, metav1.UpdateOptions{})
 	return err
 }
