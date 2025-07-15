@@ -13,7 +13,7 @@ Before setting up Nimbus, ensure you have the following installed:
 
 For local development, we recommend using [Minikube](https://minikube.sigs.k8s.io/docs/) to set up a local Kubernetes cluster. Ensure your Kubernetes configuration is available at `~/.kube/config`.
 
-## Deployment
+## Server Installation
 
 To deploy Nimbus on an existing Kubernetes cluster:
 
@@ -59,26 +59,31 @@ For local development, follow these steps:
     make server
     ```
 
-## Service Configuration
+## Deployment
 
-Each service defined in your deployment file accepts a `public` flag. When set
-to `true`, Nimbus exposes the service publicly via a NodePort or Ingress.
-Without this flag, services are created as `ClusterIP` and remain internal only.
+A `nimbus.yaml` file needs to be present in your repository to deploy to Nimbus.
+This file defines the services that will be deployed, as well as the networking and environment configurations.
+There are pre-defined templates for services, such as databases and Redis, to make configuration easier. A sample `nimbus.yaml` file is available [here](https://github.com/rayman-tech/nimbus-action/blob/main/nimbus.yaml).
 
-Services can also specify an `arch` field with either `amd64` or `arm64` to
-target a specific node architecture. Nimbus applies a matching node affinity so
-pods only run on nodes with the selected architecture.
+Deployment can be done through our [GitHub action](https://github.com/rayman-tech/nimbus-action), or through the local CLI, which is used for managing project state.
 
-## Contributing
+## CLI Installation
 
-We welcome contributions! Feel free to submit issues and pull requests to improve Nimbus.
+Install the Nimbus CLI locally with:
+
+```sh
+sudo make install
+```
+
+This command builds the `nimbus` binary and copies it to `/usr/local/bin`,
+allowing you to run `nimbus` from any directory.
 
 ## CLI Usage
 
-After building the project, you can deploy your application using the CLI:
+After installing the CLI, you can deploy your application easily:
 
 ```sh
-nimbus deploy -H http://localhost:8080 -f ./nimbus.yaml -a <API_KEY>
+nimbus deploy
 ```
 
 Flags:
@@ -87,4 +92,16 @@ Flags:
 - `-f`, `--file` – Path to the `nimbus.yaml` file. Defaults to `./nimbus.yaml`.
 - `-a`, `--apikey` – API key used for authentication. Defaults to the `NIMBUS_API_KEY` environment variable.
 
+The client CLI exposes several subcommands:
+
+- `nimbus deploy` – deploy a project using a `nimbus.yaml` file.
+- `nimbus projects` – manage projects (`create`, `list`, `delete`).
+- `nimbus services` – inspect services (`list`, `get`, `logs`).
+- `nimbus secrets` – manage project secrets (`list`, `edit`).
+- `nimbus branch delete` – remove a branch and its resources.
+
 Running `nimbus server` will start the server locally.
+
+## Contributing
+
+We welcome contributions! Feel free to submit issues and pull requests to improve Nimbus.
