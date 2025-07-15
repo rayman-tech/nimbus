@@ -82,6 +82,10 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		http.Error(w, "Error parsing YAML", http.StatusBadRequest)
 		return nil, nil, err
 	}
+	if config.AllowBranchPreviews == nil {
+		v := true
+		config.AllowBranchPreviews = &v
+	}
 
 	env.Logger.DebugContext(ctx, "Retrieving user by API key")
 	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
@@ -132,7 +136,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	}
 	ctx = logging.AppendCtx(ctx, slog.String("branch", branch))
 
-	if !config.AllowBranchPreviews && branch != "main" && branch != "master" {
+	if config.AllowBranchPreviews != nil && !*config.AllowBranchPreviews && branch != "main" && branch != "master" {
 		http.Error(w, "branch previews are disabled", http.StatusBadRequest)
 		return nil, nil, fmt.Errorf("branch previews disabled")
 	}
