@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	AppName             string    `yaml:"app"`
-	AllowBranchPreviews bool      `yaml:"allowBranchPreviews,omitempty"`
+	AllowBranchPreviews *bool     `yaml:"allowBranchPreviews,omitempty"`
 	Services            []Service `yaml:"services"`
 }
 
