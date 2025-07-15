@@ -153,7 +153,7 @@ func main() {
 	deployCmd.Flags().StringP("file", "f", "./nimbus.yaml", "Path to deployment file")
 	deployCmd.Flags().StringP("apikey", "a", "", "API key (default $NIMBUS_API_KEY)")
 
-	var projectCmd = &cobra.Command{Use: "project", Short: "Manage projects"}
+	var projectCmd = &cobra.Command{Use: "projects", Short: "Manage projects"}
 	var projectCreateCmd = &cobra.Command{
 		Use:   "create",
 		Short: "Create a new project",
@@ -246,7 +246,7 @@ func main() {
 	projectDeleteCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	projectDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
 
-	var serviceCmd = &cobra.Command{Use: "service", Short: "Manage services"}
+	var serviceCmd = &cobra.Command{Use: "services", Short: "Manage services"}
 	var serviceListCmd = &cobra.Command{
 		Use:   "list",
 		Short: "List all services",
@@ -550,14 +550,16 @@ func main() {
 			secrets := map[string]string{}
 			for _, line := range strings.Split(string(data), "\n") {
 				line = strings.TrimSpace(line)
-				if line == "" {
+				if line == "" || strings.HasPrefix(line, "#") {
 					continue
 				}
 				parts := strings.SplitN(line, "=", 2)
 				if len(parts) != 2 {
 					continue
 				}
-				secrets[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+				secrets[key] = value
 			}
 			body, _ := json.Marshal(map[string]map[string]string{"secrets": secrets})
 			req2, _ := http.NewRequest("PUT", fmt.Sprintf("%s/projects/%s/secrets", host, project), bytes.NewBuffer(body))

@@ -53,8 +53,14 @@ func ListSecretNames(namespace string, env *nimbusEnv.Env) ([]string, error) {
 }
 
 func UpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv.Env) error {
+	err := ValidateNamespace(namespace, env, context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to validate namespace %s: %w", namespace, err)
+	}
+
 	client := getClient(env).CoreV1().Secrets(namespace)
-	existing, err := client.Get(context.Background(), name, metav1.GetOptions{})
+	var existing *corev1.Secret
+	existing, err = client.Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			_, err = client.Create(context.Background(), &corev1.Secret{

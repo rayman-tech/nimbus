@@ -676,6 +676,7 @@ func DeleteBranch(w http.ResponseWriter, r *http.Request) {
 
 	services, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
 	if err != nil {
+		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error fetching services", http.StatusInternalServerError)
 		return
 	}
@@ -741,6 +742,7 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 
 	branches, err := env.Database.GetProjectBranches(r.Context(), project.ID)
 	if err != nil {
+		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error fetching branches", http.StatusInternalServerError)
 		return
 	}
@@ -749,6 +751,7 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 	for _, branch := range branches {
 		services, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
 		if err != nil {
+			env.Logger.ErrorContext(context.Background(), err.Error())
 			continue
 		}
 
@@ -812,6 +815,7 @@ func GetProjectSecrets(w http.ResponseWriter, r *http.Request) {
 	if showValues {
 		vals, err := kubernetes.GetSecretValues(project.Name, env)
 		if err != nil {
+			env.Logger.ErrorContext(context.Background(), err.Error())
 			http.Error(w, "error getting secrets", http.StatusInternalServerError)
 			return
 		}
@@ -819,6 +823,7 @@ func GetProjectSecrets(w http.ResponseWriter, r *http.Request) {
 	} else {
 		names, err := kubernetes.ListSecretNames(project.Name, env)
 		if err != nil {
+			env.Logger.ErrorContext(context.Background(), err.Error())
 			http.Error(w, "error getting secrets", http.StatusInternalServerError)
 			return
 		}
@@ -867,6 +872,7 @@ func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
 
 	branches, err := env.Database.GetProjectBranches(r.Context(), project.ID)
 	if err != nil {
+		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error fetching branches", http.StatusInternalServerError)
 		return
 	}
@@ -880,6 +886,7 @@ func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
 			ns = fmt.Sprintf("%s-%s", project.Name, replacer.Replace(branch))
 		}
 		if err := kubernetes.UpdateSecret(ns, fmt.Sprintf("%s-env", project.Name), req.Secrets, env); err != nil {
+			env.Logger.ErrorContext(context.Background(), err.Error())
 			http.Error(w, "error updating secrets", http.StatusInternalServerError)
 			return
 		}
