@@ -93,6 +93,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		http.Error(w, "Invalid API key", http.StatusUnauthorized)
 		return nil, nil, err
 	}
+	ctx = logging.AppendCtx(ctx, slog.String("username", user.Username))
 
 	if config.AppName == "" {
 		env.Logger.ErrorContext(ctx, "App name missing in config")
@@ -146,7 +147,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	ctx = logging.AppendCtx(ctx, slog.String("namespace", namespace))
 
 	env.Logger.DebugContext(ctx, "Applying project secrets")
-	secrets, err := kubernetes.GetSecretValues(namespace, env)
+	secrets, err := kubernetes.GetSecretValues(project.Name, env)
 	if err == nil {
 		for i := range config.Services {
 			for j := range config.Services[i].Env {
@@ -160,6 +161,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 			}
 		}
 	}
+	env.Logger.DebugContext(ctx, "Project secrets applied", slog.Any("config", config))
 
 	env.Logger.DebugContext(ctx, "Constructing request struct")
 	return &models.DeployRequest{
