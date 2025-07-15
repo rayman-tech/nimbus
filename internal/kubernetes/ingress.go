@@ -22,9 +22,16 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingIngr
 	if service.Template != "http" || !service.Public {
 		return nil, nil
 	}
+	ingressClassName := os.Getenv("INGRESS_CLASS_NAME")
 
 	randomString := GenerateRandomChars()
 	spec := networkingv1.IngressSpec{
+		IngressClassName: func() *string {
+			if ingressClassName != "" {
+				return &ingressClassName
+			}
+			return nil
+		}(),
 		Rules: []networkingv1.IngressRule{
 			{
 				Host: fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
