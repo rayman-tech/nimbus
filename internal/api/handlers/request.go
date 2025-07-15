@@ -127,7 +127,15 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 	ctx = logging.AppendCtx(ctx, slog.String("app", project.Name))
 
 	branch := r.FormValue(formBranch)
+	if branch == "" {
+		branch = "main"
+	}
 	ctx = logging.AppendCtx(ctx, slog.String("branch", branch))
+
+	if !config.AllowBranchPreviews && branch != "main" && branch != "master" {
+		http.Error(w, "branch previews are disabled", http.StatusBadRequest)
+		return nil, nil, fmt.Errorf("branch previews disabled")
+	}
 
 	env.Logger.DebugContext(ctx, "Retrieving project services")
 	existingServices, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{
