@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -354,11 +355,20 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	env.Deployment = deployRequest
 
 	env.Logger.DebugContext(ctx, "Validating namespace")
-	err = kubernetes.ValidateNamespace(deployRequest.Namespace, env, ctx)
+	created, err := kubernetes.ValidateNamespace(deployRequest.Namespace, env, ctx)
 	if err != nil {
 		env.Logger.LogAttrs(ctx, slog.LevelError, "Error validating namespace", slog.Any("error", err))
 		http.Error(w, "Error validating namespace", http.StatusInternalServerError)
 		return
+	}
+	if created && deployRequest.BranchName != "main" && deployRequest.BranchName != "master" {
+		mainNS := utils.GetSanitizedNamespace(deployRequest.ProjectConfig.AppName, "main")
+		vals, err := kubernetes.GetSecretValues(mainNS, env)
+		if err == nil && len(vals) > 0 {
+			if err := kubernetes.UpdateSecret(deployRequest.Namespace, fmt.Sprintf("%s-env", deployRequest.ProjectConfig.AppName), vals, env); err != nil {
+				env.Logger.ErrorContext(ctx, err.Error())
+			}
+		}
 	}
 	ctx = logging.AppendCtx(ctx, slog.String("namespace", deployRequest.Namespace))
 
@@ -472,6 +482,7 @@ func CreateProject(w http.ResponseWriter, r *http.Request) {
 		Name: req.Name,
 	})
 	if err != nil {
+		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error creating project", http.StatusInternalServerError)
 		return
 	}
@@ -500,6 +511,7 @@ func GetProjects(w http.ResponseWriter, r *http.Request) {
 
 	projects, err := env.Database.GetProjectsByUser(r.Context(), user.ID)
 	if err != nil {
+		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error fetching projects", http.StatusInternalServerError)
 		return
 	}
@@ -521,6 +533,7 @@ func GetServices(w http.ResponseWriter, r *http.Request) {
 
 	services, err := env.Database.GetServicesByUser(r.Context(), user.ID)
 	if err != nil {
+		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error fetching services", http.StatusInternalServerError)
 		return
 	}
@@ -552,26 +565,15 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]
 	projectName := r.URL.Query().Get("project")
-	branch := r.URL.Query().Get("branch")
-	if branch == "" {
-		branch = "main"
-	}
+	branch := utils.GetBranch(r)
 
 	apiKey := r.Header.Get(xApiKey)
-	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
+	project, _, err := utils.AuthorizeProject(r.Context(), env, apiKey, projectName)
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	project, err := env.Database.GetProjectByName(r.Context(), projectName)
-	if err != nil {
-		http.Error(w, "project not found", http.StatusNotFound)
-		return
-	}
-
-	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
-	if err != nil || !authorized {
+		if strings.Contains(err.Error(), "project not found") {
+			http.Error(w, "project not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -585,6 +587,7 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 	namespace := utils.GetSanitizedNamespace(project.Name, branch)
 	pods, err := kubernetes.GetPods(namespace, name, env)
 	if err != nil {
+		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error getting pods", http.StatusInternalServerError)
 		return
 	}
@@ -629,26 +632,15 @@ func StreamLogs(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]
 	projectName := r.URL.Query().Get("project")
-	branch := r.URL.Query().Get("branch")
-	if branch == "" {
-		branch = "main"
-	}
+	branch := utils.GetBranch(r)
 
 	apiKey := r.Header.Get(xApiKey)
-	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
+	project, _, err := utils.AuthorizeProject(r.Context(), env, apiKey, projectName)
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	project, err := env.Database.GetProjectByName(r.Context(), projectName)
-	if err != nil {
-		http.Error(w, "project not found", http.StatusNotFound)
-		return
-	}
-
-	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
-	if err != nil || !authorized {
+		if strings.Contains(err.Error(), "project not found") {
+			http.Error(w, "project not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -656,6 +648,7 @@ func StreamLogs(w http.ResponseWriter, r *http.Request) {
 	namespace := utils.GetSanitizedNamespace(project.Name, branch)
 	stream, err := kubernetes.StreamServiceLogs(namespace, name, env)
 	if err != nil {
+		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error streaming logs", http.StatusInternalServerError)
 		return
 	}

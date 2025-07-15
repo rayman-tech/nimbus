@@ -53,7 +53,7 @@ func ListSecretNames(namespace string, env *nimbusEnv.Env) ([]string, error) {
 }
 
 func UpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv.Env) error {
-	err := ValidateNamespace(namespace, env, context.Background())
+	_, err := ValidateNamespace(namespace, env, context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to validate namespace %s: %w", namespace, err)
 	}

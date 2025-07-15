@@ -23,10 +23,10 @@ func CreateNamespace(name string, env *nimbusEnv.Env) error {
 	return err
 }
 
-func ValidateNamespace(name string, env *nimbusEnv.Env, ctx context.Context) error {
+func ValidateNamespace(name string, env *nimbusEnv.Env, ctx context.Context) (bool, error) {
 	ns, err := GetNamespace(name, env)
 	if err == nil && ns != nil {
-		return nil
+		return false, nil
 	}
 	env.Logger.LogAttrs(
 		ctx, slog.LevelWarn,
@@ -39,10 +39,10 @@ func ValidateNamespace(name string, env *nimbusEnv.Env, ctx context.Context) err
 			ctx, slog.LevelError,
 			"Error creating namespace", slog.Any("error", err),
 		)
-		return err
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 func DeleteNamespace(name string, env *nimbusEnv.Env) error {
