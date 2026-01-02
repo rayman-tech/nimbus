@@ -43,15 +43,19 @@ func main() {
 			defer cancel()
 
 			port, _ := cmd.Flags().GetString("port")
+			log := logging.New(nil)
+
+			log.Info("loading config")
 			config, err := config.LoadConfig()
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
 			}
+
+			log.Info("setting up database")
 			db, err := setup.Database(setupCtx, config)
 			if err != nil {
 				return fmt.Errorf("setting up database: %w", err)
 			}
-			log := logging.New(nil)
 
 			return api.Start(port, &env.Env{
 				Logger:   log,

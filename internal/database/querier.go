@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	AddUserToProject(ctx context.Context, arg AddUserToProjectParams) error
+	CheckProjectsTableExists(ctx context.Context) (bool, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
 	CreateVolume(ctx context.Context, arg CreateVolumeParams) (Volume, error)

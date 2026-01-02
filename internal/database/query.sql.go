@@ -27,6 +27,25 @@ func (q *Queries) AddUserToProject(ctx context.Context, arg AddUserToProjectPara
 	return err
 }
 
+const checkProjectsTableExists = `-- name: CheckProjectsTableExists :one
+SELECT
+  EXISTS (
+    SELECT
+      1
+    FROM
+      information_schema.tables
+    WHERE
+      table_schema = 'public'
+      AND table_name = 'projects')
+`
+
+func (q *Queries) CheckProjectsTableExists(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, checkProjectsTableExists)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (id, name)
   VALUES ($1, $2)

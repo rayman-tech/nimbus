@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Database(ctx context.Context, config config.Config) (*database.Queries, error) {
+func Database(ctx context.Context, config config.Config) (*database.Database, error) {
 	poolConfig, err := pgxpool.ParseConfig("")
 	if err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
@@ -34,6 +34,13 @@ func Database(ctx context.Context, config config.Config) (*database.Queries, err
 	if err != nil {
 		return nil, fmt.Errorf("connecting to db: %w", err)
 	}
+	db := database.NewDatabase(pool)
 
-	return database.New(pool), nil
+	// Apply schema
+	err = db.EnsureSchema(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("ensuring schema: %w", err)
+	}
+
+	return db, nil
 }
