@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,13 +10,18 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"nimbus/internal/api"
 	"nimbus/internal/config"
+	"nimbus/internal/env"
+	"nimbus/internal/logging"
+	"nimbus/internal/setup"
 
 	urllib "net/url"
 
@@ -29,12 +35,29 @@ func main() {
 		Use:   "server",
 		Short: "Start the server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			const setupTime = 30 * time.Second
+			setupCtx, cancel := context.WithTimeout(ctx, setupTime)
+			defer cancel()
+
 			port, _ := cmd.Flags().GetString("port")
-			_, err := config.LoadConfig()
+			config, err := config.LoadConfig()
 			if err != nil {
-				return err
+				return fmt.Errorf("loading config: %w", err)
 			}
-			return api.Start(port, nil)
+			db, err := setup.Database(setupCtx, config)
+			if err != nil {
+				return fmt.Errorf("setting up database: %w", err)
+			}
+			log := logging.New(nil)
+
+			return api.Start(port, &env.Env{
+				Logger:   log,
+				Database: db,
+				Config:   config,
+			})
 		},
 	}
 	serverCmd.Flags().StringP("port", "p", "8080", "Port to run the server on")

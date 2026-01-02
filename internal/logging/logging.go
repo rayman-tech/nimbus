@@ -5,13 +5,12 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"os"
 )
 
-type ctxKey string
+type slogFieldKeyType struct{}
 
-const (
-	slogFields ctxKey = "slog_fields"
-)
+var slogFieldKey slogFieldKeyType
 
 type ContextHandler struct {
 	slog.Handler
@@ -19,7 +18,7 @@ type ContextHandler struct {
 
 // Handle adds contextual attributes to the Record before calling the underlying handler.
 func (h ContextHandler) Handle(ctx context.Context, r slog.Record) error {
-	if attrs, ok := ctx.Value(slogFields).([]slog.Attr); ok {
+	if attrs, ok := ctx.Value(slogFieldKey).([]slog.Attr); ok {
 		for _, v := range attrs {
 			r.AddAttrs(v)
 		}
@@ -35,14 +34,14 @@ func AppendCtx(parent context.Context, attr slog.Attr) context.Context {
 		parent = context.Background()
 	}
 
-	if v, ok := parent.Value(slogFields).([]slog.Attr); ok {
+	if v, ok := parent.Value(slogFieldKey).([]slog.Attr); ok {
 		v = append(v, attr)
-		return context.WithValue(parent, slogFields, v)
+		return context.WithValue(parent, slogFieldKey, v)
 	}
 
 	v := []slog.Attr{}
 	v = append(v, attr)
-	return context.WithValue(parent, slogFields, v)
+	return context.WithValue(parent, slogFieldKey, v)
 }
 
 type nullWriter struct {
@@ -60,4 +59,19 @@ func NullLogger() *ContextHandler {
 			&slog.HandlerOptions{},
 		),
 	}
+}
+
+func New(options *slog.HandlerOptions) *slog.Logger {
+	if options == nil {
+		options = &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}
+	}
+
+	return slog.New(&ContextHandler{
+		Handler: slog.NewJSONHandler(
+			os.Stderr,
+			options,
+		),
+	})
 }

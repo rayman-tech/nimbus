@@ -1,10 +1,11 @@
-// Package environment provides a way to access environmental dependencies
+// Package env provides a way to access environmental dependencies
 package env
 
 import (
 	"context"
 	"log/slog"
 
+	"nimbus/internal/config"
 	"nimbus/internal/database"
 	"nimbus/internal/logging"
 	"nimbus/internal/models"
@@ -19,6 +20,7 @@ type Env struct {
 	Logger     *slog.Logger
 	Deployment *models.DeployRequest
 	Database   *database.Database
+	Config     config.Config
 }
 
 // NewEnvironment constructs an Env object with the provided parameters.

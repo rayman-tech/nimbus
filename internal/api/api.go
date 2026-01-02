@@ -65,7 +65,6 @@ func Start(port string, env *env.Env) error {
 	if env == nil {
 		env = initializeEnv()
 	}
-	defer func() { _ = env.Database.Close() }()
 
 	env.Logger.Info(fmt.Sprintf("Serving at 0.0.0.0:%s...", port))
 	router := mux.NewRouter()

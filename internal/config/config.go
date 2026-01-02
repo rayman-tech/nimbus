@@ -14,7 +14,7 @@ import (
 	en_translations "github.com/go-playground/validator/v10/translations/en"
 )
 
-// use a single instance, it caches struct info
+// use a single instance, it caches struct info.
 var (
 	uni      *ut.UniversalTranslator
 	validate *validator.Validate
