@@ -61,6 +61,15 @@ For local development, follow these steps:
     make server
     ```
 
+### Development Tools
+
+The following tools are included as development dependencies for code quality:
+
+- **[golangci-lint](https://golangci-lint.run/)** - Go linter aggregator for running multiple linters
+- **[pg_format](https://github.com/darold/pgFormatter)** - PostgreSQL SQL syntax formatter
+
+These tools are automatically configured in the project's Makefile for linting and formatting tasks.
+
 ## Deployment
 
 A `nimbus.yaml` file needs to be present in your repository to deploy to Nimbus.
