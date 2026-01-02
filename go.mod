@@ -13,6 +13,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/spf13/cobra v1.9.1
+	go.uber.org/mock v0.6.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.32.2
 	k8s.io/apimachinery v0.32.2
