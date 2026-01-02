@@ -24,7 +24,6 @@ func init() {
 	en := en.New()
 	uni = ut.New(en, en)
 	validate = validator.New(validator.WithRequiredStructEnabled())
-	validate.RegisterValidation("port", validatePort)
 }
 
 type Database struct {
@@ -69,27 +68,28 @@ func LoadConfig() (Config, error) {
 		return conf, errors.New("failed to find translator")
 	}
 
-	en_translations.RegisterDefaultTranslations(validate, trans)
-	validate.RegisterTranslation("required", trans, func(ut ut.Translator) error {
+	_ = en_translations.RegisterDefaultTranslations(validate, trans)
+	_ = validate.RegisterValidation("port", validatePort)
+	_ = validate.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "environment variable {0} is required", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("required", toEnvName(fe.StructNamespace()))
 
 		return t
 	})
-	validate.RegisterTranslation("port", trans, func(ut ut.Translator) error {
+	_ = validate.RegisterTranslation("port", trans, func(ut ut.Translator) error {
 		return ut.Add("port", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("port", toEnvName(fe.StructNamespace()))
 		return fmt.Sprintf("invalid %s (%s) - expected an int between 1 and 65535", t, fe.Value())
 	})
-	validate.RegisterTranslation("hostname_rfc1123", trans, func(ut ut.Translator) error {
+	_ = validate.RegisterTranslation("hostname_rfc1123", trans, func(ut ut.Translator) error {
 		return ut.Add("hostname_rfc1123", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("hostname_rfc1123", toEnvName(fe.StructNamespace()))
 		return fmt.Sprintf("invalid %s (%s) - expected a valid hostname", t, fe.Value())
 	})
-	validate.RegisterTranslation("oneof", trans, func(ut ut.Translator) error {
+	_ = validate.RegisterTranslation("oneof", trans, func(ut ut.Translator) error {
 		return ut.Add("oneof", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("oneof", toEnvName(fe.StructNamespace()))
@@ -98,7 +98,7 @@ func LoadConfig() (Config, error) {
 
 	err := validate.Struct(conf)
 	if err != nil {
-		validationErrors := err.(validator.ValidationErrors)
+		validationErrors := err.(validator.ValidationErrors) //nolint:errorlint
 		var msg strings.Builder
 		for _, err := range validationErrors {
 			msg.WriteString(err.Translate(trans))
