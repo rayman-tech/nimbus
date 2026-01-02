@@ -52,9 +52,10 @@ For local development, you can run Nimbus either directly or using Docker Compos
 
 This method runs the server with hot-reloading enabled and includes a PostgreSQL database:
 
-1. Copy the `.env.example` file to `.env` and set the required environment variables:
+1. Copy the `.env.example` files and set the required variables:
    ```sh
    cp .env.example .env
+   cp .env.database.example .env.database
    ```
 2. Ensure Kubernetes is running locally (Minikube is recommended):
    ```sh
