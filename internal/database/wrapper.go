@@ -1,26 +1,42 @@
+// Package database
 package database
 
 import (
-	"sync"
-
 	"context"
+	"fmt"
 
-	"github.com/jackc/pgx/v5"
+	"nimbus/internal/sql"
 )
 
-var queries *Queries
-var connection *pgx.Conn
-var once sync.Once
-
 type Database struct {
-	*Queries
-	connection *pgx.Conn
+	Querier
+
+	db DBTX
 }
 
-func (db *Database) Close() error {
-	if db == nil {
+func NewDatabase(db DBTX) *Database {
+	return &Database{
+		Querier: New(db),
+		db:      db,
+	}
+}
+
+// EnsureSchema ensures the database schema is applied to the
+// Postgres database. The schema is applied to the database
+// if the schema is not detected.
+func (db *Database) EnsureSchema(ctx context.Context) error {
+	exists, err := db.CheckProjectsTableExists(ctx)
+	if err != nil {
+		return fmt.Errorf("checking projects table existance: %w", err)
+	}
+
+	if exists {
 		return nil
 	}
 
-	return db.connection.Close(context.Background())
+	if _, err := db.db.Exec(ctx, sql.Schema()); err != nil {
+		return fmt.Errorf("applying database schema: %w", err)
+	}
+
+	return nil
 }

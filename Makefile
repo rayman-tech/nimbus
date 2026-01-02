@@ -65,6 +65,16 @@ sql-fmt:
 	@echo "🎨 Formatting SQL"
 	pg_format -i internal/sql/query.sql internal/sql/schema.sql
 
+.PHONY: dbmock
+dbmock: sqlc
+	@echo "🤖 Generating database mock..."
+	mockgen -source=internal/database/querier.go \
+		-destination internal/database/queriermock.go \
+		-package database
+	mockgen -source=internal/database/db.go \
+		-destination internal/database/dbtxmock.go \
+		-package database
+
 .PHONY: install
 install: build
 	@echo "📦  Installing $(BINARY) to /usr/local/bin…"

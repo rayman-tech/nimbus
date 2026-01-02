@@ -1,20 +1,16 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	"nimbus/internal/api/handlers"
-	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/logging"
 
 	"github.com/gorilla/mux"
-	"github.com/jackc/pgx/v5"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -31,42 +27,7 @@ func (lrw *logResponseWriter) WriteHeader(code int) {
 	lrw.ResponseWriter.WriteHeader(code)
 }
 
-func initializeEnv() *env.Env {
-	// Initialize logger
-	logger := slog.New(&logging.ContextHandler{
-		Handler: slog.NewTextHandler(
-			os.Stderr,
-			&slog.HandlerOptions{
-				Level: slog.LevelDebug,
-			}),
-	},
-	)
-
-	conn, err := pgx.Connect(
-		context.Background(),
-		fmt.Sprintf(
-			"user=%s password=%s host=%s port=%s dbname=%s sslmode=disable",
-			os.Getenv("DB_USER"),
-			os.Getenv("DB_PASSWORD"),
-			os.Getenv("DB_HOST"),
-			os.Getenv("DB_PORT"),
-			os.Getenv("DB_NAME"),
-		))
-	if err != nil {
-		panic(err)
-	}
-
-	// Initialize the database connection
-	logger.Info("Connecting to database")
-	return env.NewEnvironment(logger, &database.Database{Queries: database.New(conn)})
-}
-
 func Start(port string, env *env.Env) error {
-	if env == nil {
-		env = initializeEnv()
-	}
-	defer func() { _ = env.Database.Close() }()
-
 	env.Logger.Info(fmt.Sprintf("Serving at 0.0.0.0:%s...", port))
 	router := mux.NewRouter()
 	router.Use(injectEnvironment(env))
