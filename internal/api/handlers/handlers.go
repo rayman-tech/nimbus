@@ -1,21 +1,21 @@
 package handlers
 
 import (
-	"nimbus/internal/database"
-	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/kubernetes"
-	"nimbus/internal/logging"
-	"nimbus/internal/models"
-	"nimbus/internal/utils"
-	"slices"
-
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
+
+	"nimbus/internal/database"
+	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/kubernetes"
+	"nimbus/internal/logging"
+	"nimbus/internal/models"
+	"nimbus/internal/utils"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -24,9 +24,11 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
-const formFile = "file"
-const formBranch = "branch"
-const xApiKey = "X-API-Key"
+const (
+	formFile   = "file"
+	formBranch = "branch"
+	xApiKey    = "X-API-Key"
+)
 
 const envKey = "env"
 
@@ -87,7 +89,9 @@ func deleteRemovedServices(
 				}
 			}
 
-			env.Logger.LogAttrs(ctx, slog.LevelDebug, "Deleting service in database", slog.String("service", service.ServiceName))
+			env.Logger.LogAttrs(ctx,
+				slog.LevelDebug,
+				"Deleting service in database", slog.String("service", service.ServiceName))
 			err = env.Database.DeleteServiceById(ctx, service.ID)
 			if err != nil {
 				env.Logger.LogAttrs(
@@ -165,7 +169,6 @@ func createDBService(
 		ProjectBranch: env.Deployment.BranchName,
 		ServiceName:   name,
 	})
-
 	if err != nil {
 		env.Logger.LogAttrs(ctx, slog.LevelError, "Error creating service in database", slog.Any("error", err))
 		http.Error(w, "Error creating service", http.StatusInternalServerError)
@@ -262,7 +265,6 @@ func updateDBService(
 			ID:        serviceID,
 			NodePorts: nodePorts,
 		})
-
 		if err != nil {
 			env.Logger.LogAttrs(ctx, slog.LevelError, "Error updating service in database", slog.Any("error", err))
 			http.Error(w, "Error updating service", http.StatusInternalServerError)
@@ -366,7 +368,11 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		mainNS := utils.GetSanitizedNamespace(deployRequest.ProjectConfig.AppName, "main")
 		vals, err := kubernetes.GetSecretValues(mainNS, env)
 		if err == nil && len(vals) > 0 {
-			if err := kubernetes.UpdateSecret(deployRequest.Namespace, fmt.Sprintf("%s-env", deployRequest.ProjectConfig.AppName), vals, env); err != nil {
+			err = kubernetes.UpdateSecret(
+				deployRequest.Namespace,
+				fmt.Sprintf("%s-env", deployRequest.ProjectConfig.AppName),
+				vals, env)
+			if err != nil {
 				env.Logger.ErrorContext(ctx, err.Error())
 			}
 		}
@@ -383,7 +389,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	env.Logger.DebugContext(ctx, "Creating services and deployments")
 	serviceUrls := make(map[string][]string)
 	env.Logger.DebugContext(ctx, "Creating service map for existing services")
-	var existingServices = make(map[string]*database.Service)
+	existingServices := make(map[string]*database.Service)
 	for _, service := range deployRequest.ExistingServices {
 		existingServices[service.ServiceName] = &service
 	}
@@ -401,7 +407,9 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error creating Kubernetes deployment", http.StatusInternalServerError)
 			return
 		}
-		env.Logger.LogAttrs(tempCtx, slog.LevelDebug, "Successfully created Kubernetes deployment", slog.String("deployment", name))
+		env.Logger.LogAttrs(tempCtx,
+			slog.LevelDebug,
+			"Successfully created Kubernetes deployment", slog.String("deployment", name))
 
 		// Create service if ports specified or template requires it
 		oldService, svcExists := existingServices[serviceConfig.Name]
@@ -418,7 +426,7 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			env.Logger.DebugContext(tempCtx, "No ports specified, skipping Kubernetes service creation")
 		}
 
-		urls := make([]string, 0)
+		var urls []string
 		var newSvc *database.Service
 		if !svcExists {
 			env.Logger.DebugContext(tempCtx, "Creating service in database")
@@ -440,9 +448,13 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			serviceID = newSvc.ID
 		}
 		env.Logger.DebugContext(tempCtx, "Updating service networking in database")
-		urls, err = updateDBService(serviceID, existingIngress, &serviceConfig, kubeSvc, w, env, tempCtx)
+		urls, err = updateDBService(
+			serviceID, existingIngress,
+			&serviceConfig, kubeSvc, w, env, tempCtx)
 		if err != nil {
-			env.Logger.LogAttrs(tempCtx, slog.LevelError, "Error updating service networking in database", slog.Any("error", err))
+			env.Logger.LogAttrs(
+				tempCtx, slog.LevelError,
+				"Error updating service networking in database", slog.Any("error", err))
 			http.Error(w, "Error updating service networking in database", http.StatusInternalServerError)
 			return
 		}
@@ -452,9 +464,12 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 
 	env.Logger.DebugContext(ctx, "Deployment completed successfully")
 	env.Logger.DebugContext(ctx, "Encoding response")
-	json.NewEncoder(w).Encode(deployResponse{
+	err = json.NewEncoder(w).Encode(deployResponse{
 		Urls: serviceUrls,
 	})
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
+	}
 }
 
 func CreateProject(w http.ResponseWriter, r *http.Request) {
@@ -483,18 +498,26 @@ func CreateProject(w http.ResponseWriter, r *http.Request) {
 		Name: req.Name,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(context.Background(), err.Error())
+		env.Logger.ErrorContext(r.Context(), err.Error())
 		http.Error(w, "error creating project", http.StatusInternalServerError)
 		return
 	}
 
-	env.Database.AddUserToProject(r.Context(), database.AddUserToProjectParams{
+	err = env.Database.AddUserToProject(r.Context(), database.AddUserToProjectParams{
 		UserID:    user.ID,
 		ProjectID: project.ID,
 	})
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), err.Error())
+		http.Error(w, "error adding user to project", http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(project)
+	err = json.NewEncoder(w).Encode(project) //nolint:musttag
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
+	}
 }
 
 func GetProjects(w http.ResponseWriter, r *http.Request) {
@@ -516,7 +539,10 @@ func GetProjects(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error fetching projects", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(projectsResponse{Projects: projects})
+	err = json.NewEncoder(w).Encode(projectsResponse{Projects: projects}) //nolint:musttag
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
+	}
 }
 
 func GetServices(w http.ResponseWriter, r *http.Request) {
@@ -554,7 +580,10 @@ func GetServices(w http.ResponseWriter, r *http.Request) {
 			Status:        status,
 		})
 	}
-	json.NewEncoder(w).Encode(servicesResponse{Services: items})
+	err = json.NewEncoder(w).Encode(servicesResponse{Services: items})
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
+	}
 }
 
 func GetService(w http.ResponseWriter, r *http.Request) {
@@ -579,7 +608,10 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc, err := env.Database.GetServiceByName(r.Context(), database.GetServiceByNameParams{ServiceName: name, ProjectID: project.ID, ProjectBranch: branch})
+	svc, err := env.Database.GetServiceByName(r.Context(),
+		database.GetServiceByNameParams{
+			ServiceName: name, ProjectID: project.ID, ProjectBranch: branch,
+		})
 	if err != nil {
 		http.Error(w, "service not found", http.StatusNotFound)
 		return
@@ -604,8 +636,9 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var logs string
+	const logLines = 20
 	if len(pods) > 0 {
-		data, err := kubernetes.GetPodLogsTail(namespace, pods[0].Name, 20, env)
+		data, err := kubernetes.GetPodLogsTail(namespace, pods[0].Name, logLines, env)
 		if err == nil {
 			logs = string(data)
 		}
@@ -620,7 +653,10 @@ func GetService(w http.ResponseWriter, r *http.Request) {
 		PodStatuses: podStatuses,
 		Logs:        logs,
 	}
-	json.NewEncoder(w).Encode(resp)
+	err = json.NewEncoder(w).Encode(resp)
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
+	}
 }
 
 // StreamLogs streams logs for the first pod of a given service.
@@ -653,16 +689,17 @@ func StreamLogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error streaming logs", http.StatusInternalServerError)
 		return
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	w.Header().Set("Content-Type", "text/plain")
 
+	const bufLen = 1024
 	flusher, _ := w.(http.Flusher)
-	buf := make([]byte, 1024)
+	buf := make([]byte, bufLen)
 	for {
 		n, err := stream.Read(buf)
 		if n > 0 {
-			w.Write(buf[:n])
+			_, _ = w.Write(buf[:n])
 			if flusher != nil {
 				flusher.Flush()
 			}
@@ -699,38 +736,75 @@ func DeleteBranch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
+	authorized, err := env.Database.IsUserInProject(
+		r.Context(),
+		database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
 	if err != nil || !authorized {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	services, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
+	services, err := env.Database.GetServicesByProject(
+		r.Context(),
+		database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
 	if err != nil {
-		env.Logger.ErrorContext(context.Background(), err.Error())
+		env.Logger.ErrorContext(r.Context(), err.Error())
 		http.Error(w, "error fetching services", http.StatusInternalServerError)
 		return
 	}
 
 	namespace := utils.GetSanitizedNamespace(project.Name, branch)
 	for _, svc := range services {
-		kubernetes.DeleteDeployment(namespace, svc.ServiceName, env)
-		kubernetes.DeleteService(namespace, svc.ServiceName, env)
-		if svc.Ingress.Valid {
-			kubernetes.DeleteIngress(namespace, svc.Ingress.String, env)
+		err = kubernetes.DeleteDeployment(namespace, svc.ServiceName, env)
+		if err != nil {
+			env.Logger.ErrorContext(r.Context(), "failed to delete deployment", slog.Any("error", err))
 		}
-		env.Database.DeleteServiceById(r.Context(), svc.ID)
+		err = kubernetes.DeleteService(namespace, svc.ServiceName, env)
+		if err != nil {
+			env.Logger.ErrorContext(r.Context(), "failed to delete service", slog.Any("error", err))
+		}
+		if svc.Ingress.Valid {
+			err = kubernetes.DeleteIngress(namespace, svc.Ingress.String, env)
+			if err != nil {
+				env.Logger.ErrorContext(r.Context(), "failed to delete ingress", slog.Any("error", err))
+			}
+		}
+		err = env.Database.DeleteServiceById(r.Context(), svc.ID)
+		if err != nil {
+			env.Logger.ErrorContext(r.Context(), "failed to delete service", slog.Any("error", err))
+			http.Error(w, "error deleting service", http.StatusInternalServerError)
+			return
+		}
 	}
 
-	ids, err := env.Database.GetUnusedVolumeIdentifiers(r.Context(), database.GetUnusedVolumeIdentifiersParams{ProjectID: project.ID, ProjectBranch: branch, Column3: []string{}})
+	ids, err := env.Database.GetUnusedVolumeIdentifiers(
+		r.Context(),
+		database.GetUnusedVolumeIdentifiersParams{
+			ProjectID: project.ID, ProjectBranch: branch, Column3: []string{},
+		})
 	if err == nil {
 		for _, id := range ids {
-			kubernetes.DeletePVC(namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+			err = kubernetes.DeletePVC(namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+			if err != nil {
+				env.Logger.ErrorContext(r.Context(), "failed to delete pvc", slog.Any("error", err))
+			}
 		}
 	}
-	env.Database.DeleteUnusedVolumes(r.Context(), database.DeleteUnusedVolumesParams{ProjectID: project.ID, ProjectBranch: branch, Column3: []string{}})
+	err = env.Database.DeleteUnusedVolumes(r.Context(),
+		database.DeleteUnusedVolumesParams{
+			ProjectID: project.ID, ProjectBranch: branch, Column3: []string{},
+		})
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to delete unused volumes", slog.Any("error", err))
+		http.Error(w, "error deleting unused volumes", http.StatusInternalServerError)
+		return
+	}
 
-	kubernetes.DeleteNamespace(namespace, env)
+	err = kubernetes.DeleteNamespace(namespace, env)
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to delete namespace", slog.Any("error", err))
+		http.Error(w, "error deleting namespace", http.StatusInternalServerError)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -760,7 +834,8 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
+	authorized, err := env.Database.IsUserInProject(
+		r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
 	if err != nil || !authorized {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -774,7 +849,9 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, branch := range branches {
-		services, err := env.Database.GetServicesByProject(r.Context(), database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
+		services, err := env.Database.GetServicesByProject(
+			r.Context(),
+			database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
 		if err != nil {
 			env.Logger.ErrorContext(context.Background(), err.Error())
 			continue
@@ -782,25 +859,61 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 
 		namespace := utils.GetSanitizedNamespace(project.Name, branch)
 		for _, svc := range services {
-			kubernetes.DeleteDeployment(namespace, svc.ServiceName, env)
-			kubernetes.DeleteService(namespace, svc.ServiceName, env)
-			if svc.Ingress.Valid {
-				kubernetes.DeleteIngress(namespace, svc.Ingress.String, env)
+			err = kubernetes.DeleteDeployment(namespace, svc.ServiceName, env)
+			if err != nil {
+				env.Logger.ErrorContext(r.Context(), "failed to delete deployment", slog.Any("error", err))
 			}
-			env.Database.DeleteServiceById(r.Context(), svc.ID)
+			err = kubernetes.DeleteService(namespace, svc.ServiceName, env)
+			if err != nil {
+				env.Logger.ErrorContext(r.Context(), "failed to deleted service", slog.Any("error", err))
+			}
+			if svc.Ingress.Valid {
+				err = kubernetes.DeleteIngress(namespace, svc.Ingress.String, env)
+				if err != nil {
+					env.Logger.ErrorContext(r.Context(), "failed to delete ingress", slog.Any("error", err))
+				}
+			}
+			err = env.Database.DeleteServiceById(r.Context(), svc.ID)
+			if err != nil {
+				env.Logger.ErrorContext(r.Context(), "failed to delete service", slog.Any("error", err))
+			}
 		}
 
-		ids, err := env.Database.GetUnusedVolumeIdentifiers(r.Context(), database.GetUnusedVolumeIdentifiersParams{ProjectID: project.ID, ProjectBranch: branch, Column3: []string{}})
+		ids, err := env.Database.GetUnusedVolumeIdentifiers(
+			r.Context(),
+			database.GetUnusedVolumeIdentifiersParams{
+				ProjectID: project.ID, ProjectBranch: branch, Column3: []string{},
+			})
 		if err == nil {
 			for _, id := range ids {
-				kubernetes.DeletePVC(namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+				err = kubernetes.DeletePVC(namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+				if err != nil {
+					env.Logger.ErrorContext(r.Context(), "failed to delete pvc", slog.Any("error", err))
+				}
 			}
 		}
-		env.Database.DeleteUnusedVolumes(r.Context(), database.DeleteUnusedVolumesParams{ProjectID: project.ID, ProjectBranch: branch, Column3: []string{}})
-		kubernetes.DeleteNamespace(namespace, env)
+		err = env.Database.DeleteUnusedVolumes(
+			r.Context(),
+			database.DeleteUnusedVolumesParams{
+				ProjectID: project.ID, ProjectBranch: branch, Column3: []string{},
+			})
+		if err != nil {
+			env.Logger.ErrorContext(r.Context(), "failed to delete unused volumes", slog.Any("error", err))
+			http.Error(w, "error deleting unused volumes", http.StatusInternalServerError)
+			return
+		}
+		err = kubernetes.DeleteNamespace(namespace, env)
+		if err != nil {
+			env.Logger.ErrorContext(r.Context(), "failed to delete namespace", slog.Any("error", err))
+			http.Error(w, "error deleting unused volumes", http.StatusInternalServerError)
+			return
+		}
 	}
 
-	env.Database.DeleteProject(r.Context(), project.ID)
+	err = env.Database.DeleteProject(r.Context(), project.ID)
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to delete project", slog.Any("error", err))
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -825,14 +938,17 @@ func GetProjectSecrets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
+	authorized, err := env.Database.IsUserInProject(
+		r.Context(), database.IsUserInProjectParams{
+			UserID: user.ID, ProjectID: project.ID,
+		})
 	if err != nil || !authorized {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	showValues := r.URL.Query().Get("values") == "true"
-	var resp interface{}
+	var resp any
 	if showValues {
 		vals, err := kubernetes.GetSecretValues(project.Name, env)
 		if err != nil {
@@ -850,7 +966,10 @@ func GetProjectSecrets(w http.ResponseWriter, r *http.Request) {
 		}
 		resp = secretsNamesResponse{Secrets: names}
 	}
-	json.NewEncoder(w).Encode(resp)
+	err = json.NewEncoder(w).Encode(resp)
+	if err != nil {
+		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
+	}
 }
 
 func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
@@ -874,7 +993,10 @@ func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := env.Database.IsUserInProject(r.Context(), database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
+	authorized, err := env.Database.IsUserInProject(
+		r.Context(), database.IsUserInProjectParams{
+			UserID: user.ID, ProjectID: project.ID,
+		})
 	if err != nil || !authorized {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

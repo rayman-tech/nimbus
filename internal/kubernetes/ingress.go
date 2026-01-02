@@ -1,9 +1,7 @@
+// Package kubernetes contains functions for interacting with kubernetes
 package kubernetes
 
 import (
-	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/models"
-
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -12,13 +10,18 @@ import (
 	"os"
 	"time"
 
+	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/models"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GenerateIngressSpec(namespace string, service *models.Service, existingIngress *string, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
+func GenerateIngressSpec(namespace string, service *models.Service,
+	existingIngress *string, env *nimbusEnv.Env,
+) (*networkingv1.Ingress, error) {
 	if service.Template != "http" || !service.Public {
 		return nil, nil
 	}
@@ -41,7 +44,7 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingIngr
 									Service: &networkingv1.IngressServiceBackend{
 										Name: service.Name,
 										Port: networkingv1.ServiceBackendPort{
-											Number: 80,
+											Number: defaultHTTPPort,
 										},
 									},
 								},
@@ -81,10 +84,12 @@ func GenerateIngressSpec(namespace string, service *models.Service, existingIngr
 }
 
 func CreateIngress(namespace string, ingress *networkingv1.Ingress, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
-	_, err := getClient(env).NetworkingV1().Ingresses(namespace).Create(context.Background(), ingress, metav1.CreateOptions{})
+	_, err := getClient(env).NetworkingV1().Ingresses(namespace).Create(
+		context.Background(), ingress, metav1.CreateOptions{})
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
-			env.Logger.LogAttrs(context.Background(), slog.LevelDebug, "Ingress already exists", slog.String("name", ingress.Name))
+			env.Logger.LogAttrs(context.Background(), slog.LevelDebug,
+				"Ingress already exists", slog.String("name", ingress.Name))
 			return ingress, nil
 		}
 		return nil, err
@@ -102,11 +107,13 @@ func DeleteIngress(namespace, host string, env *nimbusEnv.Env) error {
 	for _, ingress := range ingresses.Items {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == host {
-				err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(context.Background(), ingress.Name, metav1.DeleteOptions{})
+				err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(
+					context.Background(), ingress.Name, metav1.DeleteOptions{})
 				if err != nil {
 					return fmt.Errorf("failed to delete ingress %s: %w", ingress.Name, err)
 				}
-				env.Logger.LogAttrs(context.Background(), slog.LevelDebug, "Ingress deleted", slog.String("name", ingress.Name), slog.String("host", host))
+				env.Logger.LogAttrs(context.Background(), slog.LevelDebug,
+					"Ingress deleted", slog.String("name", ingress.Name), slog.String("host", host))
 				return nil
 			}
 		}
@@ -116,7 +123,8 @@ func DeleteIngress(namespace, host string, env *nimbusEnv.Env) error {
 }
 
 func GenerateRandomChars() string {
-	randBytes := make([]byte, 8)
+	const numBytes = 8
+	randBytes := make([]byte, numBytes)
 	_, err := rand.Read(randBytes)
 	if err != nil {
 		panic(err)

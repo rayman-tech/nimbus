@@ -1,15 +1,12 @@
 package main
 
 import (
-	"nimbus/internal/api"
-
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
-	urllib "net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,23 +14,27 @@ import (
 	"strings"
 	"time"
 
+	"nimbus/internal/api"
+
+	urllib "net/url"
+
 	"github.com/spf13/cobra"
 )
 
 func main() {
-	var rootCmd = &cobra.Command{Use: "nimbus"}
+	rootCmd := &cobra.Command{Use: "nimbus"}
 
-	var serverCmd = &cobra.Command{
+	serverCmd := &cobra.Command{
 		Use:   "server",
 		Short: "Start the server",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			port, _ := cmd.Flags().GetString("port")
-			api.Start(port, nil)
+			return api.Start(port, nil)
 		},
 	}
 	serverCmd.Flags().StringP("port", "p", "8080", "Port to run the server on")
 
-	var deployCmd = &cobra.Command{
+	deployCmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "Deploy using nimbus.yaml",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -42,7 +43,9 @@ func main() {
 				host = os.Getenv("NIMBUS_HOST")
 			}
 			if host == "" {
-				return fmt.Errorf("NIMBUS_HOST environment variable is not set, please provide a host using --host or set NIMBUS_HOST")
+				return fmt.Errorf(
+					"NIMBUS_HOST environment variable is not set,\n" +
+						"please provide a host using --host or set NIMBUS_HOST")
 			}
 
 			filePath, _ := cmd.Flags().GetString("file")
@@ -59,7 +62,7 @@ func main() {
 			if err != nil {
 				return fmt.Errorf("unable to open %s: %w", filePath, err)
 			}
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 
 			body := &bytes.Buffer{}
 			writer := multipart.NewWriter(body)
@@ -82,7 +85,7 @@ func main() {
 				return fmt.Errorf("failed to add branch field: %w", err)
 			}
 
-			writer.Close()
+			_ = writer.Close()
 
 			req, err := http.NewRequest("POST", host+"/deploy", body)
 			if err != nil {
@@ -95,6 +98,7 @@ func main() {
 
 			done := make(chan struct{})
 			go func() {
+				const sleepDuration = 10 * time.Millisecond
 				spinner := []string{"|", "/", "-", "\\"}
 				i := 0
 				for {
@@ -104,7 +108,7 @@ func main() {
 						return
 					default:
 						fmt.Printf("\r%s Processing...", spinner[i%len(spinner)])
-						time.Sleep(10 * time.Millisecond)
+						time.Sleep(sleepDuration)
 						i++
 					}
 				}
@@ -115,7 +119,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 
 			data, err := io.ReadAll(resp.Body)
 			if err != nil {
@@ -153,8 +157,8 @@ func main() {
 	deployCmd.Flags().StringP("file", "f", "./nimbus.yaml", "Path to deployment file")
 	deployCmd.Flags().StringP("apikey", "a", "", "API key (default $NIMBUS_API_KEY)")
 
-	var projectCmd = &cobra.Command{Use: "projects", Short: "Manage projects"}
-	var projectCreateCmd = &cobra.Command{
+	projectCmd := &cobra.Command{Use: "projects", Short: "Manage projects"}
+	projectCreateCmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a new project",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -162,8 +166,11 @@ func main() {
 			apiKey := getAPIKey(cmd)
 			fmt.Print("Project name: ")
 			var name string
-			fmt.Scanln(&name)
-			body, _ := json.Marshal(map[string]string{"name": name})
+			_, _ = fmt.Scanln(&name)
+			body, err := json.Marshal(map[string]string{"name": name})
+			if err != nil {
+				return fmt.Errorf("marshaling body: %w", err)
+			}
 			req, _ := http.NewRequest("POST", host+"/projects", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			if apiKey != "" {
@@ -173,7 +180,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusCreated {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
@@ -183,7 +190,7 @@ func main() {
 		},
 	}
 
-	var projectListCmd = &cobra.Command{
+	projectListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List your projects",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -197,13 +204,13 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Projects []struct{ Name string } }
-			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil { //nolint:musttag
 				return err
 			}
 			fmt.Println("Projects:")
@@ -213,7 +220,7 @@ func main() {
 			return nil
 		},
 	}
-	var projectDeleteCmd = &cobra.Command{
+	projectDeleteCmd := &cobra.Command{
 		Use:   "delete [name]",
 		Short: "Delete a project and all branches",
 		Args:  cobra.ExactArgs(1),
@@ -229,7 +236,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
@@ -246,8 +253,8 @@ func main() {
 	projectDeleteCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	projectDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
 
-	var serviceCmd = &cobra.Command{Use: "services", Short: "Manage services"}
-	var serviceListCmd = &cobra.Command{
+	serviceCmd := &cobra.Command{Use: "services", Short: "Manage services"}
+	serviceListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all services",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -261,7 +268,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
@@ -274,7 +281,7 @@ func main() {
 					Status        string `json:"status"`
 				}
 			}
-			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil { //nolint:musttag
 				return err
 			}
 			tree := make(map[string]map[string][]struct{ Name, Status string })
@@ -282,7 +289,9 @@ func main() {
 				if tree[s.ProjectName] == nil {
 					tree[s.ProjectName] = make(map[string][]struct{ Name, Status string })
 				}
-				tree[s.ProjectName][s.ProjectBranch] = append(tree[s.ProjectName][s.ProjectBranch], struct{ Name, Status string }{s.ServiceName, s.Status})
+				tree[s.ProjectName][s.ProjectBranch] = append(
+					tree[s.ProjectName][s.ProjectBranch],
+					struct{ Name, Status string }{s.ServiceName, s.Status})
 			}
 			projects := make([]string, 0, len(tree))
 			for p := range tree {
@@ -321,7 +330,7 @@ func main() {
 		},
 	}
 
-	var serviceGetCmd = &cobra.Command{
+	serviceGetCmd := &cobra.Command{
 		Use:   "get [name]",
 		Short: "Get service details",
 		Args:  cobra.ExactArgs(1),
@@ -342,7 +351,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
@@ -356,7 +365,7 @@ func main() {
 				Pods      []struct{ Name, Phase string } `json:"pods"`
 				Logs      string                         `json:"logs"`
 			}
-			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil { //nolint:musttag
 				return err
 			}
 			fmt.Printf("Service %s (%s/%s)\n", out.Name, out.Project, out.Branch)
@@ -373,7 +382,7 @@ func main() {
 						// parsed.Host gives you "nimbus.prayujt.com"
 						parts := strings.Split(parsed.Hostname(), ".")
 						n := len(parts)
-						if n >= 2 {
+						if n >= 2 { //nolint:mnd
 							baseDomain = strings.Join(parts[n-2:], ".")
 						}
 					}
@@ -406,7 +415,7 @@ func main() {
 	serviceGetCmd.Flags().String("project", "", "Project name")
 	serviceGetCmd.Flags().String("branch", "", "Branch name")
 
-	var serviceLogsCmd = &cobra.Command{
+	serviceLogsCmd := &cobra.Command{
 		Use:   "logs [name]",
 		Short: "Stream logs from a service",
 		Args:  cobra.ExactArgs(1),
@@ -427,7 +436,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
@@ -447,8 +456,8 @@ func main() {
 	serviceGetCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	serviceGetCmd.Flags().StringP("apikey", "a", "", "API key")
 
-	var secretsCmd = &cobra.Command{Use: "secrets", Short: "Manage project secrets"}
-	var secretsListCmd = &cobra.Command{
+	secretsCmd := &cobra.Command{Use: "secrets", Short: "Manage project secrets"}
+	secretsListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List secret names",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -464,13 +473,13 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Secrets []string }
-			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil { //nolint:musttag
 				return err
 			}
 			fmt.Println("Secrets:")
@@ -488,7 +497,7 @@ func main() {
 	secretsListCmd.Flags().StringP("host", "H", "", "Nimbus host")
 	secretsListCmd.Flags().StringP("apikey", "a", "", "API key")
 
-	var secretsEditCmd = &cobra.Command{
+	secretsEditCmd := &cobra.Command{
 		Use:   "edit",
 		Short: "Edit project secrets",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -507,13 +516,13 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Secrets map[string]string }
-			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil { //nolint:musttag
 				return err
 			}
 			lines := make([]string, 0, len(out.Secrets))
@@ -529,11 +538,11 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer os.Remove(tmp.Name())
+			defer func() { _ = os.Remove(tmp.Name()) }()
 			if _, err := tmp.WriteString(strings.Join(lines, "\n")); err != nil {
 				return err
 			}
-			tmp.Close()
+			_ = tmp.Close()
 			editor := os.Getenv("EDITOR")
 			if editor == "" {
 				editor = "vi"
@@ -555,15 +564,19 @@ func main() {
 				if line == "" || strings.HasPrefix(line, "#") {
 					continue
 				}
-				parts := strings.SplitN(line, "=", 2)
-				if len(parts) != 2 {
+				const secretSections = 2
+				parts := strings.SplitN(line, "=", secretSections)
+				if len(parts) != secretSections {
 					continue
 				}
 				key := strings.TrimSpace(parts[0])
 				value := strings.TrimSpace(parts[1])
 				secrets[key] = value
 			}
-			body, _ := json.Marshal(map[string]map[string]string{"secrets": secrets})
+			body, err := json.Marshal(map[string]map[string]string{"secrets": secrets})
+			if err != nil {
+				return fmt.Errorf("marshaling body: %w", err)
+			}
 			req2, _ := http.NewRequest("PUT", fmt.Sprintf("%s/projects/%s/secrets", host, project), bytes.NewBuffer(body))
 			req2.Header.Set("Content-Type", "application/json")
 			if apiKey != "" {
@@ -573,7 +586,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp2.Body.Close()
+			defer func() { _ = resp2.Body.Close() }()
 			if resp2.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp2.Body)
 				return fmt.Errorf("failed: %s", string(data))
@@ -587,8 +600,8 @@ func main() {
 	secretsEditCmd.Flags().StringP("apikey", "a", "", "API key")
 	secretsCmd.AddCommand(secretsListCmd, secretsEditCmd)
 
-	var branchCmd = &cobra.Command{Use: "branch", Short: "Manage branches"}
-	var branchDeleteCmd = &cobra.Command{
+	branchCmd := &cobra.Command{Use: "branch", Short: "Manage branches"}
+	branchDeleteCmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete a branch",
 		Args:  cobra.ExactArgs(1),
@@ -609,7 +622,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))

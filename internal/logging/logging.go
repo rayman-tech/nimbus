@@ -1,4 +1,4 @@
-// Package for logging
+// Package logging contains logging utilities
 package logging
 
 import (
@@ -13,13 +13,11 @@ const (
 	slogFields ctxKey = "slog_fields"
 )
 
-// Struct for the context handler
 type ContextHandler struct {
 	slog.Handler
 }
 
-// Adds contextual attributes to the Record before
-// calling the underlying handler
+// Handle adds contextual attributes to the Record before calling the underlying handler.
 func (h ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	if attrs, ok := ctx.Value(slogFields).([]slog.Attr); ok {
 		for _, v := range attrs {
@@ -30,8 +28,8 @@ func (h ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.Handler.Handle(ctx, r)
 }
 
-// Adds an slog attribute to the provided context so that it will be
-// included in any Record created with such context
+// AppendCtx adds an slog attribute to the provided context so that it will be
+// included in any Record created with such context.
 func AppendCtx(parent context.Context, attr slog.Attr) context.Context {
 	if parent == nil {
 		parent = context.Background()

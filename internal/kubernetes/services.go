@@ -1,14 +1,14 @@
 package kubernetes
 
 import (
-	"nimbus/internal/database"
-	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/models"
-
 	"context"
 	"fmt"
 	"log"
 	"time"
+
+	"nimbus/internal/database"
+	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/models"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 
@@ -17,7 +17,13 @@ import (
 	intstr "k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func GenerateServiceSpec(namespace string, newService *models.Service, oldService *database.Service) (*corev1.Service, error) {
+const (
+	defaultHTTPPort = 80
+)
+
+func GenerateServiceSpec(namespace string,
+	newService *models.Service, oldService *database.Service,
+) (*corev1.Service, error) {
 	spec := corev1.ServiceSpec{
 		Selector: map[string]string{
 			"app": newService.Name,
@@ -35,7 +41,7 @@ func GenerateServiceSpec(namespace string, newService *models.Service, oldServic
 		}
 		spec.Ports = append(spec.Ports, corev1.ServicePort{
 			Name: "postgres",
-			Port: 5432,
+			Port: defaultPostgresPort,
 		})
 		if nodePortEnabled && oldService != nil && len(oldService.NodePorts) > 0 {
 			spec.Ports[0].NodePort = oldService.NodePorts[0]
@@ -47,7 +53,7 @@ func GenerateServiceSpec(namespace string, newService *models.Service, oldServic
 		}
 		spec.Ports = append(spec.Ports, corev1.ServicePort{
 			Name: "redis",
-			Port: 6379,
+			Port: defaultRedisPort,
 		})
 		if nodePortEnabled && oldService != nil && len(oldService.NodePorts) > 0 {
 			spec.Ports[0].NodePort = oldService.NodePorts[0]
@@ -71,7 +77,7 @@ func GenerateServiceSpec(namespace string, newService *models.Service, oldServic
 				// otherwise, will use this port as ClusterIP
 				spec.Ports = append(spec.Ports, corev1.ServicePort{
 					Name:       fmt.Sprintf("port-%d", idx),
-					Port:       80,
+					Port:       defaultHTTPPort,
 					TargetPort: intstr.FromInt(int(port)),
 				})
 			}

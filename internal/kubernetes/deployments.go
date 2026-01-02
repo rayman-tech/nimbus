@@ -1,18 +1,23 @@
 package kubernetes
 
 import (
-	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/models"
-
 	"context"
 	"fmt"
 	"log"
 	"time"
 
+	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/models"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	defaultPostgresPort = 5432
+	defaultRedisPort    = 6379
 )
 
 func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimbusEnv.Env) (*appsv1.Deployment, error) {
@@ -89,7 +94,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 		spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{
 			{
 				Name:          "postgres",
-				ContainerPort: 5432,
+				ContainerPort: defaultPostgresPort,
 			},
 		}
 
@@ -108,7 +113,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 		spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{
 			{
 				Name:          "redis",
-				ContainerPort: 6379,
+				ContainerPort: defaultRedisPort,
 			},
 		}
 
@@ -137,10 +142,11 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 					},
 				},
 			})
-			spec.Template.Spec.Containers[0].VolumeMounts = append(spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
-				Name:      name,
-				MountPath: volume.MountPath,
-			})
+			spec.Template.Spec.Containers[0].VolumeMounts = append(
+				spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+					Name:      name,
+					MountPath: volume.MountPath,
+				})
 		}
 	}
 

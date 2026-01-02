@@ -1,11 +1,6 @@
 package api
 
 import (
-	"nimbus/internal/api/handlers"
-	"nimbus/internal/database"
-	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/logging"
-
 	"context"
 	"fmt"
 	"log/slog"
@@ -13,33 +8,38 @@ import (
 	"os"
 	"time"
 
+	"nimbus/internal/api/handlers"
+	"nimbus/internal/database"
+	"nimbus/internal/env"
+	"nimbus/internal/logging"
+
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
 	"github.com/oklog/ulid/v2"
 )
 
-const envKey = "env"
-
-// Custom ResponseWriter that captures the status code
+// logResponseWriter captures the status code.
 type logResponseWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 }
 
-// Captures the status code and writes the response
+// Captures the status code and writes the response.
 func (lrw *logResponseWriter) WriteHeader(code int) {
 	lrw.statusCode = code
 	lrw.ResponseWriter.WriteHeader(code)
 }
 
-func initializeEnv() *nimbusEnv.Env {
+func initializeEnv() *env.Env {
 	// Initialize logger
 	logger := slog.New(&logging.ContextHandler{
 		Handler: slog.NewTextHandler(
 			os.Stderr,
 			&slog.HandlerOptions{
 				Level: slog.LevelDebug,
-			})},
+			}),
+	},
 	)
 
 	conn, err := pgx.Connect(
@@ -58,14 +58,14 @@ func initializeEnv() *nimbusEnv.Env {
 
 	// Initialize the database connection
 	logger.Info("Connecting to database")
-	return nimbusEnv.NewEnvironment(logger, &database.Database{Queries: database.New(conn)})
+	return env.NewEnvironment(logger, &database.Database{Queries: database.New(conn)})
 }
 
-func Start(port string, env *nimbusEnv.Env) {
+func Start(port string, env *env.Env) error {
 	if env == nil {
 		env = initializeEnv()
 	}
-	defer env.Database.Close()
+	defer func() { _ = env.Database.Close() }()
 
 	env.Logger.Info(fmt.Sprintf("Serving at 0.0.0.0:%s...", port))
 	router := mux.NewRouter()
@@ -75,19 +75,16 @@ func Start(port string, env *nimbusEnv.Env) {
 	addRoutes(router)
 
 	http.Handle("/", router)
-	http.ListenAndServe(":"+port, nil)
+	return http.ListenAndServe(":"+port, nil)
 }
 
 func recoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		environment, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
-		if !ok {
-			environment = nimbusEnv.Null()
-		}
+		e := env.FromContext(r.Context())
 
 		defer func() {
 			if err := recover(); err != nil {
-				environment.Logger.Error("Panic occurred: %v", err)
+				e.Logger.ErrorContext(r.Context(), "Panic occurred", slog.Any("panic", err))
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			}
 		}()
@@ -97,13 +94,13 @@ func recoverMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func injectEnvironment(env *nimbusEnv.Env) func(http.Handler) http.Handler {
+func injectEnvironment(e *env.Env) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if env == nil {
-				env = nimbusEnv.Null()
+			if e == nil {
+				e = env.Null()
 			}
-			r = r.WithContext(context.WithValue(r.Context(), envKey, env))
+			r = r.WithContext(env.WithContext(r.Context(), e))
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -112,10 +109,7 @@ func injectEnvironment(env *nimbusEnv.Env) func(http.Handler) http.Handler {
 func logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		environment, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
-		if !ok {
-			environment = nimbusEnv.Null()
-		}
+		e := env.FromContext(r.Context())
 
 		ctx := r.Context()
 		logId := ulid.MustNew(ulid.Timestamp(start), ulid.DefaultEntropy())
@@ -123,9 +117,9 @@ func logRequest(next http.Handler) http.Handler {
 		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("method", r.Method)))
 		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("path", r.URL.RequestURI())))
 		lrw := &logResponseWriter{w, http.StatusOK}
-		environment.Logger.InfoContext(r.Context(), "Request received")
+		e.Logger.InfoContext(r.Context(), "Request received")
 		next.ServeHTTP(lrw, r)
-		environment.Logger.LogAttrs(
+		e.Logger.LogAttrs(
 			r.Context(),
 			slog.LevelInfo,
 			"Request completed",
@@ -138,7 +132,7 @@ func logRequest(next http.Handler) http.Handler {
 func addRoutes(router *mux.Router) {
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	}).Methods("GET")
 
 	router.HandleFunc("/deploy", handlers.Deploy).Methods("POST")
