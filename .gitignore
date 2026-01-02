@@ -28,3 +28,4 @@ go.work.sum
 !.env.database.example
 
 bin/nimbus
+.claude/

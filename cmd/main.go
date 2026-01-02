@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"nimbus/internal/api"
+	"nimbus/internal/config"
 
 	urllib "net/url"
 
@@ -29,6 +30,10 @@ func main() {
 		Short: "Start the server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			port, _ := cmd.Flags().GetString("port")
+			_, err := config.LoadConfig()
+			if err != nil {
+				return err
+			}
 			return api.Start(port, nil)
 		},
 	}
