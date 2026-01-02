@@ -1,0 +1,36 @@
+version: "2"
+
+formatters:
+  enable:
+    - goimports
+    - gofmt
+
+linters:
+  exclusions:
+    paths:
+      - internal/database/models.go
+      - internal/database/query.sql.go
+      - internal/database/wrapper.go
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - asciicheck
+    - bodyclose
+    - unused
+    - embeddedstructfieldcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - godot
+    - unconvert
+    - reassign
+    - misspell
+    - mnd
+    - lll
+    - iotamixing
+    - loggercheck
+    - musttag

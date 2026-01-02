@@ -25,15 +25,30 @@ build:
 	go build -o ${BINDIR}/${BINARY} cmd/*.go
 	@echo "✓  Built $(BINDIR)/$(BINARY)"
 
+.PHONY: lint
+lint: fmt
+	@echo "🔍  Linting code..."
+	golangci-lint run -v
+
 .PHONY: fmt
-fmt:
+fmt: sql-fmt
 	@echo "🎨  Formatting code…"
-	gofmt -l -s -w .
+	golangci-lint fmt -v
 
 .PHONY: clean
 clean:
 	@echo "🧹  Cleaning up…"
 	rm bin/*
+
+.PHONY: sqlc
+sqlc:
+	@echo "🗄️  Generating SQLC code..."
+	sqlc generate
+
+.PHONY: sql-fmt
+sql-fmt:
+	@echo "🎨 Formatting SQL"
+	pg_format -i query.sql schema.sql
 
 .PHONY: install
 install: build
