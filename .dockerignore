@@ -1,0 +1,13 @@
+Dockerfile
+Dockerfile.dev
+docker-compose.dev.yaml
+
+
+bin/*
+!bin/.keep
+
+.git
+.github
+.env
+.env.*
+.dockerignore

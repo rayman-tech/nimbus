@@ -1,0 +1,39 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: nimbus-api
+    hostname: nimbus-api
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - .:/app
+      - go-modules:/go/pkg/mod
+    stdin_open: true
+    tty: true
+
+  database:
+    image: postgres:18
+    container_name: nimbus-db
+    hostname: nimbus-db
+    env_file: .env.database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - db:/var/lib/postgresql
+
+volumes:
+  db:
+  go-modules:

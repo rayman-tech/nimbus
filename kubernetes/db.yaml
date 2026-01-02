@@ -15,16 +15,16 @@ spec:
     spec:
       containers:
         - name: psql
-          image: postgres:latest
+          image: postgres:18
           ports:
             - containerPort: 5432
           env:
-          - name: POSTGRES_USER
-            value: <username>
-          - name: POSTGRES_PASSWORD
-            value: <password>
-          - name: POSTGRES_DB
-            value: <db name>
+            - name: POSTGRES_USER
+              value: <username>
+            - name: POSTGRES_PASSWORD
+              value: <password>
+            - name: POSTGRES_DB
+              value: <db name>
           volumeMounts:
             - name: postgres-volume
               mountPath: /var/lib/postgresql/data
