@@ -46,7 +46,42 @@ To restrict deployments to only the `main` or `master` branches for a project, a
 
 ## Local Development
 
-For local development, follow these steps:
+For local development, you can run Nimbus either directly or using Docker Compose.
+
+### Running with Docker Compose (Recommended)
+
+This method runs the server with hot-reloading enabled and includes a PostgreSQL database:
+
+1. Copy the `.env.example` file to `.env` and set the required environment variables:
+   ```sh
+   cp .env.example .env
+   ```
+2. Ensure Kubernetes is running locally (Minikube is recommended):
+   ```sh
+   minikube start
+   ```
+3. Start the development environment:
+   ```sh
+   make docker-up
+   ```
+4. To stop the development environment:
+   ```sh
+   make docker-down
+   ```
+5. To stop and remove volumes:
+   ```sh
+   make docker-down-volumes
+   ```
+
+You may view the logs of the container as such:
+
+```sh
+docker logs nimbus-api
+```
+
+### Running Directly
+
+Alternatively, you can run the server directly without Docker:
 
 1. Copy the `.env.example` file to `.env` and set the required environment variables:
    ```sh
@@ -58,17 +93,18 @@ For local development, follow these steps:
    ```
 3. Run the Nimbus server locally:
    ```sh
-    make server
-    ```
+   make server
+   ```
 
 ### Development Tools
 
-The following tools are included as development dependencies for code quality:
+The following tools are included as development dependencies:
 
 - **[golangci-lint](https://golangci-lint.run/)** - Go linter aggregator for running multiple linters
 - **[pg_format](https://github.com/darold/pgFormatter)** - PostgreSQL SQL syntax formatter
+- **[air](https://github.com/cosmtrek/air)** - Hot-reloading tool for Go applications
 
-These tools are automatically configured in the project's Makefile for linting and formatting tasks.
+These tools are automatically configured in the project's Makefile for linting, formatting, and development tasks.
 
 ## Deployment
 

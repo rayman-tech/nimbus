@@ -14,6 +14,21 @@ run:
 	@echo "🚀  Starting client…"
 	go run cmd/*.go client
 
+.PHONY: docker-up
+docker-up:
+	@echo "🚀  Starting docker compose…"
+	docker-compose -f docker-compose.dev.yaml up -d
+
+.PHONY: docker-down
+docker-down:
+	@echo "💤 Shutting down docker compose..."
+	docker-compose -f docker-compose.dev.yaml down
+
+.PHONY: docker-down-volumes
+docker-down-volumes:
+	@echo "🔇 Removing docker compose volumes..."
+	docker-compose -f docker-compose.dev.yaml down -v
+
 .PHONY: server
 server:
 	@echo "🖥️  Starting server…"
