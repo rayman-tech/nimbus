@@ -63,7 +63,7 @@ sqlc:
 .PHONY: sql-fmt
 sql-fmt:
 	@echo "🎨 Formatting SQL"
-	pg_format -i query.sql schema.sql
+	pg_format -i internal/sql/query.sql internal/sql/schema.sql
 
 .PHONY: install
 install: build
