@@ -1,3 +1,4 @@
+// Package utils contains utility functions
 package utils
 
 import (
@@ -39,7 +40,9 @@ func GetBranch(r *http.Request) string {
 	return branch
 }
 
-func AuthorizeProject(ctx context.Context, env *env.Env, apiKey, projectName string) (database.Project, database.User, error) {
+func AuthorizeProject(
+	ctx context.Context, env *env.Env, apiKey, projectName string,
+) (database.Project, database.User, error) {
 	user, err := env.Database.GetUserByApiKey(ctx, apiKey)
 	if err != nil {
 		return database.Project{}, database.User{}, fmt.Errorf("unauthorized: %w", err)
@@ -48,7 +51,8 @@ func AuthorizeProject(ctx context.Context, env *env.Env, apiKey, projectName str
 	if err != nil {
 		return database.Project{}, database.User{}, fmt.Errorf("project not found: %w", err)
 	}
-	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
+	authorized, err := env.Database.IsUserInProject(ctx,
+		database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
 	if err != nil || !authorized {
 		return database.Project{}, database.User{}, fmt.Errorf("unauthorized")
 	}

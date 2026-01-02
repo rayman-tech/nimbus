@@ -1,14 +1,14 @@
 package kubernetes
 
 import (
-	"nimbus/internal/database"
-	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/models"
-
 	"context"
 	"fmt"
 	"log"
 	"os"
+
+	"nimbus/internal/database"
+	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/models"
 
 	"github.com/google/uuid"
 
@@ -23,7 +23,9 @@ type VolumeInfo struct {
 	Size      int32
 }
 
-func GetVolumeIdentifiers(namespace string, service *models.Service, env *nimbusEnv.Env) (map[string]VolumeInfo, error) {
+func GetVolumeIdentifiers(
+	namespace string, service *models.Service, env *nimbusEnv.Env,
+) (map[string]VolumeInfo, error) {
 	volumeMap := make(map[string]VolumeInfo)
 
 	for _, volume := range service.Volumes {

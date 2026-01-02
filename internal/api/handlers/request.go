@@ -1,27 +1,31 @@
 package handlers
 
 import (
-	"nimbus/internal/database"
-	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/kubernetes"
-	"nimbus/internal/logging"
-	"nimbus/internal/models"
-	"nimbus/internal/utils"
-	"strings"
-
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
+
+	"nimbus/internal/database"
+	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/kubernetes"
+	"nimbus/internal/logging"
+	"nimbus/internal/models"
+	"nimbus/internal/utils"
 
 	"gopkg.in/yaml.v3"
 )
 
-func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.Env, ctx context.Context) (*models.DeployRequest, context.Context, error) {
+func buildDeployRequest(w http.ResponseWriter,
+	r *http.Request, env *nimbusEnv.Env, ctx context.Context) (
+	*models.DeployRequest, context.Context, error,
+) {
 	env.Logger.DebugContext(ctx, "Parsing form")
-	err := r.ParseMultipartForm(512 << 20)
+	const maxSize = 512 << 20
+	err := r.ParseMultipartForm(maxSize)
 	if err != nil {
 		env.Logger.LogAttrs(
 			ctx, slog.LevelError,
@@ -56,7 +60,7 @@ func buildDeployRequest(w http.ResponseWriter, r *http.Request, env *nimbusEnv.E
 		return nil, nil, err
 	}
 
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	logging.AppendCtx(ctx, slog.String("filename", handler.Filename))
 	env.Logger.DebugContext(ctx, "File received")
 

@@ -1,11 +1,11 @@
 package kubernetes
 
 import (
-	nimbusEnv "nimbus/internal/env"
-
 	"context"
 	"fmt"
 	"io"
+
+	nimbusEnv "nimbus/internal/env"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,8 +43,9 @@ func StreamServiceLogs(namespace, serviceName string, env *nimbusEnv.Env) (io.Re
 		return nil, fmt.Errorf("no pods found for service %s", serviceName)
 	}
 
-	lines := int64(20)
-	req := getClient(env).CoreV1().Pods(namespace).GetLogs(pods[0].Name, &corev1.PodLogOptions{Follow: true, TailLines: &lines})
+	var lines int64 = 20
+	req := getClient(env).CoreV1().Pods(namespace).GetLogs(
+		pods[0].Name, &corev1.PodLogOptions{Follow: true, TailLines: &lines})
 	stream, err := req.Stream(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to stream logs: %w", err)
