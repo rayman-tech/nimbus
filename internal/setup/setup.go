@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Database(ctx context.Context, config config.Config) (*database.Database, error) {
+func Database(ctx context.Context, config config.Config) (*database.Queries, error) {
 	poolConfig, err := pgxpool.ParseConfig("")
 	if err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
@@ -35,7 +35,5 @@ func Database(ctx context.Context, config config.Config) (*database.Database, er
 		return nil, fmt.Errorf("connecting to db: %w", err)
 	}
 
-	return &database.Database{
-		Queries: database.New(pool),
-	}, nil
+	return database.New(pool), nil
 }

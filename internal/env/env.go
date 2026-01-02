@@ -19,21 +19,8 @@ var envKey envKeyType
 type Env struct {
 	Logger     *slog.Logger
 	Deployment *models.DeployRequest
-	Database   *database.Database
+	Database   database.Querier
 	Config     config.Config
-}
-
-// NewEnvironment constructs an Env object with the provided parameters.
-func NewEnvironment(logger *slog.Logger, database *database.Database) *Env {
-	if logger == nil {
-		logger = slog.New(logging.NullLogger())
-	}
-
-	return &Env{
-		Logger:     logger,
-		Database:   database,
-		Deployment: nil,
-	}
 }
 
 // Null constructs a null instance.

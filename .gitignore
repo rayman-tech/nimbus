@@ -27,5 +27,6 @@ go.work.sum
 !.env.example
 !.env.database.example
 
-bin/nimbus
+bin/*
+!bin/.keep
 .claude/
