@@ -109,8 +109,8 @@ type ServiceDetail struct {
 	// NodePorts List of node ports assigned to the service
 	NodePorts *[]int32 `json:"nodePorts,omitempty"`
 
-	// Pods List of pod statuses
-	Pods *[]PodStatus `json:"pods,omitempty"`
+	// PodStatuses List of pod statuses
+	PodStatuses *[]PodStatus `json:"pod_statuses,omitempty"`
 
 	// Project The project name
 	Project *string `json:"project,omitempty"`
@@ -1525,6 +1525,7 @@ type GetServicesNameResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *ServiceDetail
 	JSON401      *Error
+	JSON403      *Error
 	JSON404      *Error
 	JSON500      *Error
 }
@@ -2165,6 +2166,13 @@ func ParseGetServicesNameResponse(rsp *http.Response) (*GetServicesNameResponse,
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
@@ -3510,6 +3518,15 @@ type GetServicesName401JSONResponse Error
 func (response GetServicesName401JSONResponse) VisitGetServicesNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetServicesName403JSONResponse Error
+
+func (response GetServicesName403JSONResponse) VisitGetServicesNameResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 
 	return json.NewEncoder(w).Encode(response)
 }

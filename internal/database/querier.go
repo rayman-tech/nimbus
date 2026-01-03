@@ -23,6 +23,7 @@ type Querier interface {
 	GetApiKeyExistance(ctx context.Context, apiKey string) (bool, error)
 	GetProject(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectBranches(ctx context.Context, projectID uuid.UUID) ([]string, error)
+	GetProjectById(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectByName(ctx context.Context, name string) (Project, error)
 	GetProjectsByUser(ctx context.Context, userID uuid.UUID) ([]Project, error)
 	GetService(ctx context.Context, id uuid.UUID) (Service, error)

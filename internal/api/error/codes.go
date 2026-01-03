@@ -14,6 +14,7 @@ const (
 	InvalidAPIKey           ErrorCode = "invalid_api_key"
 	ProjectNotFound         ErrorCode = "project_not_found"
 	DisabledBranchPreview   ErrorCode = "disabled_branch_preview"
+	ServiceNotFound         ErrorCode = "service_not_found"
 )
 
 var errorCodeToStatusCode = map[ErrorCode]int{
@@ -26,6 +27,7 @@ var errorCodeToStatusCode = map[ErrorCode]int{
 	InvalidAPIKey:           http.StatusUnauthorized,
 	ProjectNotFound:         http.StatusNotFound,
 	DisabledBranchPreview:   http.StatusConflict,
+	ServiceNotFound:         http.StatusNotFound,
 }
 
 func (ec ErrorCode) Status() int {

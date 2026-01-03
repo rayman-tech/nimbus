@@ -468,6 +468,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
           description: Not Found
           content:
@@ -682,7 +688,7 @@ components:
           type: string
           nullable: true
           description: The ingress hostname (if applicable)
-        pods:
+        pod_statuses:
           type: array
           items:
             $ref: "#/components/schemas/PodStatus"

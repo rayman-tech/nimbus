@@ -216,6 +216,21 @@ func (mr *MockQuerierMockRecorder) GetProjectBranches(ctx, projectID any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectBranches", reflect.TypeOf((*MockQuerier)(nil).GetProjectBranches), ctx, projectID)
 }
 
+// GetProjectById mocks base method.
+func (m *MockQuerier) GetProjectById(ctx context.Context, id uuid.UUID) (Project, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProjectById", ctx, id)
+	ret0, _ := ret[0].(Project)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProjectById indicates an expected call of GetProjectById.
+func (mr *MockQuerierMockRecorder) GetProjectById(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectById", reflect.TypeOf((*MockQuerier)(nil).GetProjectById), ctx, id)
+}
+
 // GetProjectByName mocks base method.
 func (m *MockQuerier) GetProjectByName(ctx context.Context, name string) (Project, error) {
 	m.ctrl.T.Helper()

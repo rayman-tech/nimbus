@@ -23,79 +23,6 @@ const (
 
 const envKey = "env"
 
-func GetService(w http.ResponseWriter, r *http.Request) {
-	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
-	if !ok {
-		env = nimbusEnv.Null()
-	}
-
-	vars := mux.Vars(r)
-	name := vars["name"]
-	projectName := r.URL.Query().Get("project")
-	branch := utils.GetBranch(r)
-
-	apiKey := r.Header.Get(xApiKey)
-	project, _, err := utils.AuthorizeProject(r.Context(), env, apiKey, projectName)
-	if err != nil {
-		if strings.Contains(err.Error(), "project not found") {
-			http.Error(w, "project not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	svc, err := env.Database.GetServiceByName(r.Context(),
-		database.GetServiceByNameParams{
-			ServiceName: name, ProjectID: project.ID, ProjectBranch: branch,
-		})
-	if err != nil {
-		http.Error(w, "service not found", http.StatusNotFound)
-		return
-	}
-
-	namespace := utils.GetSanitizedNamespace(project.Name, branch)
-	pods, err := kubernetes.GetPods(namespace, name, env)
-	if err != nil {
-		env.Logger.ErrorContext(context.Background(), err.Error())
-		http.Error(w, "error getting pods", http.StatusInternalServerError)
-		return
-	}
-
-	podStatuses := make([]podStatus, 0)
-	for _, p := range pods {
-		podStatuses = append(podStatuses, podStatus{p.Name, string(p.Status.Phase)})
-	}
-
-	var ingress *string
-	if svc.Ingress.Valid {
-		ingress = &svc.Ingress.String
-	}
-
-	var logs string
-	const logLines = 20
-	if len(pods) > 0 {
-		data, err := kubernetes.GetPodLogsTail(namespace, pods[0].Name, logLines, env)
-		if err == nil {
-			logs = string(data)
-		}
-	}
-
-	resp := serviceDetailResponse{
-		Project:     project.Name,
-		Branch:      branch,
-		Name:        name,
-		NodePorts:   svc.NodePorts,
-		Ingress:     ingress,
-		PodStatuses: podStatuses,
-		Logs:        logs,
-	}
-	err = json.NewEncoder(w).Encode(resp)
-	if err != nil {
-		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
-	}
-}
-
 // StreamLogs streams logs for the first pod of a given service.
 func StreamLogs(w http.ResponseWriter, r *http.Request) {
 	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
@@ -120,7 +47,7 @@ func StreamLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	namespace := utils.GetSanitizedNamespace(project.Name, branch)
-	stream, err := kubernetes.StreamServiceLogs(namespace, name, env)
+	stream, err := kubernetes.StreamServiceLogs(r.Context(), namespace, name, env)
 	if err != nil {
 		env.Logger.ErrorContext(context.Background(), err.Error())
 		http.Error(w, "error streaming logs", http.StatusInternalServerError)

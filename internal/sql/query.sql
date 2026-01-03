@@ -127,6 +127,15 @@ WHERE
   name = $1
 LIMIT 1;
 
+-- name: GetProjectById :one
+SELECT
+  id,
+  name
+FROM
+  projects
+WHERE
+  id = $1;
+
 -- name: IsUserInProject :one
 SELECT
   EXISTS (
