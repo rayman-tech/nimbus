@@ -86,7 +86,7 @@ func CreateIngress(
 	ctx context.Context, namespace string, ingress *networkingv1.Ingress, env *env.Env,
 ) (*networkingv1.Ingress, error) {
 	_, err := getClient(env).NetworkingV1().Ingresses(namespace).Create(
-		context.Background(), ingress, metav1.CreateOptions{})
+		ctx, ingress, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
 		return ingress, nil
 	}
@@ -97,7 +97,7 @@ func CreateIngress(
 }
 
 func DeleteIngress(ctx context.Context, namespace, host string, env *env.Env) error {
-	ingresses, err := getClient(env).NetworkingV1().Ingresses(namespace).List(context.Background(), metav1.ListOptions{})
+	ingresses, err := getClient(env).NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("listing ingress: %w", err)
 	}
@@ -106,7 +106,7 @@ func DeleteIngress(ctx context.Context, namespace, host string, env *env.Env) er
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == host {
 				err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(
-					context.Background(), ingress.Name, metav1.DeleteOptions{})
+					ctx, ingress.Name, metav1.DeleteOptions{})
 				if err != nil {
 					return fmt.Errorf("deleting ingress %s: %w", ingress.Name, err)
 				}

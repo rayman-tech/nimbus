@@ -289,7 +289,7 @@ func (Server) GetProjectsNameSecrets(
 	var res []byte
 	env.Logger.DebugContext(ctx, "getting secrets")
 	if request.Params.Values != nil && *request.Params.Values {
-		vals, err := kubernetes.GetSecretValues(project.Name, env)
+		vals, err := kubernetes.GetSecretValues(ctx, project.Name, env)
 		if err != nil {
 			env.Logger.ErrorContext(ctx, "failed to get secret values", slog.Any("error", err))
 			return GetProjectsNameSecrets500JSONResponse{
@@ -313,7 +313,7 @@ func (Server) GetProjectsNameSecrets(
 			}, nil
 		}
 	} else {
-		names, err := kubernetes.ListSecretNames(project.Name, env)
+		names, err := kubernetes.ListSecretNames(ctx, project.Name, env)
 		if err != nil {
 			env.Logger.ErrorContext(ctx, "failed to get secret names", slog.Any("error", err))
 			return GetProjectsNameSecrets500JSONResponse{

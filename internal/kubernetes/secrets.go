@@ -12,17 +12,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetSecret(namespace string, env *nimbusEnv.Env) (*corev1.Secret, error) {
+func GetSecret(ctx context.Context, namespace string, env *nimbusEnv.Env) (*corev1.Secret, error) {
 	client := getClient(env).CoreV1().Secrets(namespace)
-	secret, err := client.Get(context.Background(), fmt.Sprintf("%s-env", namespace), metav1.GetOptions{})
+	secret, err := client.Get(ctx, fmt.Sprintf("%s-env", namespace), metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 	return secret, nil
 }
 
-func GetSecretValues(namespace string, env *nimbusEnv.Env) (map[string]string, error) {
-	secret, err := GetSecret(namespace, env)
+func GetSecretValues(ctx context.Context, namespace string, env *nimbusEnv.Env) (map[string]string, error) {
+	secret, err := GetSecret(ctx, namespace, env)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return map[string]string{}, nil
@@ -36,8 +36,8 @@ func GetSecretValues(namespace string, env *nimbusEnv.Env) (map[string]string, e
 	return out, nil
 }
 
-func ListSecretNames(namespace string, env *nimbusEnv.Env) ([]string, error) {
-	secret, err := GetSecret(namespace, env)
+func ListSecretNames(ctx context.Context, namespace string, env *nimbusEnv.Env) ([]string, error) {
+	secret, err := GetSecret(ctx, namespace, env)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return []string{}, nil
@@ -63,7 +63,7 @@ func UpdateSecret(ctx context.Context, namespace, name string, data map[string]s
 	var secret *corev1.Secret
 	secret, err = client.Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		_, err = client.Create(context.Background(), &corev1.Secret{
+		_, err = client.Create(ctx, &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
@@ -84,6 +84,6 @@ func UpdateSecret(ctx context.Context, namespace, name string, data map[string]s
 	secret.StringData = nil
 	secret.Type = corev1.SecretTypeOpaque
 
-	_, err = client.Update(context.Background(), secret, metav1.UpdateOptions{})
+	_, err = client.Update(ctx, secret, metav1.UpdateOptions{})
 	return err
 }

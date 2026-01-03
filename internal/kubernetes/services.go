@@ -101,7 +101,7 @@ func CreateService(
 	existing, err := client.Get(ctx, service.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		env.Logger.WarnContext(ctx, "service not found - creating service", slog.String("service", service.Name))
-		service, err := client.Create(context.Background(), service, metav1.CreateOptions{})
+		service, err := client.Create(ctx, service, metav1.CreateOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("creating service: %w", err)
 		}

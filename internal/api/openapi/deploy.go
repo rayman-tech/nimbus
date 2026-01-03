@@ -242,7 +242,7 @@ func (Server) PostDeploy(
 	// Apply project secrets
 	env.Logger.DebugContext(ctx, "applying project secrets",
 		slog.String("project", project.Name))
-	secrets, err := kubernetes.GetSecretValues(project.Name, env)
+	secrets, err := kubernetes.GetSecretValues(ctx, project.Name, env)
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get secret values",
 			slog.String("project", project.Name),
@@ -286,7 +286,7 @@ func (Server) PostDeploy(
 	}
 	if created && deployRequest.BranchName != "main" && deployRequest.BranchName != "master" {
 		mainNS := utils.GetSanitizedNamespace(config.AppName, "main")
-		vals, err := kubernetes.GetSecretValues(mainNS, env)
+		vals, err := kubernetes.GetSecretValues(ctx, mainNS, env)
 		if err != nil {
 			env.Logger.ErrorContext(ctx, "failed to get secret values",
 				slog.String("namespace", mainNS),

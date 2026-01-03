@@ -23,9 +23,9 @@ func GetPods(ctx context.Context, namespace, serviceName string, env *nimbusEnv.
 
 // StreamPodLogs streams logs for a specific pod within a namespace. The caller
 // should close the returned ReadCloser when finished.
-func StreamPodLogs(namespace, podName string, env *nimbusEnv.Env) (io.ReadCloser, error) {
+func StreamPodLogs(ctx context.Context, namespace, podName string, env *nimbusEnv.Env) (io.ReadCloser, error) {
 	req := getClient(env).CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{Follow: true})
-	stream, err := req.Stream(context.Background())
+	stream, err := req.Stream(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stream logs: %w", err)
 	}
@@ -46,7 +46,7 @@ func StreamServiceLogs(ctx context.Context, namespace, serviceName string, env *
 	var lines int64 = 20
 	req := getClient(env).CoreV1().Pods(namespace).GetLogs(
 		pods[0].Name, &corev1.PodLogOptions{Follow: true, TailLines: &lines})
-	stream, err := req.Stream(context.Background())
+	stream, err := req.Stream(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stream logs: %w", err)
 	}
@@ -54,9 +54,9 @@ func StreamServiceLogs(ctx context.Context, namespace, serviceName string, env *
 }
 
 // GetPodLogs retrieves the full logs for a given pod.
-func GetPodLogs(namespace, podName string, env *nimbusEnv.Env) ([]byte, error) {
+func GetPodLogs(ctx context.Context, namespace, podName string, env *nimbusEnv.Env) ([]byte, error) {
 	req := getClient(env).CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{})
-	return req.Do(context.Background()).Raw()
+	return req.Do(ctx).Raw()
 }
 
 // GetPodLogsTail retrieves the last n lines of logs for a given pod.
@@ -74,7 +74,7 @@ func GetServiceLogs(ctx context.Context, namespace, serviceName string, env *nim
 	if len(pods) == 0 {
 		return nil, fmt.Errorf("no pods found for service %s", serviceName)
 	}
-	return GetPodLogs(namespace, pods[0].Name, env)
+	return GetPodLogs(ctx, namespace, pods[0].Name, env)
 }
 
 // GetServiceLogsTail retrieves the last n lines of logs for the first pod of the service.
