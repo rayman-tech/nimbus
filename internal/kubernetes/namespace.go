@@ -11,12 +11,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetNamespace(name string, env *nimbusEnv.Env) (*corev1.Namespace, error) {
-	return getClient(env).CoreV1().Namespaces().Get(context.Background(), name, metav1.GetOptions{})
+func GetNamespace(ctx context.Context, name string, env *nimbusEnv.Env) (*corev1.Namespace, error) {
+	return getClient(env).CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 }
 
-func CreateNamespace(name string, env *nimbusEnv.Env) error {
-	_, err := getClient(env).CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+func CreateNamespace(ctx context.Context, name string, env *nimbusEnv.Env) error {
+	_, err := getClient(env).CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
@@ -26,7 +26,7 @@ func CreateNamespace(name string, env *nimbusEnv.Env) error {
 }
 
 func ValidateNamespace(ctx context.Context, name string, env *nimbusEnv.Env) (created bool, err error) {
-	ns, err := GetNamespace(name, env)
+	ns, err := GetNamespace(ctx, name, env)
 	if err == nil && ns != nil {
 		return false, nil
 	}
@@ -35,7 +35,7 @@ func ValidateNamespace(ctx context.Context, name string, env *nimbusEnv.Env) (cr
 	}
 	env.Logger.WarnContext(ctx, "namespace does not exist - attempting to create it")
 
-	err = CreateNamespace(name, env)
+	err = CreateNamespace(ctx, name, env)
 	if err != nil {
 		return false, fmt.Errorf("creating namespace: %w", err)
 	}
@@ -43,8 +43,8 @@ func ValidateNamespace(ctx context.Context, name string, env *nimbusEnv.Env) (cr
 	return true, nil
 }
 
-func DeleteNamespace(name string, env *nimbusEnv.Env) error {
-	err := getClient(env).CoreV1().Namespaces().Delete(context.Background(), name, metav1.DeleteOptions{})
+func DeleteNamespace(ctx context.Context, name string, env *nimbusEnv.Env) error {
+	err := getClient(env).CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}

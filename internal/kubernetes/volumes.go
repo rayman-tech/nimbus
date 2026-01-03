@@ -112,9 +112,9 @@ func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size
 	return err
 }
 
-func DeletePVC(namespace string, name string, env *env.Env) error {
+func DeletePVC(ctx context.Context, namespace string, name string, env *env.Env) error {
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
-	err := client.Delete(context.Background(), name, metav1.DeleteOptions{})
+	err := client.Delete(ctx, name, metav1.DeleteOptions{})
 	return err
 }

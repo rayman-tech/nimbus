@@ -182,13 +182,13 @@ WHERE project_id = $1
 `
 
 type DeleteUnusedVolumesParams struct {
-	ProjectID     uuid.UUID
-	ProjectBranch string
-	Column3       []string
+	ProjectID      uuid.UUID
+	ProjectBranch  string
+	ExcludeVolumes []string
 }
 
 func (q *Queries) DeleteUnusedVolumes(ctx context.Context, arg DeleteUnusedVolumesParams) error {
-	_, err := q.db.Exec(ctx, deleteUnusedVolumes, arg.ProjectID, arg.ProjectBranch, arg.Column3)
+	_, err := q.db.Exec(ctx, deleteUnusedVolumes, arg.ProjectID, arg.ProjectBranch, arg.ExcludeVolumes)
 	return err
 }
 
@@ -494,13 +494,13 @@ WHERE
 `
 
 type GetUnusedVolumeIdentifiersParams struct {
-	ProjectID     uuid.UUID
-	ProjectBranch string
-	Column3       []string
+	ProjectID      uuid.UUID
+	ProjectBranch  string
+	ExcludeVolumes []string
 }
 
 func (q *Queries) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectID, arg.ProjectBranch, arg.Column3)
+	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectID, arg.ProjectBranch, arg.ExcludeVolumes)
 	if err != nil {
 		return nil, err
 	}

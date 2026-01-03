@@ -97,7 +97,7 @@ FROM
 WHERE
   project_id = $1
   AND project_branch = $2
-  AND NOT volume_name = ANY ($3::text[]);
+  AND NOT volume_name = ANY (@exclude_volumes::text[]);
 
 -- name: GetUserByApiKey :one
 SELECT
@@ -151,7 +151,7 @@ SELECT
 DELETE FROM volumes
 WHERE project_id = $1
   AND project_branch = $2
-  AND NOT volume_name = ANY ($3::text[]);
+  AND NOT volume_name = ANY (@exclude_volumes::text[]);
 
 -- name: GetProjectsByUser :many
 SELECT

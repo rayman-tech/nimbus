@@ -22,104 +22,6 @@ const (
 
 const envKey = "env"
 
-func DeleteBranch(w http.ResponseWriter, r *http.Request) {
-	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
-	if !ok {
-		env = nimbusEnv.Null()
-	}
-
-	projectName := r.URL.Query().Get("project")
-	branch := r.URL.Query().Get("branch")
-	if projectName == "" || branch == "" {
-		http.Error(w, "missing project or branch", http.StatusBadRequest)
-		return
-	}
-
-	apiKey := r.Header.Get(xApiKey)
-	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	project, err := env.Database.GetProjectByName(r.Context(), projectName)
-	if err != nil {
-		http.Error(w, "project not found", http.StatusNotFound)
-		return
-	}
-
-	authorized, err := env.Database.IsUserInProject(
-		r.Context(),
-		database.IsUserInProjectParams{UserID: user.ID, ProjectID: project.ID})
-	if err != nil || !authorized {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	services, err := env.Database.GetServicesByProject(
-		r.Context(),
-		database.GetServicesByProjectParams{ProjectID: project.ID, ProjectBranch: branch})
-	if err != nil {
-		env.Logger.ErrorContext(r.Context(), err.Error())
-		http.Error(w, "error fetching services", http.StatusInternalServerError)
-		return
-	}
-
-	namespace := utils.GetSanitizedNamespace(project.Name, branch)
-	for _, svc := range services {
-		err = kubernetes.DeleteDeployment(r.Context(), namespace, svc.ServiceName, env)
-		if err != nil {
-			env.Logger.ErrorContext(r.Context(), "failed to delete deployment", slog.Any("error", err))
-		}
-		err = kubernetes.DeleteService(r.Context(), namespace, svc.ServiceName, env)
-		if err != nil {
-			env.Logger.ErrorContext(r.Context(), "failed to delete service", slog.Any("error", err))
-		}
-		if svc.Ingress.Valid {
-			err = kubernetes.DeleteIngress(r.Context(), namespace, svc.Ingress.String, env)
-			if err != nil {
-				env.Logger.ErrorContext(r.Context(), "failed to delete ingress", slog.Any("error", err))
-			}
-		}
-		err = env.Database.DeleteServiceById(r.Context(), svc.ID)
-		if err != nil {
-			env.Logger.ErrorContext(r.Context(), "failed to delete service", slog.Any("error", err))
-			http.Error(w, "error deleting service", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	ids, err := env.Database.GetUnusedVolumeIdentifiers(
-		r.Context(),
-		database.GetUnusedVolumeIdentifiersParams{
-			ProjectID: project.ID, ProjectBranch: branch, Column3: []string{},
-		})
-	if err == nil {
-		for _, id := range ids {
-			err = kubernetes.DeletePVC(namespace, fmt.Sprintf("pvc-%s", id.String()), env)
-			if err != nil {
-				env.Logger.ErrorContext(r.Context(), "failed to delete pvc", slog.Any("error", err))
-			}
-		}
-	}
-	err = env.Database.DeleteUnusedVolumes(r.Context(),
-		database.DeleteUnusedVolumesParams{
-			ProjectID: project.ID, ProjectBranch: branch, Column3: []string{},
-		})
-	if err != nil {
-		env.Logger.ErrorContext(r.Context(), "failed to delete unused volumes", slog.Any("error", err))
-		http.Error(w, "error deleting unused volumes", http.StatusInternalServerError)
-		return
-	}
-
-	err = kubernetes.DeleteNamespace(namespace, env)
-	if err != nil {
-		env.Logger.ErrorContext(r.Context(), "failed to delete namespace", slog.Any("error", err))
-		http.Error(w, "error deleting namespace", http.StatusInternalServerError)
-	}
-	w.WriteHeader(http.StatusOK)
-}
-
 func DeleteProject(w http.ResponseWriter, r *http.Request) {
 	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
 	if !ok {
@@ -194,11 +96,11 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 		ids, err := env.Database.GetUnusedVolumeIdentifiers(
 			r.Context(),
 			database.GetUnusedVolumeIdentifiersParams{
-				ProjectID: project.ID, ProjectBranch: branch, Column3: []string{},
+				ProjectID: project.ID, ProjectBranch: branch, ExcludeVolumes: []string{},
 			})
 		if err == nil {
 			for _, id := range ids {
-				err = kubernetes.DeletePVC(namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+				err = kubernetes.DeletePVC(r.Context(), namespace, fmt.Sprintf("pvc-%s", id.String()), env)
 				if err != nil {
 					env.Logger.ErrorContext(r.Context(), "failed to delete pvc", slog.Any("error", err))
 				}
@@ -207,14 +109,14 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 		err = env.Database.DeleteUnusedVolumes(
 			r.Context(),
 			database.DeleteUnusedVolumesParams{
-				ProjectID: project.ID, ProjectBranch: branch, Column3: []string{},
+				ProjectID: project.ID, ProjectBranch: branch, ExcludeVolumes: []string{},
 			})
 		if err != nil {
 			env.Logger.ErrorContext(r.Context(), "failed to delete unused volumes", slog.Any("error", err))
 			http.Error(w, "error deleting unused volumes", http.StatusInternalServerError)
 			return
 		}
-		err = kubernetes.DeleteNamespace(namespace, env)
+		err = kubernetes.DeleteNamespace(r.Context(), namespace, env)
 		if err != nil {
 			env.Logger.ErrorContext(r.Context(), "failed to delete namespace", slog.Any("error", err))
 			http.Error(w, "error deleting unused volumes", http.StatusInternalServerError)
