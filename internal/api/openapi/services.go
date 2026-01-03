@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 
 	apierror "nimbus/internal/api/error"
 	"nimbus/internal/api/requestid"
@@ -16,6 +18,42 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/oapi-codegen/nullable"
 )
+
+// StreamingLogsResponse implements GetServicesNameLogsResponseObject for streaming logs.
+type StreamingLogsResponse struct {
+	stream io.ReadCloser
+}
+
+// VisitGetServicesNameLogsResponse implements the visitor pattern to stream logs.
+func (r StreamingLogsResponse) VisitGetServicesNameLogsResponse(w http.ResponseWriter) error {
+	defer func() { _ = r.stream.Close() }()
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+
+	const bufLen = 1024
+	flusher, _ := w.(http.Flusher)
+	buf := make([]byte, bufLen)
+
+	for {
+		n, err := r.stream.Read(buf)
+		if n > 0 {
+			_, writeErr := w.Write(buf[:n])
+			if writeErr != nil {
+				return writeErr
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
 
 func (Server) GetServices(
 	ctx context.Context, request GetServicesRequestObject,
@@ -207,5 +245,75 @@ func (Server) GetServicesName(
 func (Server) GetServicesNameLogs(
 	ctx context.Context, request GetServicesNameLogsRequestObject,
 ) (GetServicesNameLogsResponseObject, error) {
-	return GetServicesNameLogs200TextResponse("OK"), nil
+	env := env.FromContext(ctx)
+	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	user := database.UserFromContext(ctx)
+
+	var branch string
+	if request.Params.Branch != nil {
+		branch = *request.Params.Branch
+	} else {
+		branch = "main"
+	}
+
+	// Get project
+	env.Logger.DebugContext(ctx, "get project")
+	project, err := env.Database.GetProjectByName(ctx, request.Name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		env.Logger.ErrorContext(ctx, "project not found", slog.Any("error", err))
+		return GetServicesNameLogs404JSONResponse{
+			Status:  apierror.ProjectNotFound.Status(),
+			Code:    apierror.ProjectNotFound.String(),
+			Message: "project not found",
+			ErrorId: requestid,
+		}, nil
+	}
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to get project by name")
+		return GetServicesNameLogs500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Check permissions
+	env.Logger.DebugContext(ctx, "check user permissions")
+	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
+		UserID: user.ID,
+	})
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to check user permissions", slog.Any("error", err))
+		return GetServicesNameLogs500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+	if !authorized {
+		env.Logger.ErrorContext(ctx, "insufficient permissions")
+		return GetServicesNameLogs403JSONResponse{
+			Status:  apierror.InsufficientPermissions.Status(),
+			Code:    apierror.InsufficientPermissions.String(),
+			Message: "user does not have permissions to view services",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Stream logs
+	namespace := utils.GetSanitizedNamespace(project.Name, branch)
+	stream, err := kubernetes.StreamServiceLogs(ctx, namespace, request.Name, env)
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to stream logs", slog.Any("error", err))
+		return GetServicesNameLogs500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	return StreamingLogsResponse{stream: stream}, nil
 }

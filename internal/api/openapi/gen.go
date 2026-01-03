@@ -1550,6 +1550,7 @@ type GetServicesNameLogsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON401      *Error
+	JSON403      *Error
 	JSON404      *Error
 	JSON500      *Error
 }
@@ -2213,6 +2214,13 @@ func ParseGetServicesNameLogsResponse(rsp *http.Response) (*GetServicesNameLogsR
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
@@ -3573,6 +3581,15 @@ type GetServicesNameLogs401JSONResponse Error
 func (response GetServicesNameLogs401JSONResponse) VisitGetServicesNameLogsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetServicesNameLogs403JSONResponse Error
+
+func (response GetServicesNameLogs403JSONResponse) VisitGetServicesNameLogsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 
 	return json.NewEncoder(w).Encode(response)
 }

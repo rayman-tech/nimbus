@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"strings"
 
 	"nimbus/internal/database"
 	nimbusEnv "nimbus/internal/env"
@@ -22,57 +21,6 @@ const (
 )
 
 const envKey = "env"
-
-// StreamLogs streams logs for the first pod of a given service.
-func StreamLogs(w http.ResponseWriter, r *http.Request) {
-	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
-	if !ok {
-		env = nimbusEnv.Null()
-	}
-
-	vars := mux.Vars(r)
-	name := vars["name"]
-	projectName := r.URL.Query().Get("project")
-	branch := utils.GetBranch(r)
-
-	apiKey := r.Header.Get(xApiKey)
-	project, _, err := utils.AuthorizeProject(r.Context(), env, apiKey, projectName)
-	if err != nil {
-		if strings.Contains(err.Error(), "project not found") {
-			http.Error(w, "project not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	namespace := utils.GetSanitizedNamespace(project.Name, branch)
-	stream, err := kubernetes.StreamServiceLogs(r.Context(), namespace, name, env)
-	if err != nil {
-		env.Logger.ErrorContext(context.Background(), err.Error())
-		http.Error(w, "error streaming logs", http.StatusInternalServerError)
-		return
-	}
-	defer func() { _ = stream.Close() }()
-
-	w.Header().Set("Content-Type", "text/plain")
-
-	const bufLen = 1024
-	flusher, _ := w.(http.Flusher)
-	buf := make([]byte, bufLen)
-	for {
-		n, err := stream.Read(buf)
-		if n > 0 {
-			_, _ = w.Write(buf[:n])
-			if flusher != nil {
-				flusher.Flush()
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
-}
 
 func DeleteBranch(w http.ResponseWriter, r *http.Request) {
 	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
