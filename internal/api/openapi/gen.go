@@ -1423,6 +1423,7 @@ type DeleteProjectsNameResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *Error
 	JSON401      *Error
+	JSON403      *Error
 	JSON404      *Error
 	JSON500      *Error
 }
@@ -1990,6 +1991,13 @@ func ParseDeleteProjectsNameResponse(rsp *http.Response) (*DeleteProjectsNameRes
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
@@ -3360,6 +3368,15 @@ type DeleteProjectsName401JSONResponse Error
 func (response DeleteProjectsName401JSONResponse) VisitDeleteProjectsNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteProjectsName403JSONResponse Error
+
+func (response DeleteProjectsName403JSONResponse) VisitDeleteProjectsNameResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 
 	return json.NewEncoder(w).Encode(response)
 }

@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -9,6 +10,10 @@ import (
 	"nimbus/internal/api/requestid"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
+	"nimbus/internal/kubernetes"
+	"nimbus/internal/utils"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func (Server) GetProjects(
@@ -51,6 +56,175 @@ func (Server) PostProjects(
 func (Server) DeleteProjectsName(
 	ctx context.Context, request DeleteProjectsNameRequestObject,
 ) (DeleteProjectsNameResponseObject, error) {
+	env := env.FromContext(ctx)
+	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	user := database.UserFromContext(ctx)
+
+	// Get project
+	env.Logger.DebugContext(ctx, "getting project")
+	project, err := env.Database.GetProjectByName(ctx, request.Name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		return DeleteProjectsName404JSONResponse{
+			Status:  apierror.ProjectNotFound.Status(),
+			Code:    apierror.ProjectNotFound.String(),
+			Message: "project not found",
+			ErrorId: requestid,
+		}, nil
+	}
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		return DeleteProjectsName500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Check permissions
+	env.Logger.DebugContext(ctx, "getting user permissions")
+	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
+		UserID:    user.ID,
+		ProjectID: project.ID,
+	})
+	if err != nil {
+		env.Logger.ErrorContext(
+			ctx, "failed to get user permissions", slog.Any("error", err))
+		return DeleteProjectsName500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+	if !authorized {
+		env.Logger.ErrorContext(ctx, "user does not have permissions")
+		return DeleteProjectsName403JSONResponse{
+			Status:  apierror.InsufficientPermissions.Status(),
+			Code:    apierror.InsufficientPermissions.String(),
+			Message: "user does not have permission to delete branch",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Get project branches
+	env.Logger.DebugContext(ctx, "getting project branches")
+	branches, err := env.Database.GetProjectBranches(ctx, project.ID)
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to get project branches", slog.Any("error", err))
+		return DeleteProjectsName500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	for _, branch := range branches {
+		services, err := env.Database.GetServicesByProject(
+			ctx,
+			database.GetServicesByProjectParams{
+				ProjectID:     project.ID,
+				ProjectBranch: branch,
+			})
+		if err != nil {
+			env.Logger.DebugContext(ctx, "failed to get services", slog.Any("error", err))
+			return DeleteProjectsName500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+
+		// Delete services
+		namespace := utils.GetSanitizedNamespace(project.Name, branch)
+		for _, svc := range services {
+			err = kubernetes.DeleteDeployment(ctx, namespace, svc.ServiceName, env)
+			if err != nil {
+				env.Logger.ErrorContext(ctx, "failed to delete deployment", slog.Any("error", err))
+			}
+			err = kubernetes.DeleteService(ctx, namespace, svc.ServiceName, env)
+			if err != nil {
+				env.Logger.ErrorContext(ctx, "failed to deleted service", slog.Any("error", err))
+			}
+			if svc.Ingress.Valid {
+				err = kubernetes.DeleteIngress(ctx, namespace, svc.Ingress.String, env)
+				if err != nil {
+					env.Logger.ErrorContext(ctx, "failed to delete ingress", slog.Any("error", err))
+				}
+			}
+			err = env.Database.DeleteServiceById(ctx, svc.ID)
+			if err != nil {
+				env.Logger.ErrorContext(ctx, "failed to delete service from database", slog.Any("error", err))
+				return DeleteProjectsName500JSONResponse{
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
+					Message: "Internal Server Error",
+					ErrorId: requestid,
+				}, nil
+			}
+		}
+
+		// Delete volumes
+		ids, err := env.Database.GetUnusedVolumeIdentifiers(
+			ctx,
+			database.GetUnusedVolumeIdentifiersParams{
+				ProjectID: project.ID, ProjectBranch: branch, ExcludeVolumes: nil,
+			})
+		if err != nil {
+			env.Logger.ErrorContext(ctx, "failed to get volumes", slog.Any("error", err))
+			return DeleteProjectsName500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+		for _, id := range ids {
+			err = kubernetes.DeletePVC(ctx, namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+			if err != nil {
+				env.Logger.ErrorContext(ctx, "failed to delete pvc", slog.Any("error", err))
+			}
+		}
+		err = env.Database.DeleteUnusedVolumes(
+			ctx,
+			database.DeleteUnusedVolumesParams{
+				ProjectID: project.ID, ProjectBranch: branch, ExcludeVolumes: nil,
+			})
+		if err != nil {
+			env.Logger.ErrorContext(ctx, "failed to delete unused volumes", slog.Any("error", err))
+			return DeleteProjectsName500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+		err = kubernetes.DeleteNamespace(ctx, namespace, env)
+		if err != nil {
+			env.Logger.ErrorContext(ctx, "failed to delete namespace", slog.Any("error", err))
+			return DeleteProjectsName500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+	}
+
+	err = env.Database.DeleteProject(ctx, project.ID)
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to delete project", slog.Any("error", err))
+		return DeleteProjectsName500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
 	return DeleteProjectsName204Response{}, nil
 }
 
