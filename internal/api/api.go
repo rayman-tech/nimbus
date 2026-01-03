@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-
 	"nimbus/docs"
-	apiError "nimbus/internal/api/error"
 	"nimbus/internal/api/middleware"
 	"nimbus/internal/api/openapi"
 	"nimbus/internal/api/requestid"
 	"nimbus/internal/env"
+
+	apiError "nimbus/internal/api/error"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"

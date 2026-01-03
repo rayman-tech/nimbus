@@ -171,6 +171,21 @@ func (mr *MockQuerierMockRecorder) DeleteUnusedVolumes(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnusedVolumes", reflect.TypeOf((*MockQuerier)(nil).DeleteUnusedVolumes), ctx, arg)
 }
 
+// GetApiKeyExistance mocks base method.
+func (m *MockQuerier) GetApiKeyExistance(ctx context.Context, apiKey string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetApiKeyExistance", ctx, apiKey)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetApiKeyExistance indicates an expected call of GetApiKeyExistance.
+func (mr *MockQuerierMockRecorder) GetApiKeyExistance(ctx, apiKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApiKeyExistance", reflect.TypeOf((*MockQuerier)(nil).GetApiKeyExistance), ctx, apiKey)
+}
+
 // GetProject mocks base method.
 func (m *MockQuerier) GetProject(ctx context.Context, id uuid.UUID) (Project, error) {
 	m.ctrl.T.Helper()
