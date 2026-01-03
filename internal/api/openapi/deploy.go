@@ -123,6 +123,10 @@ func (Server) PostDeploy(
 			ErrorId: requestID,
 		}, nil
 	}
+	if config.AllowBranchPreviews == nil {
+		v := true
+		config.AllowBranchPreviews = &v
+	}
 
 	// Retrieve project
 	var deployRequest models.DeployRequest
@@ -225,7 +229,7 @@ func (Server) PostDeploy(
 		for j, variable := range service.Env {
 			key, prefFound := strings.CutPrefix(variable.Value, "${")
 			key, suffFound := strings.CutSuffix(key, "}")
-			if !prefFound && !suffFound {
+			if !prefFound || !suffFound {
 				continue
 			}
 			if secretVal, ok := secrets[key]; ok {
@@ -470,21 +474,23 @@ func (Server) PostDeploy(
 							ErrorId: requestID,
 						}, nil
 					}
-					err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-						ID:      serviceID,
-						Ingress: pgtype.Text{Valid: false},
-					})
-					if err != nil {
-						env.Logger.ErrorContext(ctx, "failed to set ingress", slog.Any("error", err))
-						return PostDeploy500JSONResponse{
-							Status:  apiError.InternalServerError.Status(),
-							Code:    apiError.InternalServerError.String(),
-							Message: "Internal Server Error",
-							ErrorId: requestID,
-						}, nil
-					}
+				}
+				err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
+					ID:      serviceID,
+					Ingress: pgtype.Text{Valid: false},
+				})
+				if err != nil {
+					env.Logger.ErrorContext(ctx, "failed to set ingress", slog.Any("error", err))
+					return PostDeploy500JSONResponse{
+						Status:  apiError.InternalServerError.Status(),
+						Code:    apiError.InternalServerError.String(),
+						Message: "Internal Server Error",
+						ErrorId: requestID,
+					}, nil
 				}
 			}
+			serviceUrls[serviceConfig.Name] = urls
+			continue
 		}
 
 		if serviceConfig.Template != "http" {
@@ -503,6 +509,8 @@ func (Server) PostDeploy(
 						ErrorId: requestID,
 					}, nil
 				}
+				serviceUrls[serviceConfig.Name] = urls
+				continue
 			}
 
 			var nodePorts []int32
@@ -553,6 +561,8 @@ func (Server) PostDeploy(
 						ErrorId: requestID,
 					}, nil
 				}
+				serviceUrls[serviceConfig.Name] = urls
+				continue
 			}
 
 			env.Logger.DebugContext(ctx, "creating ingress for service")
@@ -589,6 +599,7 @@ func (Server) PostDeploy(
 					ErrorId: requestID,
 				}, nil
 			}
+			urls = append(urls, fmt.Sprintf("https://%s", newIngress.Spec.Rules[0].Host))
 		}
 
 		env.Logger.DebugContext(ctx, "Successfully created service in database")

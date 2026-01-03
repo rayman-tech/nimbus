@@ -29,7 +29,7 @@ func (Server) GetOpenapiYaml(ctx context.Context, request GetOpenapiYamlRequestO
 	if err != nil {
 		return GetOpenapiYaml500JSONResponse{
 			Code:    apiError.InternalServerError.String(),
-			Status:  apiError.InternalServerError.StatusCode(),
+			Status:  apiError.InternalServerError.Status(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil
