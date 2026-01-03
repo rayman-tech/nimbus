@@ -115,6 +115,19 @@ There are pre-defined templates for services, such as databases and Redis, to ma
 
 Deployment can be done through our [GitHub action](https://github.com/rayman-tech/nimbus-action), or through the local CLI, which is used for managing project state.
 
+## API Documentation
+
+The Nimbus API is documented using the OpenAPI 3.0.1 specification, available in `docs/api.yaml`. This documentation provides detailed information about all available endpoints, request/response schemas, and authentication requirements.
+
+### Viewing the Documentation
+
+A Swagger UI server is included in both the Docker Compose and Kubernetes configurations for interactive API exploration:
+
+- **Docker Compose**: When running `make docker-up`, Swagger UI is automatically available at `http://localhost:8080/docs/`
+- **Kubernetes**: The Swagger UI is deployed as part of the Kubernetes manifests in `kubernetes/` and can be accessed through the configured ingress or service
+
+The Swagger UI provides an interactive interface to explore the API, view schemas, and test endpoints directly from your browser.
+
 ## CLI Installation
 
 Install the Nimbus CLI locally with:
