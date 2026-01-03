@@ -1,0 +1,588 @@
+openapi: 3.0.1
+info:
+  title: Nimbus API
+  description: An open-source cloud-native deployment tool API
+  version: 1.0.0
+  contact:
+    name: Nimbus
+    url: https://github.com/rayman-tech/nimbus
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+security:
+  - ApiKeyAuth: []
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Projects
+    description: Project management endpoints
+  - name: Services
+    description: Service management endpoints
+  - name: Deployments
+    description: Deployment endpoints
+  - name: Secrets
+    description: Secret management endpoints
+  - name: Branches
+    description: Branch management endpoints
+
+paths:
+  /openapi.yaml:
+    get:
+      summary: Get OpenAPI specification.
+      tags:
+        - Documentation
+      responses:
+        "200":
+          description: OpenAPI specification file
+          content:
+            application/x-yaml:
+              schema:
+                type: string
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      security: []
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the API
+      security: []
+      responses:
+        "204":
+          description: API is healthy
+
+  /deploy:
+    post:
+      tags:
+        - Deployments
+      summary: Deploy a project
+      description: Deploy a project using a nimbus.yaml configuration file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The nimbus.yaml configuration file
+                branch:
+                  type: string
+                  description: The branch name to deploy (defaults to 'main')
+                  example: main
+
+      responses:
+        "200":
+          description: Deployment successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  services:
+                    type: object
+                    description: Map of service names to their URLs
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                        format: uri
+                example:
+                  services:
+                    web:
+                      - https://web.example.com
+                    api:
+                      - https://api.example.com:30001
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects:
+    get:
+      tags:
+        - Projects
+      summary: List all projects
+      description: Get all projects accessible by the authenticated user
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      tags:
+        - Projects
+      summary: Create a new project
+      description: Create a new project with the specified name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: The name of the project
+                  example: my-app
+      responses:
+        "201":
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/{name}:
+    delete:
+      tags:
+        - Projects
+      summary: Delete a project
+      description: Delete a project and all its associated resources (services, deployments, namespaces)
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: The name of the project to delete
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Project deleted successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/{name}/secrets:
+    get:
+      tags:
+        - Secrets
+      summary: Get project secrets
+      description: Retrieve secrets for a project. Use the 'values' query parameter to include secret values.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: The name of the project
+          schema:
+            type: string
+        - name: values
+          in: query
+          required: false
+          description: Set to 'true' to return secret values
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Project secrets retrieved successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SecretsNamesResponse"
+                  - $ref: "#/components/schemas/SecretsValuesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    put:
+      tags:
+        - Secrets
+      summary: Update project secrets
+      description: Update secrets for a project across all branches
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: The name of the project
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                secrets:
+                  type: object
+                  description: Map of secret keys to values
+                  additionalProperties:
+                    type: string
+              example:
+                secrets:
+                  DATABASE_URL: postgresql://localhost:5432/mydb
+                  API_KEY: secret_key_here
+      responses:
+        "200":
+          description: Secrets updated successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /services:
+    get:
+      tags:
+        - Services
+      summary: List all services
+      description: Get all services accessible by the authenticated user
+      responses:
+        "200":
+          description: List of services
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  services:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceListItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /services/{name}:
+    get:
+      tags:
+        - Services
+      summary: Get service details
+      description: Get detailed information about a specific service
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: The name of the service
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: true
+          description: The name of the project
+          schema:
+            type: string
+        - name: branch
+          in: query
+          required: false
+          description: The branch name (defaults to 'main')
+          schema:
+            type: string
+            default: main
+      responses:
+        "200":
+          description: Service details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /services/{name}/logs:
+    get:
+      tags:
+        - Services
+      summary: Stream service logs
+      description: Stream real-time logs from the first pod of a service
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: The name of the service
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: true
+          description: The name of the project
+          schema:
+            type: string
+        - name: branch
+          in: query
+          required: false
+          description: The branch name (defaults to 'main')
+          schema:
+            type: string
+            default: main
+      responses:
+        "200":
+          description: Log stream
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Streaming logs from the service
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /branch:
+    delete:
+      tags:
+        - Branches
+      summary: Delete a branch
+      description: Delete a branch and all its associated resources (services, deployments, namespace)
+      parameters:
+        - name: project
+          in: query
+          required: true
+          description: The name of the project
+          schema:
+            type: string
+        - name: branch
+          in: query
+          required: true
+          description: The branch name to delete
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Branch deleted successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+
+  schemas:
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the project
+        name:
+          type: string
+          description: The name of the project
+      example:
+        id: 123e4567-e89b-12d3-a456-426614174000
+        name: my-app
+
+    ServiceListItem:
+      type: object
+      properties:
+        project:
+          type: string
+          description: The project name
+        branch:
+          type: string
+          description: The branch name
+        name:
+          type: string
+          description: The service name
+        status:
+          type: string
+          description: The current status of the service
+          enum:
+            - Pending
+            - Running
+            - Succeeded
+            - Failed
+            - Unknown
+      example:
+        project: my-app
+        branch: main
+        name: web
+        status: Running
+
+    PodStatus:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The pod name
+        phase:
+          type: string
+          description: The current phase of the pod
+          enum:
+            - Pending
+            - Running
+            - Succeeded
+            - Failed
+            - Unknown
+      example:
+        name: web-deployment-abc123
+        phase: Running
+
+    ServiceDetail:
+      type: object
+      properties:
+        project:
+          type: string
+          description: The project name
+        branch:
+          type: string
+          description: The branch name
+        name:
+          type: string
+          description: The service name
+        nodePorts:
+          type: array
+          items:
+            type: integer
+            format: int32
+          description: List of node ports assigned to the service
+        ingress:
+          type: string
+          nullable: true
+          description: The ingress hostname (if applicable)
+        pods:
+          type: array
+          items:
+            $ref: "#/components/schemas/PodStatus"
+          description: List of pod statuses
+        logs:
+          type: string
+          description: Recent logs from the service (last 20 lines)
+      example:
+        project: my-app
+        branch: main
+        name: web
+        nodePorts: [30001, 30002]
+        ingress: web.example.com
+        pods:
+          - name: web-deployment-abc123
+            phase: Running
+        logs: "2024-01-01 12:00:00 Starting server..."
+
+    SecretsNamesResponse:
+      type: object
+      properties:
+        secrets:
+          type: array
+          items:
+            type: string
+          description: List of secret names
+      example:
+        secrets:
+          - DATABASE_URL
+          - API_KEY
+
+    SecretsValuesResponse:
+      type: object
+      properties:
+        secrets:
+          type: object
+          additionalProperties:
+            type: string
+          description: Map of secret names to values
+      example:
+        secrets:
+          DATABASE_URL: postgresql://localhost:5432/mydb
+          API_KEY: secret_key_here
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        error_id:
+          type: string
+        message:
+          type: string
+        status:
+          type: integer
+      required:
+        - code
+        - error_id
+        - message
+        - status
+      example:
+        code: project_not_found
+        error_id: "12345678"
+        message: project does not exist
+        status: 404
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          $ref: "#/components/schemas/Error"
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing API key
+      content:
+        application/json:
+          $ref: "#/components/schemas/Error"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          $ref: "#/components/schemas/Error"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          $ref: "#/components/schemas/Error"

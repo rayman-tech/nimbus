@@ -4,106 +4,62 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
-	"nimbus/internal/api/handlers"
+	"nimbus/docs"
+	apiError "nimbus/internal/api/error"
+	"nimbus/internal/api/middleware"
+	"nimbus/internal/api/openapi"
+	"nimbus/internal/api/requestid"
 	"nimbus/internal/env"
-	"nimbus/internal/logging"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gorilla/mux"
-	"github.com/oklog/ulid/v2"
+	oapimw "github.com/oapi-codegen/nethttp-middleware"
 )
 
-// logResponseWriter captures the status code.
-type logResponseWriter struct {
-	http.ResponseWriter
-
-	statusCode int
-}
-
-// Captures the status code and writes the response.
-func (lrw *logResponseWriter) WriteHeader(code int) {
-	lrw.statusCode = code
-	lrw.ResponseWriter.WriteHeader(code)
-}
-
 func Start(port string, env *env.Env) error {
-	env.Logger.Info(fmt.Sprintf("Serving at 0.0.0.0:%s...", port))
-	router := mux.NewRouter()
-	router.Use(injectEnvironment(env))
-	router.Use(recoverMiddleware)
-	router.Use(logRequest)
-	addRoutes(router)
-
-	http.Handle("/", router)
-	return http.ListenAndServe(":"+port, nil)
-}
-
-func recoverMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		e := env.FromContext(r.Context())
-
-		defer func() {
-			if err := recover(); err != nil {
-				e.Logger.ErrorContext(r.Context(), "Panic occurred", slog.Any("panic", err))
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			}
-		}()
-
-		w.Header().Set("Content-Type", "application/json")
-		next.ServeHTTP(w, r)
-	})
-}
-
-func injectEnvironment(e *env.Env) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if e == nil {
-				e = env.Null()
-			}
-			r = r.WithContext(env.WithContext(r.Context(), e))
-			next.ServeHTTP(w, r)
-		})
+	server := openapi.NewServer()
+	spec, err := docs.Docs.ReadFile("api.yaml")
+	if err != nil {
+		return fmt.Errorf("reading openapi spec: %w", err)
 	}
-}
+	swagger, err := openapi3.NewLoader().LoadFromData(spec)
+	if err != nil {
+		return fmt.Errorf("creating openapi loader: %w", err)
+	}
+	swagger.Servers = nil
 
-func logRequest(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		e := env.FromContext(r.Context())
+	router := mux.NewRouter()
+	router.Use(middleware.InjectEnvironment(env))
+	router.Use(middleware.Recover)
+	router.Use(middleware.LogRequest)
+	router.Use(oapimw.OapiRequestValidatorWithOptions(swagger, &oapimw.Options{
+		ErrorHandlerWithOpts: middleware.OAPIErrorHandler,
+	}))
 
-		ctx := r.Context()
-		logId := ulid.MustNew(ulid.Timestamp(start), ulid.DefaultEntropy())
-		r = r.WithContext(logging.AppendCtx(ctx, slog.String("log_id", logId.String())))
-		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("method", r.Method)))
-		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("path", r.URL.RequestURI())))
-		lrw := &logResponseWriter{w, http.StatusOK}
-		e.Logger.InfoContext(r.Context(), "Request received")
-		next.ServeHTTP(lrw, r)
-		e.Logger.LogAttrs(
-			r.Context(),
-			slog.LevelInfo,
-			"Request completed",
-			slog.Duration("duration", time.Since(start)),
-			slog.Int("status", lrw.statusCode),
-		)
-	})
-}
+	// Customize strict handler to return errors in custom format
+	strictHandlerOptions := openapi.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			requestID := fmt.Sprintf("%d", requestid.FromCtx(r.Context()))
+			// Request decoding errors are client errors (invalid JSON, etc.)
+			_ = apiError.EncodeError(w, apiError.BadRequest, err.Error(), requestID)
+		},
+		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			requestID := fmt.Sprintf("%d", requestid.FromCtx(r.Context()))
+			// Response encoding errors are server errors
+			_ = apiError.EncodeInternalError(w, requestID)
+		},
+	}
 
-func addRoutes(router *mux.Router) {
-	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
-	}).Methods("GET")
+	handler := openapi.HandlerFromMux(
+		openapi.NewStrictHandlerWithOptions(server, nil, strictHandlerOptions),
+		router,
+	)
+	s := &http.Server{
+		Handler: handler,
+		Addr:    "0.0.0.0:" + port,
+	}
 
-	router.HandleFunc("/deploy", handlers.Deploy).Methods("POST")
-	router.HandleFunc("/projects", handlers.CreateProject).Methods("POST")
-	router.HandleFunc("/projects", handlers.GetProjects).Methods("GET")
-	router.HandleFunc("/projects/{name}/secrets", handlers.GetProjectSecrets).Methods("GET")
-	router.HandleFunc("/projects/{name}/secrets", handlers.UpdateProjectSecrets).Methods("PUT")
-	router.HandleFunc("/services", handlers.GetServices).Methods("GET")
-	router.HandleFunc("/services/{name}", handlers.GetService).Methods("GET")
-	router.HandleFunc("/services/{name}/logs", handlers.StreamLogs).Methods("GET")
-	router.HandleFunc("/projects/{name}", handlers.DeleteProject).Methods("DELETE")
-	router.HandleFunc("/branch", handlers.DeleteBranch).Methods("DELETE")
+	env.Logger.Info("server listening", slog.String("address", "0.0.0.0:"+port))
+	return s.ListenAndServe()
 }

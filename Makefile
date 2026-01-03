@@ -40,6 +40,11 @@ build:
 	go build -o ${BINDIR}/${BINARY} cmd/*.go
 	@echo "✓  Built $(BINDIR)/$(BINARY)"
 
+.PHONY: docs
+docs:
+	@echo "📝 Generating OpenAPI client..."
+	go tool oapi-codegen -config internal/docs/cfg.yaml internal/docs/api.yaml
+
 .PHONY: lint
 lint: fmt
 	@echo "🔍  Linting code..."
@@ -74,6 +79,11 @@ dbmock: sqlc
 	mockgen -source=internal/database/db.go \
 		-destination internal/database/dbtxmock.go \
 		-package database
+
+.PHONY: generate
+generate:
+	@echo "🤖 Generating code..."
+	go generate ./...
 
 .PHONY: install
 install: build
