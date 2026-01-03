@@ -22,61 +22,6 @@ const (
 
 const envKey = "env"
 
-func GetProjectSecrets(w http.ResponseWriter, r *http.Request) {
-	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
-	if !ok {
-		env = nimbusEnv.Null()
-	}
-
-	vars := mux.Vars(r)
-	projectName := vars["name"]
-	apiKey := r.Header.Get(xApiKey)
-	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	project, err := env.Database.GetProjectByName(r.Context(), projectName)
-	if err != nil {
-		http.Error(w, "project not found", http.StatusNotFound)
-		return
-	}
-
-	authorized, err := env.Database.IsUserInProject(
-		r.Context(), database.IsUserInProjectParams{
-			UserID: user.ID, ProjectID: project.ID,
-		})
-	if err != nil || !authorized {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	showValues := r.URL.Query().Get("values") == "true"
-	var resp any
-	if showValues {
-		vals, err := kubernetes.GetSecretValues(project.Name, env)
-		if err != nil {
-			env.Logger.ErrorContext(context.Background(), err.Error())
-			http.Error(w, "error getting secrets", http.StatusInternalServerError)
-			return
-		}
-		resp = secretsValuesResponse{Secrets: vals}
-	} else {
-		names, err := kubernetes.ListSecretNames(project.Name, env)
-		if err != nil {
-			env.Logger.ErrorContext(context.Background(), err.Error())
-			http.Error(w, "error getting secrets", http.StatusInternalServerError)
-			return
-		}
-		resp = secretsNamesResponse{Secrets: names}
-	}
-	err = json.NewEncoder(w).Encode(resp)
-	if err != nil {
-		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
-	}
-}
-
 func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
 	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
 	if !ok {

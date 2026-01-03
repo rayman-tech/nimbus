@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -231,7 +232,112 @@ func (Server) DeleteProjectsName(
 func (Server) GetProjectsNameSecrets(
 	ctx context.Context, request GetProjectsNameSecretsRequestObject,
 ) (GetProjectsNameSecretsResponseObject, error) {
-	return GetProjectsNameSecrets200JSONResponse{}, nil
+	env := env.FromContext(ctx)
+	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	user := database.UserFromContext(ctx)
+
+	// Get project
+	env.Logger.DebugContext(ctx, "getting project")
+	project, err := env.Database.GetProjectByName(ctx, request.Name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		return GetProjectsNameSecrets404JSONResponse{
+			Status:  apierror.ProjectNotFound.Status(),
+			Code:    apierror.ProjectNotFound.String(),
+			Message: "project not found",
+			ErrorId: requestid,
+		}, nil
+	}
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		return GetProjectsNameSecrets500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Check permissions
+	env.Logger.DebugContext(ctx, "getting user permissions")
+	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
+		UserID:    user.ID,
+		ProjectID: project.ID,
+	})
+	if err != nil {
+		env.Logger.ErrorContext(
+			ctx, "failed to get user permissions", slog.Any("error", err))
+		return GetProjectsNameSecrets500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+	if !authorized {
+		env.Logger.ErrorContext(ctx, "user does not have permissions")
+		return GetProjectsNameSecrets403JSONResponse{
+			Status:  apierror.InsufficientPermissions.Status(),
+			Code:    apierror.InsufficientPermissions.String(),
+			Message: "user does not have permission to delete branch",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Get secrets
+	var res []byte
+	env.Logger.DebugContext(ctx, "getting secrets")
+	if request.Params.Values != nil && *request.Params.Values {
+		vals, err := kubernetes.GetSecretValues(project.Name, env)
+		if err != nil {
+			env.Logger.ErrorContext(ctx, "failed to get secret values", slog.Any("error", err))
+			return GetProjectsNameSecrets500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+		if vals == nil {
+			vals = make(map[string]string)
+		}
+		res, err = json.Marshal(SecretsValuesResponse{Secrets: &vals})
+		if err != nil {
+			env.Logger.ErrorContext(ctx, "failed to marshal secret values", slog.Any("error", err))
+			return GetProjectsNameSecrets500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+	} else {
+		names, err := kubernetes.ListSecretNames(project.Name, env)
+		if err != nil {
+			env.Logger.ErrorContext(ctx, "failed to get secret names", slog.Any("error", err))
+			return GetProjectsNameSecrets500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+		if names == nil {
+			names = make([]string, 0)
+		}
+		res, err = json.Marshal(SecretsNamesResponse{Secrets: &names})
+		if err != nil {
+			env.Logger.ErrorContext(ctx, "failed to marshal secret names", slog.Any("error", err))
+			return GetProjectsNameSecrets500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+	}
+
+	return GetProjectsNameSecrets200JSONResponse{union: res}, nil
 }
 
 func (Server) PutProjectsNameSecrets(
