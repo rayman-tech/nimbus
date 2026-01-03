@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"nimbus/internal/database"
@@ -93,15 +93,18 @@ func GenerateServiceSpec(namespace string,
 	}, nil
 }
 
-func CreateService(namespace string, service *corev1.Service, env *nimbusEnv.Env) (*corev1.Service, error) {
+func CreateService(ctx context.Context, namespace string, service *corev1.Service, env *nimbusEnv.Env) (*corev1.Service, error) {
 	client := getClient(env).CoreV1().Services(namespace)
 
-	existing, err := client.Get(context.Background(), service.Name, metav1.GetOptions{})
-	if err != nil {
-		if errors.IsNotFound(err) {
-			log.Printf("Service %s not found, creating new one.", service.Name)
-			return client.Create(context.Background(), service, metav1.CreateOptions{})
+	existing, err := client.Get(ctx, service.Name, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		env.Logger.WarnContext(ctx, "service not found - creating service", slog.String("service", service.Name))
+		service, err := client.Create(context.Background(), service, metav1.CreateOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("creating service: %w", err)
 		}
+		return service, nil
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to get service: %w", err)
 	}
 
@@ -111,20 +114,18 @@ func CreateService(namespace string, service *corev1.Service, env *nimbusEnv.Env
 		existing.Annotations = make(map[string]string)
 	}
 	existing.Annotations["updated"] = time.Now().Format(time.RFC3339)
-
-	log.Printf("Updating service %s...", service.Name)
-	updated, err := client.Update(context.Background(), existing, metav1.UpdateOptions{})
+	updated, err := client.Update(ctx, existing, metav1.UpdateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to update deployment: %w", err)
+		return nil, fmt.Errorf("updating deployment: %w", err)
 	}
 
 	return updated, nil
 }
 
-func DeleteService(namespace, name string, env *nimbusEnv.Env) error {
+func DeleteService(ctx context.Context, namespace, name string, env *nimbusEnv.Env) error {
 	client := getClient(env).CoreV1().Services(namespace)
 
-	err := client.Delete(context.Background(), name, metav1.DeleteOptions{})
+	err := client.Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to delete service: %w", err)
 	}

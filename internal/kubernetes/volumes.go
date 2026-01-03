@@ -2,15 +2,17 @@ package kubernetes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"os"
+	"log/slog"
 
 	"nimbus/internal/database"
-	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -24,7 +26,8 @@ type VolumeInfo struct {
 }
 
 func GetVolumeIdentifiers(
-	namespace string, service *models.Service, env *nimbusEnv.Env,
+	ctx context.Context, service *models.Service,
+	deploymentRequest *models.DeployRequest, env *env.Env,
 ) (map[string]VolumeInfo, error) {
 	volumeMap := make(map[string]VolumeInfo)
 
@@ -33,32 +36,36 @@ func GetVolumeIdentifiers(
 			volume.Size = 100 // default to 100Mi
 		}
 
-		identifier, err := env.Database.GetVolumeIdentifier(context.Background(), database.GetVolumeIdentifierParams{
+		identifier, err := env.Database.GetVolumeIdentifier(ctx, database.GetVolumeIdentifierParams{
 			VolumeName:    volume.Name,
-			ProjectID:     env.Deployment.ProjectID,
-			ProjectBranch: env.Deployment.BranchName,
+			ProjectID:     deploymentRequest.ProjectID,
+			ProjectBranch: deploymentRequest.BranchName,
 		})
-		if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			env.Logger.DebugContext(
+				ctx, "volume identifier does not exist - creating one",
+				slog.String("volume-name", volume.Name),
+				slog.String("branch-name", deploymentRequest.BranchName))
 			identifier = uuid.New()
-			err = CreatePVC(namespace, identifier, volume.Size, env)
+			err = CreatePVC(ctx, deploymentRequest.Namespace, identifier, volume.Size, env)
 			if err != nil {
-				log.Printf("Error creating PVC: %s\n", err)
-				return nil, err
+				return nil, fmt.Errorf("creating pvc: %w", err)
 			}
-			_, err := env.Database.CreateVolume(context.Background(), database.CreateVolumeParams{
+			_, err := env.Database.CreateVolume(ctx, database.CreateVolumeParams{
 				Identifier:    identifier,
 				VolumeName:    volume.Name,
-				ProjectID:     env.Deployment.ProjectID,
-				ProjectBranch: env.Deployment.BranchName,
+				ProjectID:     deploymentRequest.ProjectID,
+				ProjectBranch: deploymentRequest.BranchName,
 				Size:          volume.Size,
 			})
 			if err != nil {
-				log.Printf("Error creating volume: %s\n", err)
-				return nil, err
+				return nil, fmt.Errorf("creating volume in database: %w", err)
 			}
-		} else if !CheckPVC(namespace, fmt.Sprintf("pvc-%s", identifier), env) {
+		} else if err != nil {
+			return nil, fmt.Errorf("getting volume identifier: %w", err)
+		} else if !CheckPVC(ctx, deploymentRequest.Namespace, fmt.Sprintf("pvc-%s", identifier), env) {
 			// ensure PVC in database actually exists (sanity check)
-			err = CreatePVC(namespace, identifier, volume.Size, env)
+			err = CreatePVC(ctx, deploymentRequest.Namespace, identifier, volume.Size, env)
 			if err != nil {
 				log.Printf("Error creating PVC: %s\n", err)
 				return nil, err
@@ -74,18 +81,17 @@ func GetVolumeIdentifiers(
 	return volumeMap, nil
 }
 
-func CheckPVC(namespace string, name string, env *nimbusEnv.Env) bool {
+func CheckPVC(ctx context.Context, namespace string, name string, env *env.Env) bool {
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
-	_, err := client.Get(context.Background(), name, metav1.GetOptions{})
+	_, err := client.Get(ctx, name, metav1.GetOptions{})
 	return err == nil
 }
 
-func CreatePVC(namespace string, identifier uuid.UUID, size int32, env *nimbusEnv.Env) error {
+func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size int32, env *env.Env) error {
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
-	storageClass := os.Getenv("NIMBUS_STORAGE_CLASS")
-	_, err := client.Create(context.Background(), &corev1.PersistentVolumeClaim{
+	_, err := client.Create(ctx, &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("pvc-%s", identifier.String()),
 			Namespace: namespace,
@@ -99,14 +105,14 @@ func CreatePVC(namespace string, identifier uuid.UUID, size int32, env *nimbusEn
 					corev1.ResourceStorage: resource.MustParse(fmt.Sprintf("%dMi", size)),
 				},
 			},
-			StorageClassName: &storageClass,
+			StorageClassName: &env.Config.NimbusStorageClass,
 		},
 	}, metav1.CreateOptions{})
 
 	return err
 }
 
-func DeletePVC(namespace string, name string, env *nimbusEnv.Env) error {
+func DeletePVC(namespace string, name string, env *env.Env) error {
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
 	err := client.Delete(context.Background(), name, metav1.DeleteOptions{})

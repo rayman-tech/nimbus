@@ -20,7 +20,10 @@ const (
 	defaultRedisPort    = 6379
 )
 
-func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimbusEnv.Env) (*appsv1.Deployment, error) {
+func GenerateDeploymentSpec(
+	ctx context.Context, deploymentRequest *models.DeployRequest,
+	service *models.Service, env *nimbusEnv.Env,
+) (*appsv1.Deployment, error) {
 	var defaultReplicas int32 = 1
 	spec := appsv1.DeploymentSpec{
 		Replicas: &defaultReplicas,
@@ -37,7 +40,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 				Labels: map[string]string{
 					"app": service.Name,
 				},
-				Namespace: namespace,
+				Namespace: deploymentRequest.Namespace,
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
@@ -127,7 +130,7 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 	}
 
 	if len(service.Volumes) > 0 {
-		volumeMap, err := GetVolumeIdentifiers(namespace, service, env)
+		volumeMap, err := GetVolumeIdentifiers(ctx, service, deploymentRequest, env)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get volume identifiers: %w", err)
 		}
@@ -173,22 +176,25 @@ func GenerateDeploymentSpec(namespace string, service *models.Service, env *nimb
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      service.Name,
-			Namespace: namespace,
+			Namespace: deploymentRequest.Namespace,
 		},
 		Spec: spec,
 	}, nil
 }
 
-func CreateDeployment(namespace string, deployment *appsv1.Deployment, env *nimbusEnv.Env) (*appsv1.Deployment, error) {
+func CreateDeployment(ctx context.Context, namespace string, deployment *appsv1.Deployment, env *nimbusEnv.Env) (*appsv1.Deployment, error) {
 	client := getClient(env).AppsV1().Deployments(namespace)
 
-	existing, err := client.Get(context.Background(), deployment.Name, metav1.GetOptions{})
-	if err != nil {
-		if errors.IsNotFound(err) {
-			env.Logger.Debug("Deployment not found, creating new one.", "name", deployment.Name)
-			return client.Create(context.Background(), deployment, metav1.CreateOptions{})
+	existing, err := client.Get(ctx, deployment.Name, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		dep, err := client.Create(ctx, deployment, metav1.CreateOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("creating deployment: %w", err)
 		}
-		return nil, fmt.Errorf("failed to get deployment: %w", err)
+		return dep, err
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting deployment: %w", err)
 	}
 
 	existing.Spec = deployment.Spec
@@ -198,19 +204,18 @@ func CreateDeployment(namespace string, deployment *appsv1.Deployment, env *nimb
 	}
 	existing.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
 
-	log.Printf("Updating deployment %s...", deployment.Name)
-	updated, err := client.Update(context.Background(), existing, metav1.UpdateOptions{})
+	updated, err := client.Update(ctx, existing, metav1.UpdateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to update deployment: %w", err)
+		return nil, fmt.Errorf("updating deployment: %w", err)
 	}
 
 	return updated, nil
 }
 
-func DeleteDeployment(namespace, name string, env *nimbusEnv.Env) error {
+func DeleteDeployment(ctx context.Context, namespace, name string, env *nimbusEnv.Env) error {
 	client := getClient(env).AppsV1().Deployments(namespace)
 
-	err := client.Delete(context.Background(), name, metav1.DeleteOptions{})
+	err := client.Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to delete deployment: %w", err)
 	}

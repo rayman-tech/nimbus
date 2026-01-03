@@ -1,11 +1,11 @@
 package kubernetes
 
 import (
-	nimbusEnv "nimbus/internal/env"
-
 	"context"
 	"fmt"
 	"sort"
+
+	nimbusEnv "nimbus/internal/env"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -52,27 +52,25 @@ func ListSecretNames(namespace string, env *nimbusEnv.Env) ([]string, error) {
 	return keys, nil
 }
 
-func UpdateSecret(namespace, name string, data map[string]string, env *nimbusEnv.Env) error {
-	_, err := ValidateNamespace(namespace, env, context.Background())
+func UpdateSecret(ctx context.Context, namespace, name string, data map[string]string, env *nimbusEnv.Env) error {
+	// TODO: remove this, it seems unnecessary
+	_, err := ValidateNamespace(ctx, namespace, env)
 	if err != nil {
-		return fmt.Errorf("failed to validate namespace %s: %w", namespace, err)
+		return fmt.Errorf("validating namespace %s: %w", namespace, err)
 	}
 
 	client := getClient(env).CoreV1().Secrets(namespace)
 	var secret *corev1.Secret
-	secret, err = client.Get(context.Background(), name, metav1.GetOptions{})
-	if err != nil {
-		if errors.IsNotFound(err) {
-			_, err = client.Create(context.Background(), &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: namespace,
-				},
-				StringData: data,
-				Type:       corev1.SecretTypeOpaque,
-			}, metav1.CreateOptions{})
-			return err
-		}
+	secret, err = client.Get(ctx, name, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		_, err = client.Create(context.Background(), &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			StringData: data,
+			Type:       corev1.SecretTypeOpaque,
+		}, metav1.CreateOptions{})
 		return err
 	}
 

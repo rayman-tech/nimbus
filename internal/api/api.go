@@ -13,6 +13,7 @@ import (
 	"nimbus/internal/env"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gorilla/mux"
 	oapimw "github.com/oapi-codegen/nethttp-middleware"
 )
@@ -34,6 +35,9 @@ func Start(port string, env *env.Env) error {
 	router.Use(middleware.Recover)
 	router.Use(middleware.LogRequest)
 	router.Use(oapimw.OapiRequestValidatorWithOptions(swagger, &oapimw.Options{
+		Options: openapi3filter.Options{
+			AuthenticationFunc: middleware.OAPIAuthFunc,
+		},
 		ErrorHandlerWithOpts: middleware.OAPIErrorHandler,
 	}))
 

@@ -2,10 +2,12 @@ package kubernetes
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
+
 	nimbusEnv "nimbus/internal/env"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -23,23 +25,19 @@ func CreateNamespace(name string, env *nimbusEnv.Env) error {
 	return err
 }
 
-func ValidateNamespace(name string, env *nimbusEnv.Env, ctx context.Context) (bool, error) {
+func ValidateNamespace(ctx context.Context, name string, env *nimbusEnv.Env) (created bool, err error) {
 	ns, err := GetNamespace(name, env)
 	if err == nil && ns != nil {
 		return false, nil
 	}
-	env.Logger.LogAttrs(
-		ctx, slog.LevelWarn,
-		"Namespace does not exist. Attempting to create it", slog.Any("error", err),
-	)
+	if !errors.IsNotFound(err) {
+		return false, fmt.Errorf("getting namespace: %w", err)
+	}
+	env.Logger.WarnContext(ctx, "namespace does not exist - attempting to create it")
 
 	err = CreateNamespace(name, env)
 	if err != nil {
-		env.Logger.LogAttrs(
-			ctx, slog.LevelError,
-			"Error creating namespace", slog.Any("error", err),
-		)
-		return false, err
+		return false, fmt.Errorf("creating namespace: %w", err)
 	}
 
 	return true, nil

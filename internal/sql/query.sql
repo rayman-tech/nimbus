@@ -108,6 +108,16 @@ WHERE
   api_key = $1
 LIMIT 1;
 
+-- name: GetApiKeyExistance :one
+SELECT
+  EXISTS (
+    SELECT
+      1
+    FROM
+      users
+    WHERE
+      api_key = $1);
+
 -- name: GetProjectByName :one
 SELECT
   *

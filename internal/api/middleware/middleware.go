@@ -13,9 +13,12 @@ import (
 
 	apiError "nimbus/internal/api/error"
 	"nimbus/internal/api/requestid"
+	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/logging"
 
+	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/jackc/pgx/v5"
 	oapimw "github.com/oapi-codegen/nethttp-middleware"
 	"github.com/oklog/ulid/v2"
 )
@@ -139,4 +142,61 @@ func OAPIErrorHandler(
 
 	// 3. internal server error
 	_ = apiError.EncodeInternalError(w, requestID)
+}
+
+// OAPIAuthFunc is the authentication function for oapi-codegen middleware.
+func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput) error {
+	switch input.SecuritySchemeName {
+	case "ApiKeyAuth":
+	default:
+		// No authentication required
+		return nil
+	}
+
+	env := env.FromContext(ctx)
+	requestID := fmt.Sprintf("%d", requestid.FromCtx(ctx))
+
+	// Read API Key
+	apiKey := input.RequestValidationInput.Request.Header.Get("X-API-Key")
+	if apiKey == "" {
+		env.Logger.ErrorContext(ctx, "user is missing api key header")
+		return &apiError.Error{
+			Code:    apiError.InvalidAPIKey,
+			Status:  apiError.InvalidAPIKey.Status(),
+			Message: "missing header X-API-Key",
+			ErrorID: requestID,
+		}
+	}
+
+	// Validate API key
+	env.Logger.DebugContext(ctx, "checking api key existance")
+	user, err := env.Database.GetUserByApiKey(ctx, apiKey)
+	if errors.Is(err, pgx.ErrNoRows) {
+		env.Logger.ErrorContext(ctx, "no user found", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "api key does not exist")
+		return &apiError.Error{
+			Code:    apiError.InvalidAPIKey,
+			Status:  apiError.InvalidAPIKey.Status(),
+			Message: "invalid api key",
+			ErrorID: requestID,
+		}
+	} else if err != nil {
+		env.Logger.DebugContext(ctx, "failed to check existance", slog.Any("error", err))
+		return &apiError.Error{
+			Code:    apiError.InternalServerError,
+			Status:  apiError.InternalServerError.Status(),
+			Message: "Internal Server Error",
+			ErrorID: requestID,
+		}
+	}
+
+	// Inject user
+	input.RequestValidationInput.Request = input.RequestValidationInput.Request.WithContext(
+		database.UserWithContext(
+			input.RequestValidationInput.Request.Context(),
+			&user,
+		),
+	)
+
+	return nil
 }

@@ -16,7 +16,7 @@ import (
 	"nimbus/internal/models"
 	"nimbus/internal/utils"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 func buildDeployRequest(w http.ResponseWriter,

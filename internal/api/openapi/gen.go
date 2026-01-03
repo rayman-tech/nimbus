@@ -45,6 +45,12 @@ const (
 	ServiceListItemStatusUnknown   ServiceListItemStatus = "Unknown"
 )
 
+// Deployments defines model for Deployments.
+type Deployments struct {
+	// Services Map of service names to their URLs
+	Services map[string][]string `json:"services"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Code    string `json:"code"`
@@ -128,18 +134,6 @@ type ServiceListItem struct {
 // ServiceListItemStatus The current status of the service
 type ServiceListItemStatus string
 
-// BadRequest defines model for BadRequest.
-type BadRequest interface{}
-
-// InternalServerError defines model for InternalServerError.
-type InternalServerError interface{}
-
-// NotFound defines model for NotFound.
-type NotFound interface{}
-
-// Unauthorized defines model for Unauthorized.
-type Unauthorized interface{}
-
 // DeleteBranchParams defines parameters for DeleteBranch.
 type DeleteBranchParams struct {
 	// Project The name of the project
@@ -147,6 +141,9 @@ type DeleteBranchParams struct {
 
 	// Branch The branch name to delete
 	Branch string `form:"branch" json:"branch"`
+
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
 }
 
 // PostDeployMultipartBody defines parameters for PostDeploy.
@@ -158,22 +155,61 @@ type PostDeployMultipartBody struct {
 	File openapi_types.File `json:"file"`
 }
 
+// PostDeployParams defines parameters for PostDeploy.
+type PostDeployParams struct {
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
+}
+
+// GetProjectsParams defines parameters for GetProjects.
+type GetProjectsParams struct {
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
+}
+
 // PostProjectsJSONBody defines parameters for PostProjects.
 type PostProjectsJSONBody struct {
 	// Name The name of the project
 	Name string `json:"name"`
 }
 
+// PostProjectsParams defines parameters for PostProjects.
+type PostProjectsParams struct {
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
+}
+
+// DeleteProjectsNameParams defines parameters for DeleteProjectsName.
+type DeleteProjectsNameParams struct {
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
+}
+
 // GetProjectsNameSecretsParams defines parameters for GetProjectsNameSecrets.
 type GetProjectsNameSecretsParams struct {
 	// Values Set to 'true' to return secret values
 	Values *bool `form:"values,omitempty" json:"values,omitempty"`
+
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
 }
 
 // PutProjectsNameSecretsJSONBody defines parameters for PutProjectsNameSecrets.
 type PutProjectsNameSecretsJSONBody struct {
 	// Secrets Map of secret keys to values
 	Secrets *map[string]string `json:"secrets,omitempty"`
+}
+
+// PutProjectsNameSecretsParams defines parameters for PutProjectsNameSecrets.
+type PutProjectsNameSecretsParams struct {
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
+}
+
+// GetServicesParams defines parameters for GetServices.
+type GetServicesParams struct {
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
 }
 
 // GetServicesNameParams defines parameters for GetServicesName.
@@ -183,6 +219,9 @@ type GetServicesNameParams struct {
 
 	// Branch The branch name (defaults to 'main')
 	Branch *string `form:"branch,omitempty" json:"branch,omitempty"`
+
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
 }
 
 // GetServicesNameLogsParams defines parameters for GetServicesNameLogs.
@@ -192,6 +231,9 @@ type GetServicesNameLogsParams struct {
 
 	// Branch The branch name (defaults to 'main')
 	Branch *string `form:"branch,omitempty" json:"branch,omitempty"`
+
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
 }
 
 // PostDeployMultipartRequestBody defines body for PostDeploy for multipart/form-data ContentType.
@@ -280,7 +322,7 @@ type ClientInterface interface {
 	DeleteBranch(ctx context.Context, params *DeleteBranchParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostDeployWithBody request with any body
-	PostDeployWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostDeployWithBody(ctx context.Context, params *PostDeployParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetHealth request
 	GetHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -289,26 +331,26 @@ type ClientInterface interface {
 	GetOpenapiYaml(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProjects request
-	GetProjects(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetProjects(ctx context.Context, params *GetProjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostProjectsWithBody request with any body
-	PostProjectsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostProjectsWithBody(ctx context.Context, params *PostProjectsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostProjects(ctx context.Context, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostProjects(ctx context.Context, params *PostProjectsParams, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteProjectsName request
-	DeleteProjectsName(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteProjectsName(ctx context.Context, name string, params *DeleteProjectsNameParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProjectsNameSecrets request
 	GetProjectsNameSecrets(ctx context.Context, name string, params *GetProjectsNameSecretsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PutProjectsNameSecretsWithBody request with any body
-	PutProjectsNameSecretsWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PutProjectsNameSecretsWithBody(ctx context.Context, name string, params *PutProjectsNameSecretsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PutProjectsNameSecrets(ctx context.Context, name string, body PutProjectsNameSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PutProjectsNameSecrets(ctx context.Context, name string, params *PutProjectsNameSecretsParams, body PutProjectsNameSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetServices request
-	GetServices(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetServices(ctx context.Context, params *GetServicesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetServicesName request
 	GetServicesName(ctx context.Context, name string, params *GetServicesNameParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -329,8 +371,8 @@ func (c *Client) DeleteBranch(ctx context.Context, params *DeleteBranchParams, r
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostDeployWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostDeployRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostDeployWithBody(ctx context.Context, params *PostDeployParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostDeployRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -365,8 +407,8 @@ func (c *Client) GetOpenapiYaml(ctx context.Context, reqEditors ...RequestEditor
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetProjects(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetProjectsRequest(c.Server)
+func (c *Client) GetProjects(ctx context.Context, params *GetProjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -377,8 +419,8 @@ func (c *Client) GetProjects(ctx context.Context, reqEditors ...RequestEditorFn)
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostProjectsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostProjectsRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostProjectsWithBody(ctx context.Context, params *PostProjectsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostProjectsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -389,8 +431,8 @@ func (c *Client) PostProjectsWithBody(ctx context.Context, contentType string, b
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostProjects(ctx context.Context, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostProjectsRequest(c.Server, body)
+func (c *Client) PostProjects(ctx context.Context, params *PostProjectsParams, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostProjectsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -401,8 +443,8 @@ func (c *Client) PostProjects(ctx context.Context, body PostProjectsJSONRequestB
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteProjectsName(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteProjectsNameRequest(c.Server, name)
+func (c *Client) DeleteProjectsName(ctx context.Context, name string, params *DeleteProjectsNameParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProjectsNameRequest(c.Server, name, params)
 	if err != nil {
 		return nil, err
 	}
@@ -425,8 +467,8 @@ func (c *Client) GetProjectsNameSecrets(ctx context.Context, name string, params
 	return c.Client.Do(req)
 }
 
-func (c *Client) PutProjectsNameSecretsWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutProjectsNameSecretsRequestWithBody(c.Server, name, contentType, body)
+func (c *Client) PutProjectsNameSecretsWithBody(ctx context.Context, name string, params *PutProjectsNameSecretsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutProjectsNameSecretsRequestWithBody(c.Server, name, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -437,8 +479,8 @@ func (c *Client) PutProjectsNameSecretsWithBody(ctx context.Context, name string
 	return c.Client.Do(req)
 }
 
-func (c *Client) PutProjectsNameSecrets(ctx context.Context, name string, body PutProjectsNameSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutProjectsNameSecretsRequest(c.Server, name, body)
+func (c *Client) PutProjectsNameSecrets(ctx context.Context, name string, params *PutProjectsNameSecretsParams, body PutProjectsNameSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutProjectsNameSecretsRequest(c.Server, name, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -449,8 +491,8 @@ func (c *Client) PutProjectsNameSecrets(ctx context.Context, name string, body P
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetServices(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetServicesRequest(c.Server)
+func (c *Client) GetServices(ctx context.Context, params *GetServicesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServicesRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -539,11 +581,26 @@ func NewDeleteBranchRequest(server string, params *DeleteBranchParams) (*http.Re
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostDeployRequestWithBody generates requests for PostDeploy with any type of body
-func NewPostDeployRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostDeployRequestWithBody(server string, params *PostDeployParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -567,6 +624,21 @@ func NewPostDeployRequestWithBody(server string, contentType string, body io.Rea
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -626,7 +698,7 @@ func NewGetOpenapiYamlRequest(server string) (*http.Request, error) {
 }
 
 // NewGetProjectsRequest generates requests for GetProjects
-func NewGetProjectsRequest(server string) (*http.Request, error) {
+func NewGetProjectsRequest(server string, params *GetProjectsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -649,22 +721,37 @@ func NewGetProjectsRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostProjectsRequest calls the generic PostProjects builder with application/json body
-func NewPostProjectsRequest(server string, body PostProjectsJSONRequestBody) (*http.Request, error) {
+func NewPostProjectsRequest(server string, params *PostProjectsParams, body PostProjectsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostProjectsRequestWithBody(server, "application/json", bodyReader)
+	return NewPostProjectsRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewPostProjectsRequestWithBody generates requests for PostProjects with any type of body
-func NewPostProjectsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostProjectsRequestWithBody(server string, params *PostProjectsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -689,11 +776,26 @@ func NewPostProjectsRequestWithBody(server string, contentType string, body io.R
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteProjectsNameRequest generates requests for DeleteProjectsName
-func NewDeleteProjectsNameRequest(server string, name string) (*http.Request, error) {
+func NewDeleteProjectsNameRequest(server string, name string, params *DeleteProjectsNameParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -721,6 +823,21 @@ func NewDeleteProjectsNameRequest(server string, name string) (*http.Request, er
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -779,22 +896,37 @@ func NewGetProjectsNameSecretsRequest(server string, name string, params *GetPro
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPutProjectsNameSecretsRequest calls the generic PutProjectsNameSecrets builder with application/json body
-func NewPutProjectsNameSecretsRequest(server string, name string, body PutProjectsNameSecretsJSONRequestBody) (*http.Request, error) {
+func NewPutProjectsNameSecretsRequest(server string, name string, params *PutProjectsNameSecretsParams, body PutProjectsNameSecretsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPutProjectsNameSecretsRequestWithBody(server, name, "application/json", bodyReader)
+	return NewPutProjectsNameSecretsRequestWithBody(server, name, params, "application/json", bodyReader)
 }
 
 // NewPutProjectsNameSecretsRequestWithBody generates requests for PutProjectsNameSecrets with any type of body
-func NewPutProjectsNameSecretsRequestWithBody(server string, name string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPutProjectsNameSecretsRequestWithBody(server string, name string, params *PutProjectsNameSecretsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -826,11 +958,26 @@ func NewPutProjectsNameSecretsRequestWithBody(server string, name string, conten
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetServicesRequest generates requests for GetServices
-func NewGetServicesRequest(server string) (*http.Request, error) {
+func NewGetServicesRequest(server string, params *GetServicesParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -851,6 +998,21 @@ func NewGetServicesRequest(server string) (*http.Request, error) {
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -921,6 +1083,21 @@ func NewGetServicesNameRequest(server string, name string, params *GetServicesNa
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -989,6 +1166,21 @@ func NewGetServicesNameLogsRequest(server string, name string, params *GetServic
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -1039,7 +1231,7 @@ type ClientWithResponsesInterface interface {
 	DeleteBranchWithResponse(ctx context.Context, params *DeleteBranchParams, reqEditors ...RequestEditorFn) (*DeleteBranchResponse, error)
 
 	// PostDeployWithBodyWithResponse request with any body
-	PostDeployWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDeployResponse, error)
+	PostDeployWithBodyWithResponse(ctx context.Context, params *PostDeployParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDeployResponse, error)
 
 	// GetHealthWithResponse request
 	GetHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthResponse, error)
@@ -1048,26 +1240,26 @@ type ClientWithResponsesInterface interface {
 	GetOpenapiYamlWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOpenapiYamlResponse, error)
 
 	// GetProjectsWithResponse request
-	GetProjectsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProjectsResponse, error)
+	GetProjectsWithResponse(ctx context.Context, params *GetProjectsParams, reqEditors ...RequestEditorFn) (*GetProjectsResponse, error)
 
 	// PostProjectsWithBodyWithResponse request with any body
-	PostProjectsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error)
+	PostProjectsWithBodyWithResponse(ctx context.Context, params *PostProjectsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error)
 
-	PostProjectsWithResponse(ctx context.Context, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error)
+	PostProjectsWithResponse(ctx context.Context, params *PostProjectsParams, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error)
 
 	// DeleteProjectsNameWithResponse request
-	DeleteProjectsNameWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteProjectsNameResponse, error)
+	DeleteProjectsNameWithResponse(ctx context.Context, name string, params *DeleteProjectsNameParams, reqEditors ...RequestEditorFn) (*DeleteProjectsNameResponse, error)
 
 	// GetProjectsNameSecretsWithResponse request
 	GetProjectsNameSecretsWithResponse(ctx context.Context, name string, params *GetProjectsNameSecretsParams, reqEditors ...RequestEditorFn) (*GetProjectsNameSecretsResponse, error)
 
 	// PutProjectsNameSecretsWithBodyWithResponse request with any body
-	PutProjectsNameSecretsWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutProjectsNameSecretsResponse, error)
+	PutProjectsNameSecretsWithBodyWithResponse(ctx context.Context, name string, params *PutProjectsNameSecretsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutProjectsNameSecretsResponse, error)
 
-	PutProjectsNameSecretsWithResponse(ctx context.Context, name string, body PutProjectsNameSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*PutProjectsNameSecretsResponse, error)
+	PutProjectsNameSecretsWithResponse(ctx context.Context, name string, params *PutProjectsNameSecretsParams, body PutProjectsNameSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*PutProjectsNameSecretsResponse, error)
 
 	// GetServicesWithResponse request
-	GetServicesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetServicesResponse, error)
+	GetServicesWithResponse(ctx context.Context, params *GetServicesParams, reqEditors ...RequestEditorFn) (*GetServicesResponse, error)
 
 	// GetServicesNameWithResponse request
 	GetServicesNameWithResponse(ctx context.Context, name string, params *GetServicesNameParams, reqEditors ...RequestEditorFn) (*GetServicesNameResponse, error)
@@ -1079,6 +1271,10 @@ type ClientWithResponsesInterface interface {
 type DeleteBranchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON401      *Error
+	JSON404      *Error
+	JSON500      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1100,10 +1296,14 @@ func (r DeleteBranchResponse) StatusCode() int {
 type PostDeployResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		// Services Map of service names to their URLs
-		Services *map[string][]string `json:"services,omitempty"`
-	}
+	JSON200      *Deployments
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+	JSON422      *Error
+	JSON500      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1172,6 +1372,8 @@ type GetProjectsResponse struct {
 	JSON200      *struct {
 		Projects *[]Project `json:"projects,omitempty"`
 	}
+	JSON401 *Error
+	JSON500 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1194,6 +1396,9 @@ type PostProjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Project
+	JSON400      *Error
+	JSON401      *Error
+	JSON500      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1215,6 +1420,10 @@ func (r PostProjectsResponse) StatusCode() int {
 type DeleteProjectsNameResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON401      *Error
+	JSON404      *Error
+	JSON500      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1239,6 +1448,9 @@ type GetProjectsNameSecretsResponse struct {
 	JSON200      *struct {
 		union json.RawMessage
 	}
+	JSON401 *Error
+	JSON404 *Error
+	JSON500 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1260,6 +1472,10 @@ func (r GetProjectsNameSecretsResponse) StatusCode() int {
 type PutProjectsNameSecretsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON401      *Error
+	JSON404      *Error
+	JSON500      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1284,6 +1500,8 @@ type GetServicesResponse struct {
 	JSON200      *struct {
 		Services *[]ServiceListItem `json:"services,omitempty"`
 	}
+	JSON401 *Error
+	JSON500 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1306,6 +1524,9 @@ type GetServicesNameResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ServiceDetail
+	JSON401      *Error
+	JSON404      *Error
+	JSON500      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1327,6 +1548,9 @@ func (r GetServicesNameResponse) StatusCode() int {
 type GetServicesNameLogsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON401      *Error
+	JSON404      *Error
+	JSON500      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -1355,8 +1579,8 @@ func (c *ClientWithResponses) DeleteBranchWithResponse(ctx context.Context, para
 }
 
 // PostDeployWithBodyWithResponse request with arbitrary body returning *PostDeployResponse
-func (c *ClientWithResponses) PostDeployWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDeployResponse, error) {
-	rsp, err := c.PostDeployWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostDeployWithBodyWithResponse(ctx context.Context, params *PostDeployParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDeployResponse, error) {
+	rsp, err := c.PostDeployWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -1382,8 +1606,8 @@ func (c *ClientWithResponses) GetOpenapiYamlWithResponse(ctx context.Context, re
 }
 
 // GetProjectsWithResponse request returning *GetProjectsResponse
-func (c *ClientWithResponses) GetProjectsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProjectsResponse, error) {
-	rsp, err := c.GetProjects(ctx, reqEditors...)
+func (c *ClientWithResponses) GetProjectsWithResponse(ctx context.Context, params *GetProjectsParams, reqEditors ...RequestEditorFn) (*GetProjectsResponse, error) {
+	rsp, err := c.GetProjects(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -1391,16 +1615,16 @@ func (c *ClientWithResponses) GetProjectsWithResponse(ctx context.Context, reqEd
 }
 
 // PostProjectsWithBodyWithResponse request with arbitrary body returning *PostProjectsResponse
-func (c *ClientWithResponses) PostProjectsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error) {
-	rsp, err := c.PostProjectsWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostProjectsWithBodyWithResponse(ctx context.Context, params *PostProjectsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error) {
+	rsp, err := c.PostProjectsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParsePostProjectsResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostProjectsWithResponse(ctx context.Context, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error) {
-	rsp, err := c.PostProjects(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PostProjectsWithResponse(ctx context.Context, params *PostProjectsParams, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error) {
+	rsp, err := c.PostProjects(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -1408,8 +1632,8 @@ func (c *ClientWithResponses) PostProjectsWithResponse(ctx context.Context, body
 }
 
 // DeleteProjectsNameWithResponse request returning *DeleteProjectsNameResponse
-func (c *ClientWithResponses) DeleteProjectsNameWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteProjectsNameResponse, error) {
-	rsp, err := c.DeleteProjectsName(ctx, name, reqEditors...)
+func (c *ClientWithResponses) DeleteProjectsNameWithResponse(ctx context.Context, name string, params *DeleteProjectsNameParams, reqEditors ...RequestEditorFn) (*DeleteProjectsNameResponse, error) {
+	rsp, err := c.DeleteProjectsName(ctx, name, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -1426,16 +1650,16 @@ func (c *ClientWithResponses) GetProjectsNameSecretsWithResponse(ctx context.Con
 }
 
 // PutProjectsNameSecretsWithBodyWithResponse request with arbitrary body returning *PutProjectsNameSecretsResponse
-func (c *ClientWithResponses) PutProjectsNameSecretsWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutProjectsNameSecretsResponse, error) {
-	rsp, err := c.PutProjectsNameSecretsWithBody(ctx, name, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PutProjectsNameSecretsWithBodyWithResponse(ctx context.Context, name string, params *PutProjectsNameSecretsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutProjectsNameSecretsResponse, error) {
+	rsp, err := c.PutProjectsNameSecretsWithBody(ctx, name, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParsePutProjectsNameSecretsResponse(rsp)
 }
 
-func (c *ClientWithResponses) PutProjectsNameSecretsWithResponse(ctx context.Context, name string, body PutProjectsNameSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*PutProjectsNameSecretsResponse, error) {
-	rsp, err := c.PutProjectsNameSecrets(ctx, name, body, reqEditors...)
+func (c *ClientWithResponses) PutProjectsNameSecretsWithResponse(ctx context.Context, name string, params *PutProjectsNameSecretsParams, body PutProjectsNameSecretsJSONRequestBody, reqEditors ...RequestEditorFn) (*PutProjectsNameSecretsResponse, error) {
+	rsp, err := c.PutProjectsNameSecrets(ctx, name, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -1443,8 +1667,8 @@ func (c *ClientWithResponses) PutProjectsNameSecretsWithResponse(ctx context.Con
 }
 
 // GetServicesWithResponse request returning *GetServicesResponse
-func (c *ClientWithResponses) GetServicesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetServicesResponse, error) {
-	rsp, err := c.GetServices(ctx, reqEditors...)
+func (c *ClientWithResponses) GetServicesWithResponse(ctx context.Context, params *GetServicesParams, reqEditors ...RequestEditorFn) (*GetServicesResponse, error) {
+	rsp, err := c.GetServices(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -1482,6 +1706,37 @@ func ParseDeleteBranchResponse(rsp *http.Response) (*DeleteBranchResponse, error
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -1500,14 +1755,60 @@ func ParsePostDeployResponse(rsp *http.Response) (*PostDeployResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			// Services Map of service names to their URLs
-			Services *map[string][]string `json:"services,omitempty"`
-		}
+		var dest Deployments
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -1586,6 +1887,20 @@ func ParseGetProjectsResponse(rsp *http.Response) (*GetProjectsResponse, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -1612,6 +1927,27 @@ func ParsePostProjectsResponse(rsp *http.Response) (*PostProjectsResponse, error
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -1628,6 +1964,37 @@ func ParseDeleteProjectsNameResponse(rsp *http.Response) (*DeleteProjectsNameRes
 	response := &DeleteProjectsNameResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -1656,6 +2023,27 @@ func ParseGetProjectsNameSecretsResponse(rsp *http.Response) (*GetProjectsNameSe
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -1672,6 +2060,37 @@ func ParsePutProjectsNameSecretsResponse(rsp *http.Response) (*PutProjectsNameSe
 	response := &PutProjectsNameSecretsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -1700,6 +2119,20 @@ func ParseGetServicesResponse(rsp *http.Response) (*GetServicesResponse, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -1726,6 +2159,27 @@ func ParseGetServicesNameResponse(rsp *http.Response) (*GetServicesNameResponse,
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -1744,6 +2198,30 @@ func ParseGetServicesNameLogsResponse(rsp *http.Response) (*GetServicesNameLogsR
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -1754,7 +2232,7 @@ type ServerInterface interface {
 	DeleteBranch(w http.ResponseWriter, r *http.Request, params DeleteBranchParams)
 	// Deploy a project
 	// (POST /deploy)
-	PostDeploy(w http.ResponseWriter, r *http.Request)
+	PostDeploy(w http.ResponseWriter, r *http.Request, params PostDeployParams)
 	// Health check
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -1763,22 +2241,22 @@ type ServerInterface interface {
 	GetOpenapiYaml(w http.ResponseWriter, r *http.Request)
 	// List all projects
 	// (GET /projects)
-	GetProjects(w http.ResponseWriter, r *http.Request)
+	GetProjects(w http.ResponseWriter, r *http.Request, params GetProjectsParams)
 	// Create a new project
 	// (POST /projects)
-	PostProjects(w http.ResponseWriter, r *http.Request)
+	PostProjects(w http.ResponseWriter, r *http.Request, params PostProjectsParams)
 	// Delete a project
 	// (DELETE /projects/{name})
-	DeleteProjectsName(w http.ResponseWriter, r *http.Request, name string)
+	DeleteProjectsName(w http.ResponseWriter, r *http.Request, name string, params DeleteProjectsNameParams)
 	// Get project secrets
 	// (GET /projects/{name}/secrets)
 	GetProjectsNameSecrets(w http.ResponseWriter, r *http.Request, name string, params GetProjectsNameSecretsParams)
 	// Update project secrets
 	// (PUT /projects/{name}/secrets)
-	PutProjectsNameSecrets(w http.ResponseWriter, r *http.Request, name string)
+	PutProjectsNameSecrets(w http.ResponseWriter, r *http.Request, name string, params PutProjectsNameSecretsParams)
 	// List all services
 	// (GET /services)
-	GetServices(w http.ResponseWriter, r *http.Request)
+	GetServices(w http.ResponseWriter, r *http.Request, params GetServicesParams)
 	// Get service details
 	// (GET /services/{name})
 	GetServicesName(w http.ResponseWriter, r *http.Request, name string, params GetServicesNameParams)
@@ -1840,6 +2318,27 @@ func (siw *ServerInterfaceWrapper) DeleteBranch(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteBranch(w, r, params)
 	}))
@@ -1854,14 +2353,40 @@ func (siw *ServerInterfaceWrapper) DeleteBranch(w http.ResponseWriter, r *http.R
 // PostDeploy operation middleware
 func (siw *ServerInterfaceWrapper) PostDeploy(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
 	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostDeployParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostDeploy(w, r)
+		siw.Handler.PostDeploy(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1902,14 +2427,40 @@ func (siw *ServerInterfaceWrapper) GetOpenapiYaml(w http.ResponseWriter, r *http
 // GetProjects operation middleware
 func (siw *ServerInterfaceWrapper) GetProjects(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
 	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProjectsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProjects(w, r)
+		siw.Handler.GetProjects(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1922,14 +2473,40 @@ func (siw *ServerInterfaceWrapper) GetProjects(w http.ResponseWriter, r *http.Re
 // PostProjects operation middleware
 func (siw *ServerInterfaceWrapper) PostProjects(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
 	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostProjectsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostProjects(w, r)
+		siw.Handler.PostProjects(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1959,8 +2536,32 @@ func (siw *ServerInterfaceWrapper) DeleteProjectsName(w http.ResponseWriter, r *
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteProjectsNameParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteProjectsName(w, r, name)
+		siw.Handler.DeleteProjectsName(w, r, name, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2001,6 +2602,27 @@ func (siw *ServerInterfaceWrapper) GetProjectsNameSecrets(w http.ResponseWriter,
 		return
 	}
 
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetProjectsNameSecrets(w, r, name, params)
 	}))
@@ -2032,8 +2654,32 @@ func (siw *ServerInterfaceWrapper) PutProjectsNameSecrets(w http.ResponseWriter,
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutProjectsNameSecretsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PutProjectsNameSecrets(w, r, name)
+		siw.Handler.PutProjectsNameSecrets(w, r, name, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2046,14 +2692,40 @@ func (siw *ServerInterfaceWrapper) PutProjectsNameSecrets(w http.ResponseWriter,
 // GetServices operation middleware
 func (siw *ServerInterfaceWrapper) GetServices(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
 	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetServicesParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetServices(w, r)
+		siw.Handler.GetServices(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2107,6 +2779,27 @@ func (siw *ServerInterfaceWrapper) GetServicesName(w http.ResponseWriter, r *htt
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "branch", Err: err})
 		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2164,6 +2857,27 @@ func (siw *ServerInterfaceWrapper) GetServicesNameLogs(w http.ResponseWriter, r 
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "branch", Err: err})
 		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2317,14 +3031,6 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 	return r
 }
 
-type BadRequestJSONResponse interface{}
-
-type InternalServerErrorJSONResponse interface{}
-
-type NotFoundJSONResponse interface{}
-
-type UnauthorizedJSONResponse interface{}
-
 type DeleteBranchRequestObject struct {
 	Params DeleteBranchParams
 }
@@ -2341,7 +3047,7 @@ func (response DeleteBranch204Response) VisitDeleteBranchResponse(w http.Respons
 	return nil
 }
 
-type DeleteBranch400JSONResponse struct{ BadRequestJSONResponse }
+type DeleteBranch400JSONResponse Error
 
 func (response DeleteBranch400JSONResponse) VisitDeleteBranchResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2350,7 +3056,7 @@ func (response DeleteBranch400JSONResponse) VisitDeleteBranchResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
-type DeleteBranch401JSONResponse struct{ UnauthorizedJSONResponse }
+type DeleteBranch401JSONResponse Error
 
 func (response DeleteBranch401JSONResponse) VisitDeleteBranchResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2359,7 +3065,7 @@ func (response DeleteBranch401JSONResponse) VisitDeleteBranchResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
-type DeleteBranch404JSONResponse struct{ NotFoundJSONResponse }
+type DeleteBranch404JSONResponse Error
 
 func (response DeleteBranch404JSONResponse) VisitDeleteBranchResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2368,9 +3074,7 @@ func (response DeleteBranch404JSONResponse) VisitDeleteBranchResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
-type DeleteBranch500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type DeleteBranch500JSONResponse Error
 
 func (response DeleteBranch500JSONResponse) VisitDeleteBranchResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2380,17 +3084,15 @@ func (response DeleteBranch500JSONResponse) VisitDeleteBranchResponse(w http.Res
 }
 
 type PostDeployRequestObject struct {
-	Body *multipart.Reader
+	Params PostDeployParams
+	Body   *multipart.Reader
 }
 
 type PostDeployResponseObject interface {
 	VisitPostDeployResponse(w http.ResponseWriter) error
 }
 
-type PostDeploy200JSONResponse struct {
-	// Services Map of service names to their URLs
-	Services *map[string][]string `json:"services,omitempty"`
-}
+type PostDeploy200JSONResponse Deployments
 
 func (response PostDeploy200JSONResponse) VisitPostDeployResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2399,7 +3101,7 @@ func (response PostDeploy200JSONResponse) VisitPostDeployResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostDeploy400JSONResponse struct{ BadRequestJSONResponse }
+type PostDeploy400JSONResponse Error
 
 func (response PostDeploy400JSONResponse) VisitPostDeployResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2408,7 +3110,7 @@ func (response PostDeploy400JSONResponse) VisitPostDeployResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostDeploy401JSONResponse struct{ UnauthorizedJSONResponse }
+type PostDeploy401JSONResponse Error
 
 func (response PostDeploy401JSONResponse) VisitPostDeployResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2417,9 +3119,43 @@ func (response PostDeploy401JSONResponse) VisitPostDeployResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostDeploy500JSONResponse struct {
-	InternalServerErrorJSONResponse
+type PostDeploy403JSONResponse Error
+
+func (response PostDeploy403JSONResponse) VisitPostDeployResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
 }
+
+type PostDeploy404JSONResponse Error
+
+func (response PostDeploy404JSONResponse) VisitPostDeployResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostDeploy409JSONResponse Error
+
+func (response PostDeploy409JSONResponse) VisitPostDeployResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostDeploy422JSONResponse Error
+
+func (response PostDeploy422JSONResponse) VisitPostDeployResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostDeploy500JSONResponse Error
 
 func (response PostDeploy500JSONResponse) VisitPostDeployResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2479,6 +3215,7 @@ func (response GetOpenapiYaml500JSONResponse) VisitGetOpenapiYamlResponse(w http
 }
 
 type GetProjectsRequestObject struct {
+	Params GetProjectsParams
 }
 
 type GetProjectsResponseObject interface {
@@ -2496,7 +3233,7 @@ func (response GetProjects200JSONResponse) VisitGetProjectsResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetProjects401JSONResponse struct{ UnauthorizedJSONResponse }
+type GetProjects401JSONResponse Error
 
 func (response GetProjects401JSONResponse) VisitGetProjectsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2505,9 +3242,7 @@ func (response GetProjects401JSONResponse) VisitGetProjectsResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetProjects500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type GetProjects500JSONResponse Error
 
 func (response GetProjects500JSONResponse) VisitGetProjectsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2517,7 +3252,8 @@ func (response GetProjects500JSONResponse) VisitGetProjectsResponse(w http.Respo
 }
 
 type PostProjectsRequestObject struct {
-	Body *PostProjectsJSONRequestBody
+	Params PostProjectsParams
+	Body   *PostProjectsJSONRequestBody
 }
 
 type PostProjectsResponseObject interface {
@@ -2533,7 +3269,7 @@ func (response PostProjects201JSONResponse) VisitPostProjectsResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostProjects400JSONResponse struct{ BadRequestJSONResponse }
+type PostProjects400JSONResponse Error
 
 func (response PostProjects400JSONResponse) VisitPostProjectsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2542,7 +3278,7 @@ func (response PostProjects400JSONResponse) VisitPostProjectsResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostProjects401JSONResponse struct{ UnauthorizedJSONResponse }
+type PostProjects401JSONResponse Error
 
 func (response PostProjects401JSONResponse) VisitPostProjectsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2551,9 +3287,7 @@ func (response PostProjects401JSONResponse) VisitPostProjectsResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostProjects500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type PostProjects500JSONResponse Error
 
 func (response PostProjects500JSONResponse) VisitPostProjectsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2563,7 +3297,8 @@ func (response PostProjects500JSONResponse) VisitPostProjectsResponse(w http.Res
 }
 
 type DeleteProjectsNameRequestObject struct {
-	Name string `json:"name"`
+	Name   string `json:"name"`
+	Params DeleteProjectsNameParams
 }
 
 type DeleteProjectsNameResponseObject interface {
@@ -2578,7 +3313,7 @@ func (response DeleteProjectsName204Response) VisitDeleteProjectsNameResponse(w 
 	return nil
 }
 
-type DeleteProjectsName400JSONResponse struct{ BadRequestJSONResponse }
+type DeleteProjectsName400JSONResponse Error
 
 func (response DeleteProjectsName400JSONResponse) VisitDeleteProjectsNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2587,7 +3322,7 @@ func (response DeleteProjectsName400JSONResponse) VisitDeleteProjectsNameRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type DeleteProjectsName401JSONResponse struct{ UnauthorizedJSONResponse }
+type DeleteProjectsName401JSONResponse Error
 
 func (response DeleteProjectsName401JSONResponse) VisitDeleteProjectsNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2596,7 +3331,7 @@ func (response DeleteProjectsName401JSONResponse) VisitDeleteProjectsNameRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type DeleteProjectsName404JSONResponse struct{ NotFoundJSONResponse }
+type DeleteProjectsName404JSONResponse Error
 
 func (response DeleteProjectsName404JSONResponse) VisitDeleteProjectsNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2605,9 +3340,7 @@ func (response DeleteProjectsName404JSONResponse) VisitDeleteProjectsNameRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type DeleteProjectsName500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type DeleteProjectsName500JSONResponse Error
 
 func (response DeleteProjectsName500JSONResponse) VisitDeleteProjectsNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2636,7 +3369,7 @@ func (response GetProjectsNameSecrets200JSONResponse) VisitGetProjectsNameSecret
 	return json.NewEncoder(w).Encode(response.union)
 }
 
-type GetProjectsNameSecrets401JSONResponse struct{ UnauthorizedJSONResponse }
+type GetProjectsNameSecrets401JSONResponse Error
 
 func (response GetProjectsNameSecrets401JSONResponse) VisitGetProjectsNameSecretsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2645,7 +3378,7 @@ func (response GetProjectsNameSecrets401JSONResponse) VisitGetProjectsNameSecret
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetProjectsNameSecrets404JSONResponse struct{ NotFoundJSONResponse }
+type GetProjectsNameSecrets404JSONResponse Error
 
 func (response GetProjectsNameSecrets404JSONResponse) VisitGetProjectsNameSecretsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2654,9 +3387,7 @@ func (response GetProjectsNameSecrets404JSONResponse) VisitGetProjectsNameSecret
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetProjectsNameSecrets500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type GetProjectsNameSecrets500JSONResponse Error
 
 func (response GetProjectsNameSecrets500JSONResponse) VisitGetProjectsNameSecretsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2666,8 +3397,9 @@ func (response GetProjectsNameSecrets500JSONResponse) VisitGetProjectsNameSecret
 }
 
 type PutProjectsNameSecretsRequestObject struct {
-	Name string `json:"name"`
-	Body *PutProjectsNameSecretsJSONRequestBody
+	Name   string `json:"name"`
+	Params PutProjectsNameSecretsParams
+	Body   *PutProjectsNameSecretsJSONRequestBody
 }
 
 type PutProjectsNameSecretsResponseObject interface {
@@ -2682,7 +3414,7 @@ func (response PutProjectsNameSecrets200Response) VisitPutProjectsNameSecretsRes
 	return nil
 }
 
-type PutProjectsNameSecrets400JSONResponse struct{ BadRequestJSONResponse }
+type PutProjectsNameSecrets400JSONResponse Error
 
 func (response PutProjectsNameSecrets400JSONResponse) VisitPutProjectsNameSecretsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2691,7 +3423,7 @@ func (response PutProjectsNameSecrets400JSONResponse) VisitPutProjectsNameSecret
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PutProjectsNameSecrets401JSONResponse struct{ UnauthorizedJSONResponse }
+type PutProjectsNameSecrets401JSONResponse Error
 
 func (response PutProjectsNameSecrets401JSONResponse) VisitPutProjectsNameSecretsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2700,7 +3432,7 @@ func (response PutProjectsNameSecrets401JSONResponse) VisitPutProjectsNameSecret
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PutProjectsNameSecrets404JSONResponse struct{ NotFoundJSONResponse }
+type PutProjectsNameSecrets404JSONResponse Error
 
 func (response PutProjectsNameSecrets404JSONResponse) VisitPutProjectsNameSecretsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2709,9 +3441,7 @@ func (response PutProjectsNameSecrets404JSONResponse) VisitPutProjectsNameSecret
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PutProjectsNameSecrets500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type PutProjectsNameSecrets500JSONResponse Error
 
 func (response PutProjectsNameSecrets500JSONResponse) VisitPutProjectsNameSecretsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2721,6 +3451,7 @@ func (response PutProjectsNameSecrets500JSONResponse) VisitPutProjectsNameSecret
 }
 
 type GetServicesRequestObject struct {
+	Params GetServicesParams
 }
 
 type GetServicesResponseObject interface {
@@ -2738,7 +3469,7 @@ func (response GetServices200JSONResponse) VisitGetServicesResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetServices401JSONResponse struct{ UnauthorizedJSONResponse }
+type GetServices401JSONResponse Error
 
 func (response GetServices401JSONResponse) VisitGetServicesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2747,9 +3478,7 @@ func (response GetServices401JSONResponse) VisitGetServicesResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetServices500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type GetServices500JSONResponse Error
 
 func (response GetServices500JSONResponse) VisitGetServicesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2776,7 +3505,7 @@ func (response GetServicesName200JSONResponse) VisitGetServicesNameResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetServicesName401JSONResponse struct{ UnauthorizedJSONResponse }
+type GetServicesName401JSONResponse Error
 
 func (response GetServicesName401JSONResponse) VisitGetServicesNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2785,7 +3514,7 @@ func (response GetServicesName401JSONResponse) VisitGetServicesNameResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetServicesName404JSONResponse struct{ NotFoundJSONResponse }
+type GetServicesName404JSONResponse Error
 
 func (response GetServicesName404JSONResponse) VisitGetServicesNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2794,9 +3523,7 @@ func (response GetServicesName404JSONResponse) VisitGetServicesNameResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetServicesName500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type GetServicesName500JSONResponse Error
 
 func (response GetServicesName500JSONResponse) VisitGetServicesNameResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2824,7 +3551,7 @@ func (response GetServicesNameLogs200TextResponse) VisitGetServicesNameLogsRespo
 	return err
 }
 
-type GetServicesNameLogs401JSONResponse struct{ UnauthorizedJSONResponse }
+type GetServicesNameLogs401JSONResponse Error
 
 func (response GetServicesNameLogs401JSONResponse) VisitGetServicesNameLogsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2833,7 +3560,7 @@ func (response GetServicesNameLogs401JSONResponse) VisitGetServicesNameLogsRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetServicesNameLogs404JSONResponse struct{ NotFoundJSONResponse }
+type GetServicesNameLogs404JSONResponse Error
 
 func (response GetServicesNameLogs404JSONResponse) VisitGetServicesNameLogsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2842,9 +3569,7 @@ func (response GetServicesNameLogs404JSONResponse) VisitGetServicesNameLogsRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetServicesNameLogs500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
+type GetServicesNameLogs500JSONResponse Error
 
 func (response GetServicesNameLogs500JSONResponse) VisitGetServicesNameLogsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -2949,8 +3674,10 @@ func (sh *strictHandler) DeleteBranch(w http.ResponseWriter, r *http.Request, pa
 }
 
 // PostDeploy operation middleware
-func (sh *strictHandler) PostDeploy(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) PostDeploy(w http.ResponseWriter, r *http.Request, params PostDeployParams) {
 	var request PostDeployRequestObject
+
+	request.Params = params
 
 	if reader, err := r.MultipartReader(); err != nil {
 		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
@@ -3028,8 +3755,10 @@ func (sh *strictHandler) GetOpenapiYaml(w http.ResponseWriter, r *http.Request) 
 }
 
 // GetProjects operation middleware
-func (sh *strictHandler) GetProjects(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetProjects(w http.ResponseWriter, r *http.Request, params GetProjectsParams) {
 	var request GetProjectsRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetProjects(ctx, request.(GetProjectsRequestObject))
@@ -3052,8 +3781,10 @@ func (sh *strictHandler) GetProjects(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostProjects operation middleware
-func (sh *strictHandler) PostProjects(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) PostProjects(w http.ResponseWriter, r *http.Request, params PostProjectsParams) {
 	var request PostProjectsRequestObject
+
+	request.Params = params
 
 	var body PostProjectsJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -3083,10 +3814,11 @@ func (sh *strictHandler) PostProjects(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteProjectsName operation middleware
-func (sh *strictHandler) DeleteProjectsName(w http.ResponseWriter, r *http.Request, name string) {
+func (sh *strictHandler) DeleteProjectsName(w http.ResponseWriter, r *http.Request, name string, params DeleteProjectsNameParams) {
 	var request DeleteProjectsNameRequestObject
 
 	request.Name = name
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.DeleteProjectsName(ctx, request.(DeleteProjectsNameRequestObject))
@@ -3136,10 +3868,11 @@ func (sh *strictHandler) GetProjectsNameSecrets(w http.ResponseWriter, r *http.R
 }
 
 // PutProjectsNameSecrets operation middleware
-func (sh *strictHandler) PutProjectsNameSecrets(w http.ResponseWriter, r *http.Request, name string) {
+func (sh *strictHandler) PutProjectsNameSecrets(w http.ResponseWriter, r *http.Request, name string, params PutProjectsNameSecretsParams) {
 	var request PutProjectsNameSecretsRequestObject
 
 	request.Name = name
+	request.Params = params
 
 	var body PutProjectsNameSecretsJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -3169,8 +3902,10 @@ func (sh *strictHandler) PutProjectsNameSecrets(w http.ResponseWriter, r *http.R
 }
 
 // GetServices operation middleware
-func (sh *strictHandler) GetServices(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetServices(w http.ResponseWriter, r *http.Request, params GetServicesParams) {
 	var request GetServicesRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetServices(ctx, request.(GetServicesRequestObject))

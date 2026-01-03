@@ -8,21 +8,27 @@ const (
 	UnknownError            ErrorCode = "unknown_error"
 	InternalServerError     ErrorCode = "internal_server_error"
 	BadRequest              ErrorCode = "bad_request"
-	UnprocessibleEntity     ErrorCode = "unprocessible_entity"
+	UnprocessibleContent    ErrorCode = "unprocessible_entity"
 	InvalidCredentials      ErrorCode = "invalid_credentials"
 	InsufficientPermissions ErrorCode = "insufficient_permissions"
+	InvalidAPIKey           ErrorCode = "invalid_api_key"
+	ProjectNotFound         ErrorCode = "project_not_found"
+	DisabledBranchPreview   ErrorCode = "disabled_branch_preview"
 )
 
 var errorCodeToStatusCode = map[ErrorCode]int{
 	UnknownError:            0, // No error code - unknown
 	InternalServerError:     http.StatusInternalServerError,
 	BadRequest:              http.StatusBadRequest,
-	UnprocessibleEntity:     http.StatusUnprocessableEntity,
+	UnprocessibleContent:    http.StatusUnprocessableEntity,
 	InsufficientPermissions: http.StatusForbidden,
 	InvalidCredentials:      http.StatusUnauthorized,
+	InvalidAPIKey:           http.StatusUnauthorized,
+	ProjectNotFound:         http.StatusNotFound,
+	DisabledBranchPreview:   http.StatusConflict,
 }
 
-func (ec ErrorCode) StatusCode() int {
+func (ec ErrorCode) Status() int {
 	return errorCodeToStatusCode[ec]
 }
 

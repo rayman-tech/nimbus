@@ -113,7 +113,7 @@ func createDeployment(
 	ctx context.Context,
 ) (string, error) {
 	env.Logger.DebugContext(ctx, "Generating deployment spec")
-	deploymentSpec, err := kubernetes.GenerateDeploymentSpec(env.Deployment.Namespace, service, env)
+	deploymentSpec, err := kubernetes.GenerateDeploymentSpec(service, env)
 	if err != nil {
 		env.Logger.LogAttrs(ctx, slog.LevelError, "Error creating deployment", slog.Any("error", err))
 		http.Error(w, "Error generating deployment spec", http.StatusInternalServerError)

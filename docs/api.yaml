@@ -66,6 +66,12 @@ paths:
         - Deployments
       summary: Deploy a project
       description: Deploy a project using a nimbus.yaml configuration file
+      parameters:
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -86,32 +92,53 @@ paths:
 
       responses:
         "200":
-          description: Deployment successful
+          description: Deployment Successful
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  services:
-                    type: object
-                    description: Map of service names to their URLs
-                    additionalProperties:
-                      type: array
-                      items:
-                        type: string
-                        format: uri
-                example:
-                  services:
-                    web:
-                      - https://web.example.com
-                    api:
-                      - https://api.example.com:30001
+                $ref: "#/components/schemas/Deployments"
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Unprocessible Content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /projects:
     get:
@@ -119,6 +146,12 @@ paths:
         - Projects
       summary: List all projects
       description: Get all projects accessible by the authenticated user
+      parameters:
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       responses:
         "200":
           description: List of projects
@@ -132,15 +165,29 @@ paths:
                     items:
                       $ref: "#/components/schemas/Project"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
     post:
       tags:
         - Projects
       summary: Create a new project
       description: Create a new project with the specified name
+      parameters:
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -162,11 +209,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/Project"
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /projects/{name}:
     delete:
@@ -181,17 +240,38 @@ paths:
           description: The name of the project to delete
           schema:
             type: string
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       responses:
         "204":
           description: Project deleted successfully
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /projects/{name}/secrets:
     get:
@@ -213,6 +293,11 @@ paths:
           schema:
             type: boolean
             default: false
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       responses:
         "200":
           description: Project secrets retrieved successfully
@@ -223,11 +308,23 @@ paths:
                   - $ref: "#/components/schemas/SecretsNamesResponse"
                   - $ref: "#/components/schemas/SecretsValuesResponse"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
     put:
       tags:
@@ -239,6 +336,11 @@ paths:
           in: path
           required: true
           description: The name of the project
+          schema:
+            type: string
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
           schema:
             type: string
       requestBody:
@@ -261,13 +363,29 @@ paths:
         "200":
           description: Secrets updated successfully
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /services:
     get:
@@ -275,6 +393,12 @@ paths:
         - Services
       summary: List all services
       description: Get all services accessible by the authenticated user
+      parameters:
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       responses:
         "200":
           description: List of services
@@ -288,9 +412,17 @@ paths:
                     items:
                       $ref: "#/components/schemas/ServiceListItem"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /services/{name}:
     get:
@@ -318,6 +450,11 @@ paths:
           schema:
             type: string
             default: main
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       responses:
         "200":
           description: Service details
@@ -326,11 +463,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/ServiceDetail"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /services/{name}/logs:
     get:
@@ -358,6 +507,11 @@ paths:
           schema:
             type: string
             default: main
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       responses:
         "200":
           description: Log stream
@@ -367,11 +521,23 @@ paths:
                 type: string
                 description: Streaming logs from the service
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /branch:
     delete:
@@ -392,17 +558,38 @@ paths:
           description: The branch name to delete
           schema:
             type: string
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
       responses:
         "204":
           description: Branch deleted successfully
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
-          $ref: "#/components/responses/InternalServerError"
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 components:
   securitySchemes:
@@ -562,27 +749,22 @@ components:
         message: project does not exist
         status: 404
 
-  responses:
-    BadRequest:
-      description: Bad request - invalid input
-      content:
-        application/json:
-          $ref: "#/components/schemas/Error"
-
-    Unauthorized:
-      description: Unauthorized - invalid or missing API key
-      content:
-        application/json:
-          $ref: "#/components/schemas/Error"
-
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          $ref: "#/components/schemas/Error"
-
-    InternalServerError:
-      description: Internal server error
-      content:
-        application/json:
-          $ref: "#/components/schemas/Error"
+    Deployments:
+      type: object
+      properties:
+        services:
+          type: object
+          description: Map of service names to their URLs
+          additionalProperties:
+            type: array
+            items:
+              type: string
+              format: uri
+      required:
+        - services
+      example:
+        services:
+          web:
+            - https://web.example.com
+          api:
+            - https://api.example.com:30001

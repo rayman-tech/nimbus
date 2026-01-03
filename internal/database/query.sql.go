@@ -192,6 +192,24 @@ func (q *Queries) DeleteUnusedVolumes(ctx context.Context, arg DeleteUnusedVolum
 	return err
 }
 
+const getApiKeyExistance = `-- name: GetApiKeyExistance :one
+SELECT
+  EXISTS (
+    SELECT
+      1
+    FROM
+      users
+    WHERE
+      api_key = $1)
+`
+
+func (q *Queries) GetApiKeyExistance(ctx context.Context, apiKey string) (bool, error) {
+	row := q.db.QueryRow(ctx, getApiKeyExistance, apiKey)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getProject = `-- name: GetProject :one
 SELECT
   id, name

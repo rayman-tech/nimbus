@@ -61,7 +61,7 @@ clean:
 	rm bin/*
 
 .PHONY: sqlc
-sqlc:
+sqlc: sql-fmt
 	@echo "🗄️  Generating SQLC code..."
 	sqlc generate
 
