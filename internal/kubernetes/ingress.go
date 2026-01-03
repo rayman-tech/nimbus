@@ -82,7 +82,9 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 	}, nil
 }
 
-func CreateIngress(ctx context.Context, namespace string, ingress *networkingv1.Ingress, env *env.Env) (*networkingv1.Ingress, error) {
+func CreateIngress(
+	ctx context.Context, namespace string, ingress *networkingv1.Ingress, env *env.Env,
+) (*networkingv1.Ingress, error) {
 	_, err := getClient(env).NetworkingV1().Ingresses(namespace).Create(
 		context.Background(), ingress, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {

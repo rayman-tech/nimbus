@@ -182,7 +182,9 @@ func GenerateDeploymentSpec(
 	}, nil
 }
 
-func CreateDeployment(ctx context.Context, namespace string, deployment *appsv1.Deployment, env *nimbusEnv.Env) (*appsv1.Deployment, error) {
+func CreateDeployment(
+	ctx context.Context, namespace string, deployment *appsv1.Deployment, env *nimbusEnv.Env,
+) (*appsv1.Deployment, error) {
 	client := getClient(env).AppsV1().Deployments(namespace)
 
 	existing, err := client.Get(ctx, deployment.Name, metav1.GetOptions{})

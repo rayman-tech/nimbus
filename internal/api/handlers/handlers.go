@@ -534,7 +534,9 @@ func UpdateProjectSecrets(w http.ResponseWriter, r *http.Request) {
 	for _, branch := range branches {
 		namespace := utils.GetSanitizedNamespace(project.Name, branch)
 		env.Logger.DebugContext(r.Context(), "Updating secrets for namespace", slog.String("namespace", namespace))
-		if err := kubernetes.UpdateSecret(r.Context(), namespace, fmt.Sprintf("%s-env", project.Name), req.Secrets, env); err != nil {
+		if err := kubernetes.UpdateSecret(
+			r.Context(), namespace, fmt.Sprintf("%s-env", project.Name), req.Secrets, env,
+		); err != nil {
 			env.Logger.ErrorContext(context.Background(), err.Error())
 			http.Error(w, "error updating secrets", http.StatusInternalServerError)
 			return

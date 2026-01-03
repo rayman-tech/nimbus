@@ -93,7 +93,9 @@ func GenerateServiceSpec(namespace string,
 	}, nil
 }
 
-func CreateService(ctx context.Context, namespace string, service *corev1.Service, env *nimbusEnv.Env) (*corev1.Service, error) {
+func CreateService(
+	ctx context.Context, namespace string, service *corev1.Service, env *nimbusEnv.Env,
+) (*corev1.Service, error) {
 	client := getClient(env).CoreV1().Services(namespace)
 
 	existing, err := client.Get(ctx, service.Name, metav1.GetOptions{})

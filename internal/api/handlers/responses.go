@@ -2,10 +2,6 @@ package handlers
 
 import "nimbus/internal/database"
 
-type deployResponse struct {
-	Urls map[string][]string `json:"services"`
-}
-
 type projectsResponse struct {
 	Projects []database.Project `json:"projects"`
 }

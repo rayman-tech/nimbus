@@ -169,7 +169,7 @@ func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput
 	}
 
 	// Validate API key
-	env.Logger.DebugContext(ctx, "checking api key existance")
+	env.Logger.DebugContext(ctx, "checking api key existence")
 	user, err := env.Database.GetUserByApiKey(ctx, apiKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		env.Logger.ErrorContext(ctx, "no user found", slog.Any("error", err))
@@ -181,7 +181,7 @@ func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput
 			ErrorID: requestID,
 		}
 	} else if err != nil {
-		env.Logger.DebugContext(ctx, "failed to check existance", slog.Any("error", err))
+		env.Logger.DebugContext(ctx, "failed to check existence", slog.Any("error", err))
 		return &apiError.Error{
 			Code:    apiError.InternalServerError,
 			Status:  apiError.InternalServerError.Status(),

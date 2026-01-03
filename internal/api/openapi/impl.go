@@ -22,7 +22,9 @@ func (Server) GetHealth(
 	return GetHealth204Response{}, nil
 }
 
-func (Server) GetOpenapiYaml(ctx context.Context, request GetOpenapiYamlRequestObject) (GetOpenapiYamlResponseObject, error) {
+func (Server) GetOpenapiYaml(
+	ctx context.Context, request GetOpenapiYamlRequestObject,
+) (GetOpenapiYamlResponseObject, error) {
 	requestID := strconv.FormatUint(requestid.FromCtx(ctx), 10)
 
 	data, err := docs.Docs.ReadFile("api.yaml")

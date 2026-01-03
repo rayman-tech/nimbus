@@ -65,7 +65,7 @@ func (Server) PostDeploy(
 	}
 
 	// Read File
-	env.Logger.DebugContext(ctx, "retriving form from file")
+	env.Logger.DebugContext(ctx, "retrieving form from file")
 	files := form.File["file"]
 	if len(files) == 0 {
 		env.Logger.ErrorContext(ctx, "no files in form")
