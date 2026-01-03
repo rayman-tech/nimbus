@@ -1,16 +1,5 @@
 package handlers
 
-type serviceListItem struct {
-	ProjectName   string `json:"project"`
-	ProjectBranch string `json:"branch"`
-	ServiceName   string `json:"name"`
-	Status        string `json:"status"`
-}
-
-type servicesResponse struct {
-	Services []serviceListItem `json:"services"`
-}
-
 type podStatus struct {
 	Name  string `json:"name"`
 	Phase string `json:"phase"`

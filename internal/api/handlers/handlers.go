@@ -23,47 +23,6 @@ const (
 
 const envKey = "env"
 
-func GetServices(w http.ResponseWriter, r *http.Request) {
-	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
-	if !ok {
-		env = nimbusEnv.Null()
-	}
-
-	apiKey := r.Header.Get(xApiKey)
-	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	services, err := env.Database.GetServicesByUser(r.Context(), user.ID)
-	if err != nil {
-		env.Logger.ErrorContext(context.Background(), err.Error())
-		http.Error(w, "error fetching services", http.StatusInternalServerError)
-		return
-	}
-
-	items := make([]serviceListItem, 0, len(services))
-	for _, svc := range services {
-		namespace := utils.GetSanitizedNamespace(svc.ProjectName, svc.ProjectBranch)
-		pods, err := kubernetes.GetPods(namespace, svc.ServiceName, env)
-		status := "Unknown"
-		if err == nil && len(pods) > 0 {
-			status = string(pods[0].Status.Phase)
-		}
-		items = append(items, serviceListItem{
-			ProjectName:   svc.ProjectName,
-			ProjectBranch: svc.ProjectBranch,
-			ServiceName:   svc.ServiceName,
-			Status:        status,
-		})
-	}
-	err = json.NewEncoder(w).Encode(servicesResponse{Services: items})
-	if err != nil {
-		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
-	}
-}
-
 func GetService(w http.ResponseWriter, r *http.Request) {
 	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
 	if !ok {
