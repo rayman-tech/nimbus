@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swagger-ui
+  namespace: nimbus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: swagger-ui
+  template:
+    metadata:
+      labels:
+        app: swagger-ui
+    spec:
+      containers:
+        - name: swagger-ui
+          image: swaggerapi/swagger-ui:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: BASE_URL
+              value: /docs
+            - name: URL
+              value: /openapi.yaml
+            - name: DEEP_LINKING
+              value: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: swagger-ui
+  namespace: nimbus
+spec:
+  selector:
+    app: swagger-ui
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
