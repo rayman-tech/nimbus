@@ -1,3 +1,4 @@
+// Package api contains functions for the nimbus api.
 package api
 
 import (

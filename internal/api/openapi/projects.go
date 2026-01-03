@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	apierror "nimbus/internal/api/error"
 	"nimbus/internal/api/requestid"
@@ -343,5 +344,99 @@ func (Server) GetProjectsNameSecrets(
 func (Server) PutProjectsNameSecrets(
 	ctx context.Context, request PutProjectsNameSecretsRequestObject,
 ) (PutProjectsNameSecretsResponseObject, error) {
+	env := env.FromContext(ctx)
+	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	user := database.UserFromContext(ctx)
+
+	// Get project
+	env.Logger.DebugContext(ctx, "getting project")
+	project, err := env.Database.GetProjectByName(ctx, request.Name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		return PutProjectsNameSecrets404JSONResponse{
+			Status:  apierror.ProjectNotFound.Status(),
+			Code:    apierror.ProjectNotFound.String(),
+			Message: "project not found",
+			ErrorId: requestid,
+		}, nil
+	}
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		return PutProjectsNameSecrets500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Check permissions
+	env.Logger.DebugContext(ctx, "getting user permissions")
+	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
+		UserID:    user.ID,
+		ProjectID: project.ID,
+	})
+	if err != nil {
+		env.Logger.ErrorContext(
+			ctx, "failed to get user permissions", slog.Any("error", err))
+		return PutProjectsNameSecrets500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+	if !authorized {
+		env.Logger.ErrorContext(ctx, "user does not have permissions")
+		return PutProjectsNameSecrets403JSONResponse{
+			Status:  apierror.InsufficientPermissions.Status(),
+			Code:    apierror.InsufficientPermissions.String(),
+			Message: "user does not have permission to delete branch",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Get project branches
+	env.Logger.DebugContext(ctx, "getting project branches")
+	branches, err := env.Database.GetProjectBranches(ctx, project.ID)
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to get project branches", slog.Any("error", err))
+		return PutProjectsNameSecrets500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+	if len(branches) == 0 {
+		branches = []string{"main"}
+	}
+	if !slices.Contains(branches, "main") && !slices.Contains(branches, "master") {
+		branches = append(branches, "main")
+	}
+
+	var secrets map[string]string
+	if request.Body.Secrets != nil {
+		secrets = *request.Body.Secrets
+	} else {
+		secrets = make(map[string]string)
+	}
+	for _, branch := range branches {
+		namespace := utils.GetSanitizedNamespace(project.Name, branch)
+		env.Logger.DebugContext(ctx, "Updating secrets for namespace", slog.String("namespace", namespace))
+		err = kubernetes.UpdateSecret(
+			ctx, namespace, fmt.Sprintf("%s-env", project.Name), secrets, env,
+		)
+		if err != nil {
+			env.Logger.ErrorContext(ctx, "failed to update secrets", slog.Any("error", err))
+			return PutProjectsNameSecrets500JSONResponse{
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
+				Message: "Internal Server Error",
+				ErrorId: requestid,
+			}, nil
+		}
+	}
+
 	return PutProjectsNameSecrets200Response{}, nil
 }

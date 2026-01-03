@@ -1477,6 +1477,7 @@ type PutProjectsNameSecretsResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *Error
 	JSON401      *Error
+	JSON403      *Error
 	JSON404      *Error
 	JSON500      *Error
 }
@@ -2102,6 +2103,13 @@ func ParsePutProjectsNameSecretsResponse(rsp *http.Response) (*PutProjectsNameSe
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
@@ -3495,6 +3503,15 @@ type PutProjectsNameSecrets401JSONResponse Error
 func (response PutProjectsNameSecrets401JSONResponse) VisitPutProjectsNameSecretsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutProjectsNameSecrets403JSONResponse Error
+
+func (response PutProjectsNameSecrets403JSONResponse) VisitPutProjectsNameSecretsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 
 	return json.NewEncoder(w).Encode(response)
 }
