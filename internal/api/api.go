@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+
 	"nimbus/docs"
 	"nimbus/internal/api/middleware"
 	"nimbus/internal/api/openapi"
@@ -44,12 +45,12 @@ func Start(port string, env *env.Env) error {
 	// Customize strict handler to return errors in custom format
 	strictHandlerOptions := openapi.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
-			requestID := fmt.Sprintf("%d", requestid.FromCtx(r.Context()))
+			requestID := fmt.Sprintf("%d", requestid.FromContext(r.Context()))
 			// Request decoding errors are client errors (invalid JSON, etc.)
 			_ = apiError.EncodeError(w, apiError.BadRequest, err.Error(), requestID)
 		},
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
-			requestID := fmt.Sprintf("%d", requestid.FromCtx(r.Context()))
+			requestID := fmt.Sprintf("%d", requestid.FromContext(r.Context()))
 			// Response encoding errors are server errors
 			_ = apiError.EncodeInternalError(w, requestID)
 		},

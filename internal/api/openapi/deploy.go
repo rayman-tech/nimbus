@@ -39,7 +39,7 @@ func (Server) PostDeploy(
 	ctx context.Context, request PostDeployRequestObject,
 ) (PostDeployResponseObject, error) {
 	env := env.FromContext(ctx)
-	requestID := fmt.Sprintf("%d", requestid.FromCtx(ctx))
+	requestID := fmt.Sprintf("%d", requestid.FromContext(ctx))
 
 	env.Logger.DebugContext(ctx, "Parsing form")
 	const maxSize = 10 << 20 // ~ 10 MB

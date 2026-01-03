@@ -25,7 +25,7 @@ func (Server) GetHealth(
 func (Server) GetOpenapiYaml(
 	ctx context.Context, request GetOpenapiYamlRequestObject,
 ) (GetOpenapiYamlResponseObject, error) {
-	requestID := strconv.FormatUint(requestid.FromCtx(ctx), 10)
+	requestID := strconv.FormatUint(requestid.FromContext(ctx), 10)
 
 	data, err := docs.Docs.ReadFile("api.yaml")
 	if err != nil {

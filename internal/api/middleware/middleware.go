@@ -45,7 +45,7 @@ func Recover(next http.Handler) http.Handler {
 				}
 
 				e := env.FromContext(r.Context())
-				requestID := fmt.Sprintf("%d", requestid.FromCtx(r.Context()))
+				requestID := fmt.Sprintf("%d", requestid.FromContext(r.Context()))
 
 				e.Logger.ErrorContext(r.Context(),
 					"panic recovered",
@@ -86,7 +86,7 @@ func LogRequest(next http.Handler) http.Handler {
 
 		ctx := r.Context()
 		requestID := ulid.Now()
-		r = r.WithContext(requestid.WithCtx(r.Context(), requestID))
+		r = r.WithContext(requestid.WithContext(r.Context(), requestID))
 		r = r.WithContext(logging.AppendCtx(ctx, slog.Uint64("request_id", requestID)))
 		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("method", r.Method)))
 		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("path", r.URL.RequestURI())))
@@ -116,7 +116,7 @@ func OAPIErrorHandler(
 	//   2. validation error
 	//   3. fallback - internal server error
 
-	requestID := fmt.Sprintf("%d", requestid.FromCtx(r.Context()))
+	requestID := fmt.Sprintf("%d", requestid.FromContext(r.Context()))
 
 	// 1. apiError
 	var errBody *apiError.Error
@@ -154,7 +154,7 @@ func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput
 	}
 
 	env := env.FromContext(ctx)
-	requestID := fmt.Sprintf("%d", requestid.FromCtx(ctx))
+	requestID := fmt.Sprintf("%d", requestid.FromContext(ctx))
 
 	// Read API Key
 	apiKey := input.RequestValidationInput.Request.Header.Get("X-API-Key")

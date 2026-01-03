@@ -18,37 +18,10 @@ import (
 )
 
 const (
-	formFile   = "file"
-	formBranch = "branch"
-	xApiKey    = "X-API-Key"
+	xApiKey = "X-API-Key"
 )
 
 const envKey = "env"
-
-func GetProjects(w http.ResponseWriter, r *http.Request) {
-	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)
-	if !ok {
-		env = nimbusEnv.Null()
-	}
-
-	apiKey := r.Header.Get(xApiKey)
-	user, err := env.Database.GetUserByApiKey(r.Context(), apiKey)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	projects, err := env.Database.GetProjectsByUser(r.Context(), user.ID)
-	if err != nil {
-		env.Logger.ErrorContext(context.Background(), err.Error())
-		http.Error(w, "error fetching projects", http.StatusInternalServerError)
-		return
-	}
-	err = json.NewEncoder(w).Encode(projectsResponse{Projects: projects}) //nolint:musttag
-	if err != nil {
-		env.Logger.ErrorContext(r.Context(), "failed to encode response", slog.Any("error", err))
-	}
-}
 
 func GetServices(w http.ResponseWriter, r *http.Request) {
 	env, ok := r.Context().Value(envKey).(*nimbusEnv.Env)

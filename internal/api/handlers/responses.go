@@ -1,11 +1,5 @@
 package handlers
 
-import "nimbus/internal/database"
-
-type projectsResponse struct {
-	Projects []database.Project `json:"projects"`
-}
-
 type serviceListItem struct {
 	ProjectName   string `json:"project"`
 	ProjectBranch string `json:"branch"`
