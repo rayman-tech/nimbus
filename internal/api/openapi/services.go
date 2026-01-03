@@ -64,7 +64,9 @@ func (Server) GetServices(
 
 	services, err := env.Database.GetServicesByUser(ctx, user.ID)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get services", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "failed to get services",
+			slog.String("user_id", user.ID.String()),
+			slog.Any("error", err))
 		return GetServices500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -111,10 +113,13 @@ func (Server) GetServicesName(
 	}
 
 	// Get project
-	env.Logger.DebugContext(ctx, "get project")
+	env.Logger.DebugContext(ctx, "get project",
+		slog.String("name", request.Name))
 	project, err := env.Database.GetProjectByName(ctx, request.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "project not found", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "project not found",
+			slog.String("name", request.Name),
+			slog.Any("error", err))
 		return GetServicesName404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
@@ -123,7 +128,9 @@ func (Server) GetServicesName(
 		}, nil
 	}
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project by name")
+		env.Logger.ErrorContext(ctx, "failed to get project by name",
+			slog.String("name", request.Name),
+			slog.Any("error", err))
 		return GetServicesName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -133,12 +140,15 @@ func (Server) GetServicesName(
 	}
 
 	// Check permissions
-	env.Logger.DebugContext(ctx, "check user permissions")
+	env.Logger.DebugContext(ctx, "check user permissions",
+		slog.String("project", project.Name))
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
 		UserID: user.ID,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to check user permissions", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "failed to check user permissions",
+			slog.String("project", project.Name),
+			slog.Any("error", err))
 		return GetServicesName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -157,13 +167,18 @@ func (Server) GetServicesName(
 	}
 
 	// Get service
-	env.Logger.DebugContext(ctx, "getting service")
+	env.Logger.DebugContext(ctx, "getting service",
+		slog.String("service", request.Name),
+		slog.String("project", project.Name))
 	svc, err := env.Database.GetServiceByName(ctx, database.GetServiceByNameParams{
 		ServiceName: request.Name,
 		ProjectID:   project.ID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "service not found", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "service not found",
+			slog.String("service", request.Name),
+			slog.String("project", project.Name),
+			slog.Any("error", err))
 		return GetServicesName404JSONResponse{
 			Status:  apierror.ServiceNotFound.Status(),
 			Code:    apierror.ServiceNotFound.String(),
@@ -172,7 +187,10 @@ func (Server) GetServicesName(
 		}, nil
 	}
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get service", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "failed to get service",
+			slog.String("service", request.Name),
+			slog.String("project", project.Name),
+			slog.Any("error", err))
 		return GetServicesName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -185,7 +203,10 @@ func (Server) GetServicesName(
 	namespace := utils.GetSanitizedNamespace(project.Name, branch)
 	pods, err := kubernetes.GetPods(ctx, namespace, request.Name, env)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get pods", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "failed to get pods",
+			slog.String("service", request.Name),
+			slog.String("namespace", namespace),
+			slog.Any("error", err))
 		return GetServicesName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -199,7 +220,10 @@ func (Server) GetServicesName(
 	if len(pods) > 0 {
 		data, err := kubernetes.GetPodLogsTail(ctx, namespace, pods[0].Name, logLines, env)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to get pod logs", slog.Any("error", err))
+			env.Logger.ErrorContext(ctx, "failed to get pod logs",
+				slog.String("service", request.Name),
+				slog.String("pod", pods[0].Name),
+				slog.Any("error", err))
 			return GetServicesName500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -257,10 +281,13 @@ func (Server) GetServicesNameLogs(
 	}
 
 	// Get project
-	env.Logger.DebugContext(ctx, "get project")
+	env.Logger.DebugContext(ctx, "get project",
+		slog.String("name", request.Name))
 	project, err := env.Database.GetProjectByName(ctx, request.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "project not found", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "project not found",
+			slog.String("name", request.Name),
+			slog.Any("error", err))
 		return GetServicesNameLogs404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
@@ -269,7 +296,9 @@ func (Server) GetServicesNameLogs(
 		}, nil
 	}
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project by name")
+		env.Logger.ErrorContext(ctx, "failed to get project by name",
+			slog.String("name", request.Name),
+			slog.Any("error", err))
 		return GetServicesNameLogs500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -279,12 +308,15 @@ func (Server) GetServicesNameLogs(
 	}
 
 	// Check permissions
-	env.Logger.DebugContext(ctx, "check user permissions")
+	env.Logger.DebugContext(ctx, "check user permissions",
+		slog.String("project", project.Name))
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
 		UserID: user.ID,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to check user permissions", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "failed to check user permissions",
+			slog.String("project", project.Name),
+			slog.Any("error", err))
 		return GetServicesNameLogs500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -293,7 +325,8 @@ func (Server) GetServicesNameLogs(
 		}, nil
 	}
 	if !authorized {
-		env.Logger.ErrorContext(ctx, "insufficient permissions")
+		env.Logger.ErrorContext(ctx, "insufficient permissions",
+			slog.String("project", project.Name))
 		return GetServicesNameLogs403JSONResponse{
 			Status:  apierror.InsufficientPermissions.Status(),
 			Code:    apierror.InsufficientPermissions.String(),
@@ -306,7 +339,10 @@ func (Server) GetServicesNameLogs(
 	namespace := utils.GetSanitizedNamespace(project.Name, branch)
 	stream, err := kubernetes.StreamServiceLogs(ctx, namespace, request.Name, env)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to stream logs", slog.Any("error", err))
+		env.Logger.ErrorContext(ctx, "failed to stream logs",
+			slog.String("service", request.Name),
+			slog.String("namespace", namespace),
+			slog.Any("error", err))
 		return GetServicesNameLogs500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),

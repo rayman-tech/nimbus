@@ -16,6 +16,8 @@ func NewServer() Server {
 	return Server{}
 }
 
+var _ StrictServerInterface = (*Server)(nil)
+
 func (Server) GetHealth(
 	ctx context.Context, request GetHealthRequestObject,
 ) (GetHealthResponseObject, error) {
