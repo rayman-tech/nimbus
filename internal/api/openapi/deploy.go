@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
-	apiError "nimbus/internal/api/error"
+	apierror "nimbus/internal/api/error"
 	"nimbus/internal/api/requestid"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
@@ -47,8 +47,8 @@ func (Server) PostDeploy(
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to read form", slog.Any("error", err))
 		return PostDeploy400JSONResponse{
-			Status:  apiError.BadRequest.Status(),
-			Code:    apiError.BadRequest.String(),
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
 			Message: "invaild form",
 			ErrorId: requestID,
 		}, nil
@@ -57,8 +57,8 @@ func (Server) PostDeploy(
 	if env.Config.NimbusStorageClass == "" {
 		env.Logger.ErrorContext(ctx, "NimbusStorageClass not defined in config")
 		return PostDeploy500JSONResponse{
-			Status:  apiError.InternalServerError.Status(),
-			Code:    apiError.InternalServerError.String(),
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil
@@ -70,8 +70,8 @@ func (Server) PostDeploy(
 	if len(files) == 0 {
 		env.Logger.ErrorContext(ctx, "no files in form")
 		return PostDeploy400JSONResponse{
-			Status:  apiError.BadRequest.Status(),
-			Code:    apiError.BadRequest.String(),
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
 			Message: "file not found in form",
 			ErrorId: requestID,
 		}, nil
@@ -84,8 +84,8 @@ func (Server) PostDeploy(
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to open file", slog.Any("error", err))
 		return PostDeploy400JSONResponse{
-			Status:  apiError.BadRequest.Status(),
-			Code:    apiError.BadRequest.String(),
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
 			Message: "invalid file",
 			ErrorId: requestID,
 		}, nil
@@ -95,8 +95,8 @@ func (Server) PostDeploy(
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to read file", slog.Any("error", err))
 		return PostDeploy500JSONResponse{
-			Status:  apiError.InternalServerError.Status(),
-			Code:    apiError.InternalServerError.String(),
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil
@@ -108,8 +108,8 @@ func (Server) PostDeploy(
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to unmarshal yaml", slog.Any("error", err))
 		return PostDeploy400JSONResponse{
-			Status:  apiError.BadRequest.Status(),
-			Code:    apiError.BadRequest.String(),
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
 			Message: "failed to parse file - invalid yaml",
 			ErrorId: requestID,
 		}, nil
@@ -117,8 +117,8 @@ func (Server) PostDeploy(
 	if config.AppName == "" {
 		env.Logger.ErrorContext(ctx, "app name is missing in config")
 		return PostDeploy400JSONResponse{
-			Status:  apiError.BadRequest.Status(),
-			Code:    apiError.BadRequest.String(),
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
 			Message: "app name is missing in file",
 			ErrorId: requestID,
 		}, nil
@@ -136,16 +136,16 @@ func (Server) PostDeploy(
 	if errors.Is(err, pgx.ErrNoRows) {
 		env.Logger.ErrorContext(ctx, "project not found", slog.Any("error", err))
 		return PostDeploy404JSONResponse{
-			Status:  apiError.ProjectNotFound.Status(),
-			Code:    apiError.ProjectNotFound.String(),
+			Status:  apierror.ProjectNotFound.Status(),
+			Code:    apierror.ProjectNotFound.String(),
 			Message: "project with app name not found",
 			ErrorId: requestID,
 		}, nil
 	} else if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
 		return PostDeploy500JSONResponse{
-			Status:  apiError.InternalServerError.Status(),
-			Code:    apiError.InternalServerError.String(),
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil
@@ -162,8 +162,8 @@ func (Server) PostDeploy(
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to check user access", slog.Any("error", err))
 		return PostDeploy500JSONResponse{
-			Status:  apiError.InternalServerError.Status(),
-			Code:    apiError.InternalServerError.String(),
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil
@@ -171,8 +171,8 @@ func (Server) PostDeploy(
 	if !authorized {
 		env.Logger.DebugContext(ctx, "user is not authorized to deploy project")
 		return PostDeploy403JSONResponse{
-			Status:  apiError.InsufficientPermissions.Status(),
-			Code:    apiError.InsufficientPermissions.String(),
+			Status:  apierror.InsufficientPermissions.Status(),
+			Code:    apierror.InsufficientPermissions.String(),
 			Message: "user does not have permissions to deploy project",
 			ErrorId: requestID,
 		}, nil
@@ -189,8 +189,8 @@ func (Server) PostDeploy(
 		!*config.AllowBranchPreviews &&
 		deployRequest.BranchName != "main" && deployRequest.BranchName != "master" {
 		return PostDeploy409JSONResponse{
-			Status:  apiError.DisabledBranchPreview.Status(),
-			Code:    apiError.DisabledBranchPreview.String(),
+			Status:  apierror.DisabledBranchPreview.Status(),
+			Code:    apierror.DisabledBranchPreview.String(),
 			Message: "branch previews are disabled",
 			ErrorId: requestID,
 		}, nil
@@ -205,8 +205,8 @@ func (Server) PostDeploy(
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get project services", slog.Any("error", err))
 		return PostDeploy500JSONResponse{
-			Status:  apiError.InternalServerError.Status(),
-			Code:    apiError.InternalServerError.String(),
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil
@@ -219,8 +219,8 @@ func (Server) PostDeploy(
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get secret values", slog.Any("error", err))
 		return PostDeploy500JSONResponse{
-			Status:  apiError.InternalServerError.Status(),
-			Code:    apiError.InternalServerError.String(),
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil
@@ -247,8 +247,8 @@ func (Server) PostDeploy(
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to validate namespace", slog.Any("error", err))
 		return PostDeploy500JSONResponse{
-			Status:  apiError.InternalServerError.Status(),
-			Code:    apiError.InternalServerError.String(),
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil
@@ -259,8 +259,8 @@ func (Server) PostDeploy(
 		if err != nil {
 			env.Logger.ErrorContext(ctx, "failed to get secret values", slog.Any("error", err))
 			return PostDeploy500JSONResponse{
-				Status:  apiError.InternalServerError.Status(),
-				Code:    apiError.InternalServerError.String(),
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
 				Message: "Internal Server Error",
 				ErrorId: requestID,
 			}, nil
@@ -272,8 +272,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to update secrets", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -292,8 +292,8 @@ func (Server) PostDeploy(
 		if serviceNames[service.Name] {
 			env.Logger.ErrorContext(ctx, "duplicate service name", slog.String("service", service.Name))
 			return PostDeploy422JSONResponse{
-				Status:  apiError.UnprocessibleContent.Status(),
-				Code:    apiError.UnprocessibleContent.String(),
+				Status:  apierror.UnprocessibleContent.Status(),
+				Code:    apierror.UnprocessibleContent.String(),
 				Message: "service names must be unique",
 				ErrorId: requestID,
 			}, nil
@@ -310,8 +310,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to delete deployment", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -322,8 +322,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to delete service", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -335,8 +335,8 @@ func (Server) PostDeploy(
 				if err != nil {
 					env.Logger.ErrorContext(ctx, "failed to delete ingress", slog.Any("error", err))
 					return PostDeploy500JSONResponse{
-						Status:  apiError.InternalServerError.Status(),
-						Code:    apiError.InternalServerError.String(),
+						Status:  apierror.InternalServerError.Status(),
+						Code:    apierror.InternalServerError.String(),
 						Message: "Internal Server Error",
 						ErrorId: requestID,
 					}, nil
@@ -348,8 +348,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to delete service", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -368,8 +368,8 @@ func (Server) PostDeploy(
 		if err != nil {
 			env.Logger.ErrorContext(ctx, "failed to create deployment", slog.Any("error", err))
 			return PostDeploy500JSONResponse{
-				Status:  apiError.InternalServerError.Status(),
-				Code:    apiError.InternalServerError.String(),
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
 				Message: "Internal Server Error",
 				ErrorId: requestID,
 			}, nil
@@ -378,8 +378,8 @@ func (Server) PostDeploy(
 		if err != nil {
 			env.Logger.ErrorContext(ctx, "failed to create deployment", slog.Any("error", err))
 			return PostDeploy500JSONResponse{
-				Status:  apiError.InternalServerError.Status(),
-				Code:    apiError.InternalServerError.String(),
+				Status:  apierror.InternalServerError.Status(),
+				Code:    apierror.InternalServerError.String(),
 				Message: "Internal Server Error",
 				ErrorId: requestID,
 			}, nil
@@ -394,8 +394,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to generate service spec", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -404,8 +404,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to create service", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -425,8 +425,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to create service in database", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -455,8 +455,8 @@ func (Server) PostDeploy(
 				if err != nil {
 					env.Logger.ErrorContext(ctx, "failed to clear service ports", slog.Any("error", err))
 					return PostDeploy500JSONResponse{
-						Status:  apiError.InternalServerError.Status(),
-						Code:    apiError.InternalServerError.String(),
+						Status:  apierror.InternalServerError.Status(),
+						Code:    apierror.InternalServerError.String(),
 						Message: "Internal Server Error",
 						ErrorId: requestID,
 					}, nil
@@ -468,8 +468,8 @@ func (Server) PostDeploy(
 					if err != nil {
 						env.Logger.ErrorContext(ctx, "failed to delete ingress", slog.Any("error", err))
 						return PostDeploy500JSONResponse{
-							Status:  apiError.InternalServerError.Status(),
-							Code:    apiError.InternalServerError.String(),
+							Status:  apierror.InternalServerError.Status(),
+							Code:    apierror.InternalServerError.String(),
 							Message: "Internal Server Error",
 							ErrorId: requestID,
 						}, nil
@@ -482,8 +482,8 @@ func (Server) PostDeploy(
 				if err != nil {
 					env.Logger.ErrorContext(ctx, "failed to set ingress", slog.Any("error", err))
 					return PostDeploy500JSONResponse{
-						Status:  apiError.InternalServerError.Status(),
-						Code:    apiError.InternalServerError.String(),
+						Status:  apierror.InternalServerError.Status(),
+						Code:    apierror.InternalServerError.String(),
 						Message: "Internal Server Error",
 						ErrorId: requestID,
 					}, nil
@@ -503,8 +503,8 @@ func (Server) PostDeploy(
 				if err != nil {
 					env.Logger.ErrorContext(ctx, "failed to update service in database", slog.Any("error", err))
 					return PostDeploy500JSONResponse{
-						Status:  apiError.InternalServerError.Status(),
-						Code:    apiError.InternalServerError.String(),
+						Status:  apierror.InternalServerError.Status(),
+						Code:    apierror.InternalServerError.String(),
 						Message: "Internal Server Error",
 						ErrorId: requestID,
 					}, nil
@@ -527,8 +527,8 @@ func (Server) PostDeploy(
 				env.Logger.ErrorContext(
 					ctx, "failed to update service node ports in database", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -541,8 +541,8 @@ func (Server) PostDeploy(
 					if err != nil {
 						env.Logger.ErrorContext(ctx, "failed to delete ingress", slog.Any("error", err))
 						return PostDeploy500JSONResponse{
-							Status:  apiError.InternalServerError.Status(),
-							Code:    apiError.InternalServerError.String(),
+							Status:  apierror.InternalServerError.Status(),
+							Code:    apierror.InternalServerError.String(),
 							Message: "Internal Server Error",
 							ErrorId: requestID,
 						}, nil
@@ -555,8 +555,8 @@ func (Server) PostDeploy(
 				if err != nil {
 					env.Logger.ErrorContext(ctx, "failed to set service ingress", slog.Any("error", err))
 					return PostDeploy500JSONResponse{
-						Status:  apiError.InternalServerError.Status(),
-						Code:    apiError.InternalServerError.String(),
+						Status:  apierror.InternalServerError.Status(),
+						Code:    apierror.InternalServerError.String(),
 						Message: "Internal Server Error",
 						ErrorId: requestID,
 					}, nil
@@ -570,8 +570,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to create ingress for service", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -580,8 +580,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to create ingress", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil
@@ -593,8 +593,8 @@ func (Server) PostDeploy(
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to update ingress in database", slog.Any("error", err))
 				return PostDeploy500JSONResponse{
-					Status:  apiError.InternalServerError.Status(),
-					Code:    apiError.InternalServerError.String(),
+					Status:  apierror.InternalServerError.Status(),
+					Code:    apierror.InternalServerError.String(),
 					Message: "Internal Server Error",
 					ErrorId: requestID,
 				}, nil

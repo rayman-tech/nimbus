@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"nimbus/docs"
-	apiError "nimbus/internal/api/error"
+	apierror "nimbus/internal/api/error"
 	"nimbus/internal/api/requestid"
 )
 
@@ -30,8 +30,8 @@ func (Server) GetOpenapiYaml(
 	data, err := docs.Docs.ReadFile("api.yaml")
 	if err != nil {
 		return GetOpenapiYaml500JSONResponse{
-			Code:    apiError.InternalServerError.String(),
-			Status:  apiError.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Status:  apierror.InternalServerError.Status(),
 			Message: "Internal Server Error",
 			ErrorId: requestID,
 		}, nil

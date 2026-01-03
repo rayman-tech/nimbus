@@ -12,7 +12,7 @@ import (
 	"nimbus/internal/api/requestid"
 	"nimbus/internal/env"
 
-	apiError "nimbus/internal/api/error"
+	apierror "nimbus/internal/api/error"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -48,12 +48,12 @@ func Start(port string, env *env.Env) error {
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			requestID := fmt.Sprintf("%d", requestid.FromContext(r.Context()))
 			// Request decoding errors are client errors (invalid JSON, etc.)
-			_ = apiError.EncodeError(w, apiError.BadRequest, err.Error(), requestID)
+			_ = apierror.EncodeError(w, apierror.BadRequest, err.Error(), requestID)
 		},
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			requestID := fmt.Sprintf("%d", requestid.FromContext(r.Context()))
 			// Response encoding errors are server errors
-			_ = apiError.EncodeInternalError(w, requestID)
+			_ = apierror.EncodeInternalError(w, requestID)
 		},
 	}
 
