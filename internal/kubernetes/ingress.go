@@ -6,11 +6,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"os"
 	"time"
 
-	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -20,7 +19,7 @@ import (
 )
 
 func GenerateIngressSpec(namespace string, service *models.Service,
-	existingIngress *string, env *nimbusEnv.Env,
+	existingIngress *string, env *env.Env,
 ) (*networkingv1.Ingress, error) {
 	if service.Template != "http" || !service.Public {
 		return nil, nil
@@ -83,37 +82,34 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 	}, nil
 }
 
-func CreateIngress(namespace string, ingress *networkingv1.Ingress, env *nimbusEnv.Env) (*networkingv1.Ingress, error) {
+func CreateIngress(
+	ctx context.Context, namespace string, ingress *networkingv1.Ingress, env *env.Env,
+) (*networkingv1.Ingress, error) {
 	_, err := getClient(env).NetworkingV1().Ingresses(namespace).Create(
-		context.Background(), ingress, metav1.CreateOptions{})
+		ctx, ingress, metav1.CreateOptions{})
+	if errors.IsAlreadyExists(err) {
+		return ingress, nil
+	}
 	if err != nil {
-		if errors.IsAlreadyExists(err) {
-			env.Logger.LogAttrs(context.Background(), slog.LevelDebug,
-				"Ingress already exists", slog.String("name", ingress.Name))
-			return ingress, nil
-		}
 		return nil, err
 	}
-	env.Logger.LogAttrs(context.Background(), slog.LevelDebug, "Ingress created", slog.String("name", ingress.Name))
 	return ingress, nil
 }
 
-func DeleteIngress(namespace, host string, env *nimbusEnv.Env) error {
-	ingresses, err := getClient(env).NetworkingV1().Ingresses(namespace).List(context.Background(), metav1.ListOptions{})
+func DeleteIngress(ctx context.Context, namespace, host string, env *env.Env) error {
+	ingresses, err := getClient(env).NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to list ingresses: %w", err)
+		return fmt.Errorf("listing ingress: %w", err)
 	}
 
 	for _, ingress := range ingresses.Items {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == host {
 				err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(
-					context.Background(), ingress.Name, metav1.DeleteOptions{})
+					ctx, ingress.Name, metav1.DeleteOptions{})
 				if err != nil {
-					return fmt.Errorf("failed to delete ingress %s: %w", ingress.Name, err)
+					return fmt.Errorf("deleting ingress %s: %w", ingress.Name, err)
 				}
-				env.Logger.LogAttrs(context.Background(), slog.LevelDebug,
-					"Ingress deleted", slog.String("name", ingress.Name), slog.String("host", host))
 				return nil
 			}
 		}

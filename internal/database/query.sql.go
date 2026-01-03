@@ -182,14 +182,32 @@ WHERE project_id = $1
 `
 
 type DeleteUnusedVolumesParams struct {
-	ProjectID     uuid.UUID
-	ProjectBranch string
-	Column3       []string
+	ProjectID      uuid.UUID
+	ProjectBranch  string
+	ExcludeVolumes []string
 }
 
 func (q *Queries) DeleteUnusedVolumes(ctx context.Context, arg DeleteUnusedVolumesParams) error {
-	_, err := q.db.Exec(ctx, deleteUnusedVolumes, arg.ProjectID, arg.ProjectBranch, arg.Column3)
+	_, err := q.db.Exec(ctx, deleteUnusedVolumes, arg.ProjectID, arg.ProjectBranch, arg.ExcludeVolumes)
 	return err
+}
+
+const getApiKeyExistance = `-- name: GetApiKeyExistance :one
+SELECT
+  EXISTS (
+    SELECT
+      1
+    FROM
+      users
+    WHERE
+      api_key = $1)
+`
+
+func (q *Queries) GetApiKeyExistance(ctx context.Context, apiKey string) (bool, error) {
+	row := q.db.QueryRow(ctx, getApiKeyExistance, apiKey)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const getProject = `-- name: GetProject :one
@@ -243,6 +261,23 @@ func (q *Queries) GetProjectBranches(ctx context.Context, projectID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const getProjectById = `-- name: GetProjectById :one
+SELECT
+  id,
+  name
+FROM
+  projects
+WHERE
+  id = $1
+`
+
+func (q *Queries) GetProjectById(ctx context.Context, id uuid.UUID) (Project, error) {
+	row := q.db.QueryRow(ctx, getProjectById, id)
+	var i Project
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
 }
 
 const getProjectByName = `-- name: GetProjectByName :one
@@ -459,13 +494,13 @@ WHERE
 `
 
 type GetUnusedVolumeIdentifiersParams struct {
-	ProjectID     uuid.UUID
-	ProjectBranch string
-	Column3       []string
+	ProjectID      uuid.UUID
+	ProjectBranch  string
+	ExcludeVolumes []string
 }
 
 func (q *Queries) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectID, arg.ProjectBranch, arg.Column3)
+	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectID, arg.ProjectBranch, arg.ExcludeVolumes)
 	if err != nil {
 		return nil, err
 	}

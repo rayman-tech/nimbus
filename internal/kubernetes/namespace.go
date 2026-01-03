@@ -2,19 +2,21 @@ package kubernetes
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
+
 	nimbusEnv "nimbus/internal/env"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetNamespace(name string, env *nimbusEnv.Env) (*corev1.Namespace, error) {
-	return getClient(env).CoreV1().Namespaces().Get(context.Background(), name, metav1.GetOptions{})
+func GetNamespace(ctx context.Context, name string, env *nimbusEnv.Env) (*corev1.Namespace, error) {
+	return getClient(env).CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 }
 
-func CreateNamespace(name string, env *nimbusEnv.Env) error {
-	_, err := getClient(env).CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+func CreateNamespace(ctx context.Context, name string, env *nimbusEnv.Env) error {
+	_, err := getClient(env).CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
@@ -23,30 +25,26 @@ func CreateNamespace(name string, env *nimbusEnv.Env) error {
 	return err
 }
 
-func ValidateNamespace(name string, env *nimbusEnv.Env, ctx context.Context) (bool, error) {
-	ns, err := GetNamespace(name, env)
+func ValidateNamespace(ctx context.Context, name string, env *nimbusEnv.Env) (created bool, err error) {
+	ns, err := GetNamespace(ctx, name, env)
 	if err == nil && ns != nil {
 		return false, nil
 	}
-	env.Logger.LogAttrs(
-		ctx, slog.LevelWarn,
-		"Namespace does not exist. Attempting to create it", slog.Any("error", err),
-	)
+	if !errors.IsNotFound(err) {
+		return false, fmt.Errorf("getting namespace: %w", err)
+	}
+	env.Logger.WarnContext(ctx, "namespace does not exist - attempting to create it")
 
-	err = CreateNamespace(name, env)
+	err = CreateNamespace(ctx, name, env)
 	if err != nil {
-		env.Logger.LogAttrs(
-			ctx, slog.LevelError,
-			"Error creating namespace", slog.Any("error", err),
-		)
-		return false, err
+		return false, fmt.Errorf("creating namespace: %w", err)
 	}
 
 	return true, nil
 }
 
-func DeleteNamespace(name string, env *nimbusEnv.Env) error {
-	err := getClient(env).CoreV1().Namespaces().Delete(context.Background(), name, metav1.DeleteOptions{})
+func DeleteNamespace(ctx context.Context, name string, env *nimbusEnv.Env) error {
+	err := getClient(env).CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}

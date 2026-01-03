@@ -1,26 +1,28 @@
 package kubernetes
 
 import (
-	nimbusEnv "nimbus/internal/env"
-
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"nimbus/internal/env"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-var client *kubernetes.Clientset
-var once sync.Once
+var (
+	client *kubernetes.Clientset
+	once   sync.Once
+)
 
-func getClient(env *nimbusEnv.Env) *kubernetes.Clientset {
+func getClient(env *env.Env) *kubernetes.Clientset {
 	once.Do(func() {
 		var config *rest.Config
 		var err error
-		if os.Getenv("ENVIRONMENT") == "production" {
+		if env.Config.Environment == "production" {
 			env.Logger.Debug("Using in-cluster kubeconfig")
 			config, err = rest.InClusterConfig()
 			if err != nil {
@@ -28,7 +30,11 @@ func getClient(env *nimbusEnv.Env) *kubernetes.Clientset {
 			}
 		} else {
 			env.Logger.Debug("Using local kubeconfig")
-			kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+			home, err := os.UserHomeDir()
+			if err != nil {
+				log.Fatalf("Failed to get home directory: %v", err)
+			}
+			kubeconfig := filepath.Join(home, ".kube", "config")
 			config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 			if err != nil {
 				log.Fatalf("Failed to load local config: %v", err)

@@ -171,6 +171,21 @@ func (mr *MockQuerierMockRecorder) DeleteUnusedVolumes(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnusedVolumes", reflect.TypeOf((*MockQuerier)(nil).DeleteUnusedVolumes), ctx, arg)
 }
 
+// GetApiKeyExistance mocks base method.
+func (m *MockQuerier) GetApiKeyExistance(ctx context.Context, apiKey string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetApiKeyExistance", ctx, apiKey)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetApiKeyExistance indicates an expected call of GetApiKeyExistance.
+func (mr *MockQuerierMockRecorder) GetApiKeyExistance(ctx, apiKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApiKeyExistance", reflect.TypeOf((*MockQuerier)(nil).GetApiKeyExistance), ctx, apiKey)
+}
+
 // GetProject mocks base method.
 func (m *MockQuerier) GetProject(ctx context.Context, id uuid.UUID) (Project, error) {
 	m.ctrl.T.Helper()
@@ -199,6 +214,21 @@ func (m *MockQuerier) GetProjectBranches(ctx context.Context, projectID uuid.UUI
 func (mr *MockQuerierMockRecorder) GetProjectBranches(ctx, projectID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectBranches", reflect.TypeOf((*MockQuerier)(nil).GetProjectBranches), ctx, projectID)
+}
+
+// GetProjectById mocks base method.
+func (m *MockQuerier) GetProjectById(ctx context.Context, id uuid.UUID) (Project, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProjectById", ctx, id)
+	ret0, _ := ret[0].(Project)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProjectById indicates an expected call of GetProjectById.
+func (mr *MockQuerierMockRecorder) GetProjectById(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectById", reflect.TypeOf((*MockQuerier)(nil).GetProjectById), ctx, id)
 }
 
 // GetProjectByName mocks base method.
