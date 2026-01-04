@@ -71,9 +71,9 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 
 	// Get services
 	env.Logger.DebugContext(ctx, "getting services")
-	services, err := env.Database.GetServicesByProject(
+	services, err := env.Database.GetKubernetesServicesByProject(
 		ctx,
-		database.GetServicesByProjectParams{
+		database.GetKubernetesServicesByProjectParams{
 			ProjectID: project.ID, ProjectBranch: request.Params.Branch,
 		})
 	if err != nil {
@@ -104,7 +104,7 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 				env.Logger.ErrorContext(ctx, "failed to delete ingress", slog.Any("error", err))
 			}
 		}
-		err = env.Database.DeleteServiceById(ctx, svc.ID)
+		err = env.Database.DeleteKubernetesServiceById(ctx, svc.ID)
 		if err != nil {
 			env.Logger.ErrorContext(ctx, "failed to delete service", slog.Any("error", err))
 			return DeleteBranch500JSONResponse{
@@ -116,9 +116,9 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 		}
 	}
 
-	ids, err := env.Database.GetUnusedVolumeIdentifiers(
+	ids, err := env.Database.GetUnusedKubernetesVolumeIdentifiers(
 		ctx,
-		database.GetUnusedVolumeIdentifiersParams{
+		database.GetUnusedKubernetesVolumeIdentifiersParams{
 			ProjectID:      project.ID,
 			ProjectBranch:  request.Params.Branch,
 			ExcludeVolumes: nil,
@@ -139,8 +139,8 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 			env.Logger.ErrorContext(ctx, "failed to delete pvc", slog.Any("error", err))
 		}
 	}
-	err = env.Database.DeleteUnusedVolumes(ctx,
-		database.DeleteUnusedVolumesParams{
+	err = env.Database.DeleteUnusedKubernetesVolumes(ctx,
+		database.DeleteUnusedKubernetesVolumesParams{
 			ProjectID:      project.ID,
 			ProjectBranch:  request.Params.Branch,
 			ExcludeVolumes: nil,

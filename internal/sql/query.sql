@@ -17,45 +17,36 @@ RETURNING
 DELETE FROM projects
 WHERE id = $1;
 
--- name: GetService :one
+-- name: GetKubernetesServicesByProject :many
 SELECT
   *
 FROM
-  services
-WHERE
-  id = $1
-LIMIT 1;
-
--- name: GetServicesByProject :many
-SELECT
-  *
-FROM
-  services
+  kubernetes_services
 WHERE
   project_id = $1
   AND project_branch = $2
 ORDER BY
   service_name;
 
--- name: CreateService :one
-INSERT INTO services (id, project_id, project_branch, service_name, node_ports, ingress)
+-- name: CreateKubernetesService :one
+INSERT INTO kubernetes_services (id, project_id, project_branch, service_name, node_ports, ingress)
   VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING
   *;
 
--- name: DeleteServiceByName :exec
-DELETE FROM services
+-- name: DeleteKubernetesServiceByName :exec
+DELETE FROM kubernetes_services
 WHERE service_name = $1
   AND project_id = $2
   AND project_branch = $3;
 
--- name: DeleteServiceById :exec
-DELETE FROM services
+-- name: DeleteKubernetesServiceById :exec
+DELETE FROM kubernetes_services
 WHERE id = $1;
 
--- name: SetServiceNodePorts :exec
+-- name: SetKubernetesServiceNodePorts :exec
 UPDATE
-  services
+  kubernetes_services
 SET
   node_ports = $2
 WHERE
@@ -63,9 +54,9 @@ WHERE
 RETURNING
   *;
 
--- name: SetServiceIngress :exec
+-- name: SetKubernetesServiceIngress :exec
 UPDATE
-  services
+  kubernetes_services
 SET
   ingress = $2
 WHERE
@@ -73,27 +64,27 @@ WHERE
 RETURNING
   *;
 
--- name: GetVolumeIdentifier :one
+-- name: GetKubernetesVolumeIdentifier :one
 SELECT
   identifier
 FROM
-  volumes
+  kubernetes_volumes
 WHERE
   volume_name = $1
   AND project_id = $2
   AND project_branch = $3;
 
--- name: CreateVolume :one
+-- name: CreateKubernetesVolume :one
 INSERT INTO volumes (identifier, volume_name, project_id, project_branch, size)
   VALUES ($1, $2, $3, $4, $5)
 RETURNING
   *;
 
--- name: GetUnusedVolumeIdentifiers :many
+-- name: GetUnusedKubernetesVolumeIdentifiers :many
 SELECT
   identifier
 FROM
-  volumes
+  kubernetes_volumes
 WHERE
   project_id = $1
   AND project_branch = $2
@@ -147,8 +138,8 @@ SELECT
       user_id = $1
       AND project_id = $2);
 
--- name: DeleteUnusedVolumes :exec
-DELETE FROM volumes
+-- name: DeleteUnusedKubernetesVolumes :exec
+DELETE FROM kubernetes_volumes
 WHERE project_id = $1
   AND project_branch = $2
   AND NOT volume_name = ANY (@exclude_volumes::text[]);
@@ -164,12 +155,12 @@ WHERE
 ORDER BY
   p.name;
 
--- name: GetServicesByUser :many
+-- name: GetKubernetesServicesByUser :many
 SELECT
   s.*,
   p.name AS project_name
 FROM
-  services s
+  kubernetes_services s
   JOIN projects p ON s.project_id = p.id
   JOIN user_projects up ON up.project_id = p.id
 WHERE
@@ -178,11 +169,11 @@ ORDER BY
   p.name,
   s.service_name;
 
--- name: GetServiceByName :one
+-- name: GetKubernetesServiceByName :one
 SELECT
   *
 FROM
-  services
+  kubernetes_services
 WHERE
   service_name = $1
   AND project_id = $2
@@ -193,11 +184,11 @@ LIMIT 1;
 INSERT INTO user_projects (user_id, project_id)
   VALUES ($1, $2);
 
--- name: GetProjectBranches :many
+-- name: GetKubernetesProjectBranches :many
 SELECT
   project_branch
 FROM
-  services s
+  kubernetes_services s
 WHERE
   s.project_id = $1
 UNION

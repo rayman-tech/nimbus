@@ -10,10 +10,10 @@ import (
 
 	apierror "nimbus/internal/api/error"
 	"nimbus/internal/api/requestid"
+	"nimbus/internal/config"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/kubernetes"
-	"nimbus/internal/models"
 	"nimbus/internal/utils"
 
 	"github.com/goccy/go-yaml"
@@ -23,7 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func shouldCreateKubeService(service *models.Service) bool {
+func shouldCreateKubeService(service *config.Service) bool {
 	if len(service.Network.Ports) > 0 {
 		return true
 	}
@@ -107,8 +107,8 @@ func (Server) PostDeploy(
 	}
 
 	env.Logger.DebugContext(ctx, "unmarshaling yaml", slog.String("filename", fileheader.Filename))
-	var config models.Config
-	err = yaml.Unmarshal(content, &config)
+	var nimbusConfig config.Nimbus
+	err = yaml.Unmarshal(content, &nimbusConfig)
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to unmarshal yaml",
 			slog.String("filename", fileheader.Filename),
@@ -120,7 +120,7 @@ func (Server) PostDeploy(
 			ErrorId: requestID,
 		}, nil
 	}
-	if config.AppName == "" {
+	if nimbusConfig.AppName == "" {
 		env.Logger.ErrorContext(ctx, "app name is missing in config",
 			slog.String("filename", fileheader.Filename))
 		return PostDeploy400JSONResponse{
@@ -130,21 +130,21 @@ func (Server) PostDeploy(
 			ErrorId: requestID,
 		}, nil
 	}
-	if config.AllowBranchPreviews == nil {
+	if nimbusConfig.AllowBranchPreviews == nil {
 		v := true
-		config.AllowBranchPreviews = &v
+		nimbusConfig.AllowBranchPreviews = &v
 		env.Logger.DebugContext(ctx, "defaulting AllowBranchPreviews to true",
-			slog.String("app", config.AppName))
+			slog.String("app", nimbusConfig.AppName))
 	}
 
 	// Retrieve project
-	var deployRequest models.DeployRequest
+	var deployRequest config.DeployRequest
 	env.Logger.DebugContext(
-		ctx, "retrieving project by name", slog.String("name", config.AppName))
-	project, err := env.Database.GetProjectByName(ctx, config.AppName)
+		ctx, "retrieving project by name", slog.String("name", nimbusConfig.AppName))
+	project, err := env.Database.GetProjectByName(ctx, nimbusConfig.AppName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		env.Logger.ErrorContext(ctx, "project not found",
-			slog.String("app", config.AppName),
+			slog.String("app", nimbusConfig.AppName),
 			slog.Any("error", err))
 		return PostDeploy404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
@@ -154,7 +154,7 @@ func (Server) PostDeploy(
 		}, nil
 	} else if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get project",
-			slog.String("app", config.AppName),
+			slog.String("app", nimbusConfig.AppName),
 			slog.Any("error", err))
 		return PostDeploy500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
@@ -206,8 +206,8 @@ func (Server) PostDeploy(
 	} else {
 		deployRequest.BranchName = branches[0]
 	}
-	if config.AllowBranchPreviews != nil &&
-		!*config.AllowBranchPreviews &&
+	if nimbusConfig.AllowBranchPreviews != nil &&
+		!*nimbusConfig.AllowBranchPreviews &&
 		deployRequest.BranchName != "main" && deployRequest.BranchName != "master" {
 		return PostDeploy409JSONResponse{
 			Status:  apierror.DisabledBranchPreview.Status(),
@@ -221,10 +221,11 @@ func (Server) PostDeploy(
 	env.Logger.DebugContext(ctx, "getting project services",
 		slog.String("project", project.Name),
 		slog.String("branch", deployRequest.BranchName))
-	servicesList, err := env.Database.GetServicesByProject(ctx, database.GetServicesByProjectParams{
-		ProjectID:     deployRequest.ProjectID,
-		ProjectBranch: deployRequest.BranchName,
-	})
+	servicesList, err := env.Database.GetKubernetesServicesByProject(ctx,
+		database.GetKubernetesServicesByProjectParams{
+			ProjectID:     deployRequest.ProjectID,
+			ProjectBranch: deployRequest.BranchName,
+		})
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get project services",
 			slog.String("project", project.Name),
@@ -254,7 +255,7 @@ func (Server) PostDeploy(
 			ErrorId: requestID,
 		}, nil
 	}
-	for i, service := range config.Services {
+	for i, service := range nimbusConfig.Services {
 		for j, variable := range service.Env {
 			key, prefFound := strings.CutPrefix(variable.Value, "${")
 			key, suffFound := strings.CutSuffix(key, "}")
@@ -262,7 +263,7 @@ func (Server) PostDeploy(
 				continue
 			}
 			if secretVal, ok := secrets[key]; ok {
-				config.Services[i].Env[j].Value = secretVal
+				nimbusConfig.Services[i].Env[j].Value = secretVal
 			}
 		}
 	}
@@ -285,7 +286,7 @@ func (Server) PostDeploy(
 		}, nil
 	}
 	if created && deployRequest.BranchName != "main" && deployRequest.BranchName != "master" {
-		mainNS := utils.GetSanitizedNamespace(config.AppName, "main")
+		mainNS := utils.GetSanitizedNamespace(nimbusConfig.AppName, "main")
 		vals, err := kubernetes.GetSecretValues(ctx, mainNS, env)
 		if err != nil {
 			env.Logger.ErrorContext(ctx, "failed to get secret values",
@@ -301,12 +302,12 @@ func (Server) PostDeploy(
 		}
 		if len(vals) > 0 {
 			err = kubernetes.UpdateSecret(
-				ctx, deployRequest.Namespace, fmt.Sprintf("%s-env", config.AppName),
+				ctx, deployRequest.Namespace, fmt.Sprintf("%s-env", nimbusConfig.AppName),
 				vals, env)
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to update secrets",
 					slog.String("namespace", deployRequest.Namespace),
-					slog.String("app", config.AppName),
+					slog.String("app", nimbusConfig.AppName),
 					slog.Any("error", err))
 				return PostDeploy500JSONResponse{
 					Status:  apierror.InternalServerError.Status(),
@@ -319,7 +320,7 @@ func (Server) PostDeploy(
 	}
 
 	// Delete removed services
-	existingServices := make(map[string]*database.Service)
+	existingServices := make(map[string]*database.KubernetesService)
 	for _, service := range deployRequest.ExistingServices {
 		existingServices[service.ServiceName] = &service
 	}
@@ -327,7 +328,7 @@ func (Server) PostDeploy(
 		slog.String("project", project.Name),
 		slog.String("branch", deployRequest.BranchName))
 	serviceNames := make(map[string]bool)
-	for _, service := range config.Services {
+	for _, service := range nimbusConfig.Services {
 		if serviceNames[service.Name] {
 			env.Logger.ErrorContext(ctx, "duplicate service name", slog.String("service", service.Name))
 			return PostDeploy422JSONResponse{
@@ -399,7 +400,7 @@ func (Server) PostDeploy(
 
 			env.Logger.DebugContext(ctx, "deleting service in database",
 				slog.String("service", service.ServiceName))
-			err = env.Database.DeleteServiceById(ctx, service.ID)
+			err = env.Database.DeleteKubernetesServiceById(ctx, service.ID)
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to delete service",
 					slog.String("service", service.ServiceName),
@@ -418,7 +419,7 @@ func (Server) PostDeploy(
 		slog.String("project", project.Name),
 		slog.String("branch", deployRequest.BranchName))
 	serviceUrls := make(map[string][]string)
-	for _, serviceConfig := range config.Services {
+	for _, serviceConfig := range nimbusConfig.Services {
 
 		// Create deployment
 		env.Logger.DebugContext(ctx, "creating deployment",
@@ -455,7 +456,8 @@ func (Server) PostDeploy(
 		if shouldCreateKubeService(&serviceConfig) {
 			env.Logger.DebugContext(ctx, "creating service",
 				slog.String("service", serviceConfig.Name))
-			serviceSpec, err := kubernetes.GenerateServiceSpec(deployRequest.Namespace, &serviceConfig, oldService)
+			serviceSpec, err := kubernetes.GenerateServiceSpec(deployRequest.Namespace,
+				&serviceConfig, oldService)
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to generate service spec",
 					slog.String("service", serviceConfig.Name),
@@ -482,16 +484,17 @@ func (Server) PostDeploy(
 		}
 
 		var urls []string
-		var newSvc database.Service
+		var newSvc database.KubernetesService
 		if !svcExists {
 			env.Logger.DebugContext(ctx, "creating service in database",
 				slog.String("service", serviceConfig.Name))
-			newSvc, err = env.Database.CreateService(ctx, database.CreateServiceParams{
-				ID:            uuid.New(),
-				ProjectID:     deployRequest.ProjectID,
-				ProjectBranch: deployRequest.BranchName,
-				ServiceName:   serviceConfig.Name,
-			})
+			newSvc, err = env.Database.CreateKubernetesService(ctx,
+				database.CreateKubernetesServiceParams{
+					ID:            uuid.New(),
+					ProjectID:     deployRequest.ProjectID,
+					ProjectBranch: deployRequest.BranchName,
+					ServiceName:   serviceConfig.Name,
+				})
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to create service in database",
 					slog.String("service", serviceConfig.Name),
@@ -522,10 +525,11 @@ func (Server) PostDeploy(
 			if serviceConfig.Template != "http" {
 				env.Logger.DebugContext(ctx, "no service ports specified - clearing node ports",
 					slog.String("service", serviceConfig.Name))
-				err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
-					ID:        serviceID,
-					NodePorts: []int32{},
-				})
+				err := env.Database.SetKubernetesServiceNodePorts(ctx,
+					database.SetKubernetesServiceNodePortsParams{
+						ID:        serviceID,
+						NodePorts: []int32{},
+					})
 				if err != nil {
 					env.Logger.ErrorContext(ctx, "failed to clear service ports",
 						slog.String("service", serviceConfig.Name),
@@ -556,10 +560,11 @@ func (Server) PostDeploy(
 						}, nil
 					}
 				}
-				err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-					ID:      serviceID,
-					Ingress: pgtype.Text{Valid: false},
-				})
+				err = env.Database.SetKubernetesServiceIngress(ctx,
+					database.SetKubernetesServiceIngressParams{
+						ID:      serviceID,
+						Ingress: pgtype.Text{Valid: false},
+					})
 				if err != nil {
 					env.Logger.ErrorContext(ctx, "failed to set ingress",
 						slog.String("service", serviceConfig.Name),
@@ -580,10 +585,11 @@ func (Server) PostDeploy(
 			if !serviceConfig.Public {
 				env.Logger.DebugContext(ctx, "clearing node ports for private service",
 					slog.String("service", serviceConfig.Name))
-				err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
-					ID:        serviceID,
-					NodePorts: []int32{},
-				})
+				err := env.Database.SetKubernetesServiceNodePorts(ctx,
+					database.SetKubernetesServiceNodePortsParams{
+						ID:        serviceID,
+						NodePorts: []int32{},
+					})
 				if err != nil {
 					env.Logger.ErrorContext(ctx, "failed to update service in database",
 						slog.String("service", serviceConfig.Name),
@@ -606,10 +612,11 @@ func (Server) PostDeploy(
 				nodePorts = append(nodePorts, port.NodePort)
 				urls = append(urls, utils.FormatServiceURL(env.Config.Domain, port.NodePort))
 			}
-			err = env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
-				ID:        serviceID,
-				NodePorts: nodePorts,
-			})
+			err = env.Database.SetKubernetesServiceNodePorts(ctx,
+				database.SetKubernetesServiceNodePortsParams{
+					ID:        serviceID,
+					NodePorts: nodePorts,
+				})
 			if err != nil {
 				env.Logger.ErrorContext(
 					ctx, "failed to update service node ports in database", slog.Any("error", err))
@@ -640,7 +647,7 @@ func (Server) PostDeploy(
 						}, nil
 					}
 				}
-				err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
+				err = env.Database.SetKubernetesServiceIngress(ctx, database.SetKubernetesServiceIngressParams{
 					ID:      serviceID,
 					Ingress: pgtype.Text{Valid: false},
 				})
@@ -685,10 +692,11 @@ func (Server) PostDeploy(
 					ErrorId: requestID,
 				}, nil
 			}
-			err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-				ID:      serviceID,
-				Ingress: pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
-			})
+			err = env.Database.SetKubernetesServiceIngress(ctx,
+				database.SetKubernetesServiceIngressParams{
+					ID:      serviceID,
+					Ingress: pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
+				})
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to update ingress in database",
 					slog.String("service", serviceConfig.Name),
