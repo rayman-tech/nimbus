@@ -70,6 +70,36 @@ func (mr *MockQuerierMockRecorder) CheckProjectsTableExists(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckProjectsTableExists", reflect.TypeOf((*MockQuerier)(nil).CheckProjectsTableExists), ctx)
 }
 
+// CreateKubernetesService mocks base method.
+func (m *MockQuerier) CreateKubernetesService(ctx context.Context, arg CreateKubernetesServiceParams) (KubernetesService, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateKubernetesService", ctx, arg)
+	ret0, _ := ret[0].(KubernetesService)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateKubernetesService indicates an expected call of CreateKubernetesService.
+func (mr *MockQuerierMockRecorder) CreateKubernetesService(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateKubernetesService", reflect.TypeOf((*MockQuerier)(nil).CreateKubernetesService), ctx, arg)
+}
+
+// CreateKubernetesVolume mocks base method.
+func (m *MockQuerier) CreateKubernetesVolume(ctx context.Context, arg CreateKubernetesVolumeParams) (Volume, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateKubernetesVolume", ctx, arg)
+	ret0, _ := ret[0].(Volume)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateKubernetesVolume indicates an expected call of CreateKubernetesVolume.
+func (mr *MockQuerierMockRecorder) CreateKubernetesVolume(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateKubernetesVolume", reflect.TypeOf((*MockQuerier)(nil).CreateKubernetesVolume), ctx, arg)
+}
+
 // CreateProject mocks base method.
 func (m *MockQuerier) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
 	m.ctrl.T.Helper()
@@ -85,34 +115,32 @@ func (mr *MockQuerierMockRecorder) CreateProject(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProject", reflect.TypeOf((*MockQuerier)(nil).CreateProject), ctx, arg)
 }
 
-// CreateService mocks base method.
-func (m *MockQuerier) CreateService(ctx context.Context, arg CreateServiceParams) (Service, error) {
+// DeleteKubernetesServiceById mocks base method.
+func (m *MockQuerier) DeleteKubernetesServiceById(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateService", ctx, arg)
-	ret0, _ := ret[0].(Service)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "DeleteKubernetesServiceById", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
-// CreateService indicates an expected call of CreateService.
-func (mr *MockQuerierMockRecorder) CreateService(ctx, arg any) *gomock.Call {
+// DeleteKubernetesServiceById indicates an expected call of DeleteKubernetesServiceById.
+func (mr *MockQuerierMockRecorder) DeleteKubernetesServiceById(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateService", reflect.TypeOf((*MockQuerier)(nil).CreateService), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteKubernetesServiceById", reflect.TypeOf((*MockQuerier)(nil).DeleteKubernetesServiceById), ctx, id)
 }
 
-// CreateVolume mocks base method.
-func (m *MockQuerier) CreateVolume(ctx context.Context, arg CreateVolumeParams) (Volume, error) {
+// DeleteKubernetesServiceByName mocks base method.
+func (m *MockQuerier) DeleteKubernetesServiceByName(ctx context.Context, arg DeleteKubernetesServiceByNameParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateVolume", ctx, arg)
-	ret0, _ := ret[0].(Volume)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "DeleteKubernetesServiceByName", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
-// CreateVolume indicates an expected call of CreateVolume.
-func (mr *MockQuerierMockRecorder) CreateVolume(ctx, arg any) *gomock.Call {
+// DeleteKubernetesServiceByName indicates an expected call of DeleteKubernetesServiceByName.
+func (mr *MockQuerierMockRecorder) DeleteKubernetesServiceByName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolume", reflect.TypeOf((*MockQuerier)(nil).CreateVolume), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteKubernetesServiceByName", reflect.TypeOf((*MockQuerier)(nil).DeleteKubernetesServiceByName), ctx, arg)
 }
 
 // DeleteProject mocks base method.
@@ -129,46 +157,18 @@ func (mr *MockQuerierMockRecorder) DeleteProject(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProject", reflect.TypeOf((*MockQuerier)(nil).DeleteProject), ctx, id)
 }
 
-// DeleteServiceById mocks base method.
-func (m *MockQuerier) DeleteServiceById(ctx context.Context, id uuid.UUID) error {
+// DeleteUnusedKubernetesVolumes mocks base method.
+func (m *MockQuerier) DeleteUnusedKubernetesVolumes(ctx context.Context, arg DeleteUnusedKubernetesVolumesParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteServiceById", ctx, id)
+	ret := m.ctrl.Call(m, "DeleteUnusedKubernetesVolumes", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteServiceById indicates an expected call of DeleteServiceById.
-func (mr *MockQuerierMockRecorder) DeleteServiceById(ctx, id any) *gomock.Call {
+// DeleteUnusedKubernetesVolumes indicates an expected call of DeleteUnusedKubernetesVolumes.
+func (mr *MockQuerierMockRecorder) DeleteUnusedKubernetesVolumes(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteServiceById", reflect.TypeOf((*MockQuerier)(nil).DeleteServiceById), ctx, id)
-}
-
-// DeleteServiceByName mocks base method.
-func (m *MockQuerier) DeleteServiceByName(ctx context.Context, arg DeleteServiceByNameParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteServiceByName", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteServiceByName indicates an expected call of DeleteServiceByName.
-func (mr *MockQuerierMockRecorder) DeleteServiceByName(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteServiceByName", reflect.TypeOf((*MockQuerier)(nil).DeleteServiceByName), ctx, arg)
-}
-
-// DeleteUnusedVolumes mocks base method.
-func (m *MockQuerier) DeleteUnusedVolumes(ctx context.Context, arg DeleteUnusedVolumesParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteUnusedVolumes", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteUnusedVolumes indicates an expected call of DeleteUnusedVolumes.
-func (mr *MockQuerierMockRecorder) DeleteUnusedVolumes(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnusedVolumes", reflect.TypeOf((*MockQuerier)(nil).DeleteUnusedVolumes), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnusedKubernetesVolumes", reflect.TypeOf((*MockQuerier)(nil).DeleteUnusedKubernetesVolumes), ctx, arg)
 }
 
 // GetApiKeyExistance mocks base method.
@@ -186,6 +186,81 @@ func (mr *MockQuerierMockRecorder) GetApiKeyExistance(ctx, apiKey any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApiKeyExistance", reflect.TypeOf((*MockQuerier)(nil).GetApiKeyExistance), ctx, apiKey)
 }
 
+// GetKubernetesProjectBranches mocks base method.
+func (m *MockQuerier) GetKubernetesProjectBranches(ctx context.Context, projectID uuid.UUID) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKubernetesProjectBranches", ctx, projectID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKubernetesProjectBranches indicates an expected call of GetKubernetesProjectBranches.
+func (mr *MockQuerierMockRecorder) GetKubernetesProjectBranches(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKubernetesProjectBranches", reflect.TypeOf((*MockQuerier)(nil).GetKubernetesProjectBranches), ctx, projectID)
+}
+
+// GetKubernetesServiceByName mocks base method.
+func (m *MockQuerier) GetKubernetesServiceByName(ctx context.Context, arg GetKubernetesServiceByNameParams) (KubernetesService, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKubernetesServiceByName", ctx, arg)
+	ret0, _ := ret[0].(KubernetesService)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKubernetesServiceByName indicates an expected call of GetKubernetesServiceByName.
+func (mr *MockQuerierMockRecorder) GetKubernetesServiceByName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKubernetesServiceByName", reflect.TypeOf((*MockQuerier)(nil).GetKubernetesServiceByName), ctx, arg)
+}
+
+// GetKubernetesServicesByProject mocks base method.
+func (m *MockQuerier) GetKubernetesServicesByProject(ctx context.Context, arg GetKubernetesServicesByProjectParams) ([]KubernetesService, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKubernetesServicesByProject", ctx, arg)
+	ret0, _ := ret[0].([]KubernetesService)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKubernetesServicesByProject indicates an expected call of GetKubernetesServicesByProject.
+func (mr *MockQuerierMockRecorder) GetKubernetesServicesByProject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKubernetesServicesByProject", reflect.TypeOf((*MockQuerier)(nil).GetKubernetesServicesByProject), ctx, arg)
+}
+
+// GetKubernetesServicesByUser mocks base method.
+func (m *MockQuerier) GetKubernetesServicesByUser(ctx context.Context, userID uuid.UUID) ([]GetKubernetesServicesByUserRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKubernetesServicesByUser", ctx, userID)
+	ret0, _ := ret[0].([]GetKubernetesServicesByUserRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKubernetesServicesByUser indicates an expected call of GetKubernetesServicesByUser.
+func (mr *MockQuerierMockRecorder) GetKubernetesServicesByUser(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKubernetesServicesByUser", reflect.TypeOf((*MockQuerier)(nil).GetKubernetesServicesByUser), ctx, userID)
+}
+
+// GetKubernetesVolumeIdentifier mocks base method.
+func (m *MockQuerier) GetKubernetesVolumeIdentifier(ctx context.Context, arg GetKubernetesVolumeIdentifierParams) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKubernetesVolumeIdentifier", ctx, arg)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKubernetesVolumeIdentifier indicates an expected call of GetKubernetesVolumeIdentifier.
+func (mr *MockQuerierMockRecorder) GetKubernetesVolumeIdentifier(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKubernetesVolumeIdentifier", reflect.TypeOf((*MockQuerier)(nil).GetKubernetesVolumeIdentifier), ctx, arg)
+}
+
 // GetProject mocks base method.
 func (m *MockQuerier) GetProject(ctx context.Context, id uuid.UUID) (Project, error) {
 	m.ctrl.T.Helper()
@@ -199,21 +274,6 @@ func (m *MockQuerier) GetProject(ctx context.Context, id uuid.UUID) (Project, er
 func (mr *MockQuerierMockRecorder) GetProject(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProject", reflect.TypeOf((*MockQuerier)(nil).GetProject), ctx, id)
-}
-
-// GetProjectBranches mocks base method.
-func (m *MockQuerier) GetProjectBranches(ctx context.Context, projectID uuid.UUID) ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProjectBranches", ctx, projectID)
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetProjectBranches indicates an expected call of GetProjectBranches.
-func (mr *MockQuerierMockRecorder) GetProjectBranches(ctx, projectID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectBranches", reflect.TypeOf((*MockQuerier)(nil).GetProjectBranches), ctx, projectID)
 }
 
 // GetProjectById mocks base method.
@@ -261,79 +321,19 @@ func (mr *MockQuerierMockRecorder) GetProjectsByUser(ctx, userID any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectsByUser", reflect.TypeOf((*MockQuerier)(nil).GetProjectsByUser), ctx, userID)
 }
 
-// GetService mocks base method.
-func (m *MockQuerier) GetService(ctx context.Context, id uuid.UUID) (Service, error) {
+// GetUnusedKubernetesVolumeIdentifiers mocks base method.
+func (m *MockQuerier) GetUnusedKubernetesVolumeIdentifiers(ctx context.Context, arg GetUnusedKubernetesVolumeIdentifiersParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetService", ctx, id)
-	ret0, _ := ret[0].(Service)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetService indicates an expected call of GetService.
-func (mr *MockQuerierMockRecorder) GetService(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetService", reflect.TypeOf((*MockQuerier)(nil).GetService), ctx, id)
-}
-
-// GetServiceByName mocks base method.
-func (m *MockQuerier) GetServiceByName(ctx context.Context, arg GetServiceByNameParams) (Service, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServiceByName", ctx, arg)
-	ret0, _ := ret[0].(Service)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetServiceByName indicates an expected call of GetServiceByName.
-func (mr *MockQuerierMockRecorder) GetServiceByName(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceByName", reflect.TypeOf((*MockQuerier)(nil).GetServiceByName), ctx, arg)
-}
-
-// GetServicesByProject mocks base method.
-func (m *MockQuerier) GetServicesByProject(ctx context.Context, arg GetServicesByProjectParams) ([]Service, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServicesByProject", ctx, arg)
-	ret0, _ := ret[0].([]Service)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetServicesByProject indicates an expected call of GetServicesByProject.
-func (mr *MockQuerierMockRecorder) GetServicesByProject(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServicesByProject", reflect.TypeOf((*MockQuerier)(nil).GetServicesByProject), ctx, arg)
-}
-
-// GetServicesByUser mocks base method.
-func (m *MockQuerier) GetServicesByUser(ctx context.Context, userID uuid.UUID) ([]GetServicesByUserRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServicesByUser", ctx, userID)
-	ret0, _ := ret[0].([]GetServicesByUserRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetServicesByUser indicates an expected call of GetServicesByUser.
-func (mr *MockQuerierMockRecorder) GetServicesByUser(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServicesByUser", reflect.TypeOf((*MockQuerier)(nil).GetServicesByUser), ctx, userID)
-}
-
-// GetUnusedVolumeIdentifiers mocks base method.
-func (m *MockQuerier) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]uuid.UUID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUnusedVolumeIdentifiers", ctx, arg)
+	ret := m.ctrl.Call(m, "GetUnusedKubernetesVolumeIdentifiers", ctx, arg)
 	ret0, _ := ret[0].([]uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetUnusedVolumeIdentifiers indicates an expected call of GetUnusedVolumeIdentifiers.
-func (mr *MockQuerierMockRecorder) GetUnusedVolumeIdentifiers(ctx, arg any) *gomock.Call {
+// GetUnusedKubernetesVolumeIdentifiers indicates an expected call of GetUnusedKubernetesVolumeIdentifiers.
+func (mr *MockQuerierMockRecorder) GetUnusedKubernetesVolumeIdentifiers(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnusedVolumeIdentifiers", reflect.TypeOf((*MockQuerier)(nil).GetUnusedVolumeIdentifiers), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnusedKubernetesVolumeIdentifiers", reflect.TypeOf((*MockQuerier)(nil).GetUnusedKubernetesVolumeIdentifiers), ctx, arg)
 }
 
 // GetUserByApiKey mocks base method.
@@ -351,21 +351,6 @@ func (mr *MockQuerierMockRecorder) GetUserByApiKey(ctx, apiKey any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByApiKey", reflect.TypeOf((*MockQuerier)(nil).GetUserByApiKey), ctx, apiKey)
 }
 
-// GetVolumeIdentifier mocks base method.
-func (m *MockQuerier) GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifierParams) (uuid.UUID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVolumeIdentifier", ctx, arg)
-	ret0, _ := ret[0].(uuid.UUID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetVolumeIdentifier indicates an expected call of GetVolumeIdentifier.
-func (mr *MockQuerierMockRecorder) GetVolumeIdentifier(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolumeIdentifier", reflect.TypeOf((*MockQuerier)(nil).GetVolumeIdentifier), ctx, arg)
-}
-
 // IsUserInProject mocks base method.
 func (m *MockQuerier) IsUserInProject(ctx context.Context, arg IsUserInProjectParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -381,30 +366,30 @@ func (mr *MockQuerierMockRecorder) IsUserInProject(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsUserInProject", reflect.TypeOf((*MockQuerier)(nil).IsUserInProject), ctx, arg)
 }
 
-// SetServiceIngress mocks base method.
-func (m *MockQuerier) SetServiceIngress(ctx context.Context, arg SetServiceIngressParams) error {
+// SetKubernetesServiceIngress mocks base method.
+func (m *MockQuerier) SetKubernetesServiceIngress(ctx context.Context, arg SetKubernetesServiceIngressParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetServiceIngress", ctx, arg)
+	ret := m.ctrl.Call(m, "SetKubernetesServiceIngress", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetServiceIngress indicates an expected call of SetServiceIngress.
-func (mr *MockQuerierMockRecorder) SetServiceIngress(ctx, arg any) *gomock.Call {
+// SetKubernetesServiceIngress indicates an expected call of SetKubernetesServiceIngress.
+func (mr *MockQuerierMockRecorder) SetKubernetesServiceIngress(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetServiceIngress", reflect.TypeOf((*MockQuerier)(nil).SetServiceIngress), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKubernetesServiceIngress", reflect.TypeOf((*MockQuerier)(nil).SetKubernetesServiceIngress), ctx, arg)
 }
 
-// SetServiceNodePorts mocks base method.
-func (m *MockQuerier) SetServiceNodePorts(ctx context.Context, arg SetServiceNodePortsParams) error {
+// SetKubernetesServiceNodePorts mocks base method.
+func (m *MockQuerier) SetKubernetesServiceNodePorts(ctx context.Context, arg SetKubernetesServiceNodePortsParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetServiceNodePorts", ctx, arg)
+	ret := m.ctrl.Call(m, "SetKubernetesServiceNodePorts", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetServiceNodePorts indicates an expected call of SetServiceNodePorts.
-func (mr *MockQuerierMockRecorder) SetServiceNodePorts(ctx, arg any) *gomock.Call {
+// SetKubernetesServiceNodePorts indicates an expected call of SetKubernetesServiceNodePorts.
+func (mr *MockQuerierMockRecorder) SetKubernetesServiceNodePorts(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetServiceNodePorts", reflect.TypeOf((*MockQuerier)(nil).SetServiceNodePorts), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKubernetesServiceNodePorts", reflect.TypeOf((*MockQuerier)(nil).SetKubernetesServiceNodePorts), ctx, arg)
 }

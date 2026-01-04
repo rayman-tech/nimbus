@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
+	"nimbus/internal/config"
 	"nimbus/internal/env"
-	"nimbus/internal/models"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 
@@ -18,7 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GenerateIngressSpec(namespace string, service *models.Service,
+func GenerateIngressSpec(namespace string, service *config.Service,
 	existingIngress *string, env *env.Env,
 ) (*networkingv1.Ingress, error) {
 	if service.Template != "http" || !service.Public {

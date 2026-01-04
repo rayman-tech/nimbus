@@ -18,7 +18,7 @@ var envKey envKeyType
 type Env struct {
 	Logger   *slog.Logger
 	Database database.Querier
-	Config   config.Config
+	Config   config.EnvConfig
 }
 
 // Null constructs a null instance.

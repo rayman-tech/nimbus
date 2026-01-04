@@ -5,9 +5,92 @@
 package database
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type Runtime string
+
+const (
+	RuntimeDocker     Runtime = "docker"
+	RuntimeKubernetes Runtime = "kubernetes"
+)
+
+func (e *Runtime) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Runtime(s)
+	case string:
+		*e = Runtime(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Runtime: %T", src)
+	}
+	return nil
+}
+
+type NullRuntime struct {
+	Runtime Runtime
+	Valid   bool // Valid is true if Runtime is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRuntime) Scan(value interface{}) error {
+	if value == nil {
+		ns.Runtime, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Runtime.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRuntime) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Runtime), nil
+}
+
+type DockerService struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	ProjectBranch string
+	ServiceName   string
+	Runtime       Runtime
+	PortMaps      []string
+	ContainerName pgtype.Text
+	DockerNetwork pgtype.Text
+}
+
+type DockerVolume struct {
+	Identifier    uuid.UUID
+	Runtime       Runtime
+	VolumeName    string
+	ProjectID     uuid.UUID
+	ProjectBranch string
+}
+
+type KubernetesService struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	ProjectBranch string
+	ServiceName   string
+	Runtime       Runtime
+	NodePorts     []int32
+	Ingress       pgtype.Text
+}
+
+type KubernetesVolume struct {
+	Identifier    uuid.UUID
+	Runtime       Runtime
+	VolumeName    string
+	ProjectID     uuid.UUID
+	ProjectBranch string
+	Size          int32
+}
 
 type Project struct {
 	ID   uuid.UUID
@@ -19,8 +102,12 @@ type Service struct {
 	ProjectID     uuid.UUID
 	ProjectBranch string
 	ServiceName   string
+	Runtime       Runtime
 	NodePorts     []int32
 	Ingress       pgtype.Text
+	PortMaps      []string
+	ContainerName pgtype.Text
+	DockerNetwork pgtype.Text
 }
 
 type User struct {
@@ -36,6 +123,7 @@ type UserProject struct {
 
 type Volume struct {
 	Identifier    uuid.UUID
+	Runtime       Runtime
 	VolumeName    string
 	ProjectID     uuid.UUID
 	ProjectBranch string

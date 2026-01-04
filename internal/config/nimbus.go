@@ -1,15 +1,63 @@
-package models
+package config
 
 import (
+	"encoding"
+	"fmt"
+	"strings"
+
 	"nimbus/internal/database"
 
 	"github.com/google/uuid"
-
 	corev1 "k8s.io/api/core/v1"
 )
 
-type Config struct {
+var (
+	_ encoding.TextMarshaler   = (*Runtime)(nil)
+	_ encoding.TextUnmarshaler = (*Runtime)(nil)
+)
+
+type Runtime string
+
+const (
+	RuntimeDocker     = "docker"
+	RuntimeKubernetes = "kubernetes"
+)
+
+func (r Runtime) MarshalText() ([]byte, error) {
+	switch r {
+	case RuntimeDocker, RuntimeKubernetes:
+		return []byte(r), nil
+	case "":
+		return []byte(RuntimeKubernetes), nil
+	default:
+		return nil, fmt.Errorf("invalid runtime %q", r)
+	}
+}
+
+func (r *Runtime) UnmarshalText(text []byte) error {
+	raw := strings.TrimSpace(string(text))
+	if raw == "" {
+		*r = RuntimeKubernetes
+		return nil
+	}
+
+	switch strings.ToLower(raw) {
+	case "docker":
+		*r = RuntimeDocker
+	case "kubernetes":
+		*r = RuntimeKubernetes
+	default:
+		return fmt.Errorf(
+			"invalid runtime %q (expected one of: unknown, docker, kubernetes)",
+			raw,
+		)
+	}
+	return nil
+}
+
+type Nimbus struct {
 	AppName             string    `yaml:"app"`
+	RunTime             Runtime   `yaml:"runtime"` // "kubernetes" (default) || "docker"
 	AllowBranchPreviews *bool     `yaml:"allowBranchPreviews,omitempty"`
 	Services            []Service `yaml:"services"`
 }
@@ -56,7 +104,7 @@ type DeployRequest struct {
 	Namespace        string
 	ProjectID        uuid.UUID
 	BranchName       string
-	ProjectConfig    Config
+	ProjectConfig    Nimbus
 	FileContent      []byte
-	ExistingServices []database.Service
+	ExistingServices []database.KubernetesService
 }
