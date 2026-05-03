@@ -20,6 +20,14 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 	env := env.FromContext(ctx)
 	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return DeleteBranch401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
 
 	// Get project
 	env.Logger.DebugContext(ctx, "getting project")
