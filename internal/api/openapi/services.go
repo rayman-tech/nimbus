@@ -159,7 +159,8 @@ func (Server) GetServicesName(
 	env.Logger.DebugContext(ctx, "check user permissions",
 		slog.String("project", project.Name))
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
-		UserID: user.ID,
+		UserID:    user.ID,
+		ProjectID: project.ID,
 	})
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to check user permissions",
@@ -335,7 +336,8 @@ func (Server) GetServicesNameLogs(
 	env.Logger.DebugContext(ctx, "check user permissions",
 		slog.String("project", project.Name))
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
-		UserID: user.ID,
+		UserID:    user.ID,
+		ProjectID: project.ID,
 	})
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to check user permissions",
