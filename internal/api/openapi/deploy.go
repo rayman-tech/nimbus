@@ -171,6 +171,14 @@ func (Server) PostDeploy(
 	// Check user permissions
 	env.Logger.DebugContext(ctx, "checking user project access")
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return PostDeploy401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestID,
+		}, nil
+	}
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
 		UserID:    user.ID,
 		ProjectID: project.ID,

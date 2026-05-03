@@ -102,6 +102,38 @@ func LogRequest(next http.Handler) http.Handler {
 	})
 }
 
+// Authenticate reads the X-API-Key header, looks up the user, and injects the
+// user into the request context. This runs as a standard mux middleware so the
+// modified request is properly propagated to downstream handlers.
+//
+// The oapi-codegen nethttp-middleware (v1.1.2) passes the original *http.Request
+// to the next handler after validation, discarding any context modifications made
+// inside the AuthenticationFunc. By performing user injection here instead, the
+// user context is guaranteed to reach the handler.
+func Authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		apiKey := r.Header.Get("X-API-Key")
+		if apiKey == "" {
+			// No API key provided — let the OAPI validator decide whether
+			// the endpoint requires auth and return the appropriate error.
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		e := env.FromContext(r.Context())
+		user, err := e.Database.GetUserByApiKey(r.Context(), apiKey)
+		if err != nil {
+			// Key lookup failed — skip injection, let the OAPI auth
+			// function handle the error response.
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		r = r.WithContext(database.UserWithContext(r.Context(), &user))
+		next.ServeHTTP(w, r)
+	})
+}
+
 // OAPIErrorHandler handles errors from oapi-codegen middleware and formats them
 // according to your error schema.
 func OAPIErrorHandler(
@@ -145,6 +177,10 @@ func OAPIErrorHandler(
 }
 
 // OAPIAuthFunc is the authentication function for oapi-codegen middleware.
+// It validates the API key and confirms the user exists. The actual user
+// injection into context is handled by the Authenticate middleware, which
+// runs earlier in the middleware chain and properly propagates the modified
+// request to downstream handlers.
 func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput) error {
 	switch input.SecuritySchemeName {
 	case "ApiKeyAuth":
@@ -168,9 +204,12 @@ func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput
 		}
 	}
 
-	// Validate API key
+	// Validate API key — user lookup is intentionally done here as well for
+	// proper OpenAPI security-scheme error responses (401 for bad keys).
+	// The Authenticate middleware already injected the user into context if
+	// the key was valid, so this is a validation-only check.
 	env.Logger.DebugContext(ctx, "checking api key existence")
-	user, err := env.Database.GetUserByApiKey(ctx, apiKey)
+	_, err := env.Database.GetUserByApiKey(ctx, apiKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		env.Logger.ErrorContext(ctx, "no user found", slog.Any("error", err))
 		env.Logger.ErrorContext(ctx, "api key does not exist")
@@ -189,14 +228,6 @@ func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput
 			ErrorID: requestID,
 		}
 	}
-
-	// Inject user
-	input.RequestValidationInput.Request = input.RequestValidationInput.Request.WithContext(
-		database.UserWithContext(
-			input.RequestValidationInput.Request.Context(),
-			&user,
-		),
-	)
 
 	return nil
 }

@@ -61,6 +61,14 @@ func (Server) GetServices(
 	env := env.FromContext(ctx)
 	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return GetServices401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
 
 	services, err := env.Database.GetServicesByUser(ctx, user.ID)
 	if err != nil {
@@ -104,6 +112,14 @@ func (Server) GetServicesName(
 	env := env.FromContext(ctx)
 	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return GetServicesName401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
 
 	var branch string
 	if request.Params.Branch != nil {
@@ -272,6 +288,14 @@ func (Server) GetServicesNameLogs(
 	env := env.FromContext(ctx)
 	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return GetServicesNameLogs401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
 
 	var branch string
 	if request.Params.Branch != nil {

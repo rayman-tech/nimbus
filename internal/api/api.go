@@ -36,6 +36,7 @@ func Start(port string, env *env.Env) error {
 	router.Use(middleware.InjectEnvironment(env))
 	router.Use(middleware.Recover)
 	router.Use(middleware.LogRequest)
+	router.Use(middleware.Authenticate)
 	router.Use(oapimw.OapiRequestValidatorWithOptions(swagger, &oapimw.Options{
 		Options: openapi3filter.Options{
 			AuthenticationFunc: middleware.OAPIAuthFunc,
