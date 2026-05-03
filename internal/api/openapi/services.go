@@ -130,11 +130,11 @@ func (Server) GetServicesName(
 
 	// Get project
 	env.Logger.DebugContext(ctx, "get project",
-		slog.String("name", request.Name))
-	project, err := env.Database.GetProjectByName(ctx, request.Name)
+		slog.String("name", request.Params.Project))
+	project, err := env.Database.GetProjectByName(ctx, request.Params.Project)
 	if errors.Is(err, pgx.ErrNoRows) {
 		env.Logger.ErrorContext(ctx, "project not found",
-			slog.String("name", request.Name),
+			slog.String("name", request.Params.Project),
 			slog.Any("error", err))
 		return GetServicesName404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
@@ -145,7 +145,7 @@ func (Server) GetServicesName(
 	}
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get project by name",
-			slog.String("name", request.Name),
+			slog.String("name", request.Params.Project),
 			slog.Any("error", err))
 		return GetServicesName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
@@ -306,11 +306,11 @@ func (Server) GetServicesNameLogs(
 
 	// Get project
 	env.Logger.DebugContext(ctx, "get project",
-		slog.String("name", request.Name))
-	project, err := env.Database.GetProjectByName(ctx, request.Name)
+		slog.String("name", request.Params.Project))
+	project, err := env.Database.GetProjectByName(ctx, request.Params.Project)
 	if errors.Is(err, pgx.ErrNoRows) {
 		env.Logger.ErrorContext(ctx, "project not found",
-			slog.String("name", request.Name),
+			slog.String("name", request.Params.Project),
 			slog.Any("error", err))
 		return GetServicesNameLogs404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
@@ -321,7 +321,7 @@ func (Server) GetServicesNameLogs(
 	}
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get project by name",
-			slog.String("name", request.Name),
+			slog.String("name", request.Params.Project),
 			slog.Any("error", err))
 		return GetServicesNameLogs500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
