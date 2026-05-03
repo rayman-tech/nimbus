@@ -24,6 +24,14 @@ func (Server) GetProjects(
 	env := env.FromContext(ctx)
 	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return GetProjects401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
 
 	dbProjects, err := env.Database.GetProjectsByUser(ctx, user.ID)
 	if err != nil {
@@ -61,6 +69,14 @@ func (Server) DeleteProjectsName(
 	env := env.FromContext(ctx)
 	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return DeleteProjectsName401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
 
 	// Get project
 	env.Logger.DebugContext(ctx, "getting project")
@@ -236,6 +252,14 @@ func (Server) GetProjectsNameSecrets(
 	env := env.FromContext(ctx)
 	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return GetProjectsNameSecrets401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
 
 	// Get project
 	env.Logger.DebugContext(ctx, "getting project")
@@ -347,6 +371,14 @@ func (Server) PutProjectsNameSecrets(
 	env := env.FromContext(ctx)
 	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
+	if user == nil {
+		return PutProjectsNameSecrets401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
 
 	// Get project
 	env.Logger.DebugContext(ctx, "getting project")
