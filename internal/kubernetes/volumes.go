@@ -7,9 +7,9 @@ import (
 	"log"
 	"log/slog"
 
+	"nimbus/internal/config"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
-	"nimbus/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -26,8 +26,8 @@ type VolumeInfo struct {
 }
 
 func GetVolumeIdentifiers(
-	ctx context.Context, service *models.Service,
-	deploymentRequest *models.DeployRequest, env *env.Env,
+	ctx context.Context, service *config.Service,
+	deploymentRequest *config.DeployRequest, env *env.Env,
 ) (map[string]VolumeInfo, error) {
 	volumeMap := make(map[string]VolumeInfo)
 
@@ -36,11 +36,12 @@ func GetVolumeIdentifiers(
 			volume.Size = 100 // default to 100Mi
 		}
 
-		identifier, err := env.Database.GetVolumeIdentifier(ctx, database.GetVolumeIdentifierParams{
-			VolumeName:    volume.Name,
-			ProjectID:     deploymentRequest.ProjectID,
-			ProjectBranch: deploymentRequest.BranchName,
-		})
+		identifier, err := env.Database.GetKubernetesVolumeIdentifier(ctx,
+			database.GetKubernetesVolumeIdentifierParams{
+				VolumeName:    volume.Name,
+				ProjectID:     deploymentRequest.ProjectID,
+				ProjectBranch: deploymentRequest.BranchName,
+			})
 		if errors.Is(err, pgx.ErrNoRows) {
 			env.Logger.DebugContext(
 				ctx, "volume identifier does not exist - creating one",
@@ -51,13 +52,14 @@ func GetVolumeIdentifiers(
 			if err != nil {
 				return nil, fmt.Errorf("creating pvc: %w", err)
 			}
-			_, err := env.Database.CreateVolume(ctx, database.CreateVolumeParams{
-				Identifier:    identifier,
-				VolumeName:    volume.Name,
-				ProjectID:     deploymentRequest.ProjectID,
-				ProjectBranch: deploymentRequest.BranchName,
-				Size:          volume.Size,
-			})
+			_, err := env.Database.CreateKubernetesVolume(ctx,
+				database.CreateKubernetesVolumeParams{
+					Identifier:    identifier,
+					VolumeName:    volume.Name,
+					ProjectID:     deploymentRequest.ProjectID,
+					ProjectBranch: deploymentRequest.BranchName,
+					Size:          volume.Size,
+				})
 			if err != nil {
 				return nil, fmt.Errorf("creating volume in database: %w", err)
 			}

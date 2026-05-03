@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
+	"nimbus/internal/config"
 	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/models"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -21,8 +21,8 @@ const (
 )
 
 func GenerateDeploymentSpec(
-	ctx context.Context, deploymentRequest *models.DeployRequest,
-	service *models.Service, env *nimbusEnv.Env,
+	ctx context.Context, deploymentRequest *config.DeployRequest,
+	service *config.Service, env *nimbusEnv.Env,
 ) (*appsv1.Deployment, error) {
 	var defaultReplicas int32 = 1
 	spec := appsv1.DeploymentSpec{
@@ -69,7 +69,7 @@ func GenerateDeploymentSpec(
 			service.Version = "13"
 		}
 		if len(service.Volumes) == 0 {
-			service.Volumes = []models.Volume{{
+			service.Volumes = []config.Volume{{
 				Name:      fmt.Sprintf("%s-psql", service.Name),
 				MountPath: "/var/lib/postgresql/data",
 			}}
@@ -106,7 +106,7 @@ func GenerateDeploymentSpec(
 			service.Version = "6"
 		}
 		if len(service.Volumes) == 0 {
-			service.Volumes = []models.Volume{{
+			service.Volumes = []config.Volume{{
 				Name:      fmt.Sprintf("%s-redis", service.Name),
 				MountPath: "/data",
 			}}

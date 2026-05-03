@@ -70,7 +70,7 @@ func (Server) GetServices(
 		}, nil
 	}
 
-	services, err := env.Database.GetServicesByUser(ctx, user.ID)
+	services, err := env.Database.GetKubernetesServicesByUser(ctx, user.ID)
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get services",
 			slog.String("user_id", user.ID.String()),
@@ -186,10 +186,11 @@ func (Server) GetServicesName(
 	env.Logger.DebugContext(ctx, "getting service",
 		slog.String("service", request.Name),
 		slog.String("project", project.Name))
-	svc, err := env.Database.GetServiceByName(ctx, database.GetServiceByNameParams{
-		ServiceName: request.Name,
-		ProjectID:   project.ID,
-	})
+	svc, err := env.Database.GetKubernetesServiceByName(ctx,
+		database.GetKubernetesServiceByNameParams{
+			ServiceName: request.Name,
+			ProjectID:   project.ID,
+		})
 	if errors.Is(err, pgx.ErrNoRows) {
 		env.Logger.ErrorContext(ctx, "service not found",
 			slog.String("service", request.Name),

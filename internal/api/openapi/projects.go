@@ -128,7 +128,7 @@ func (Server) DeleteProjectsName(
 
 	// Get project branches
 	env.Logger.DebugContext(ctx, "getting project branches")
-	branches, err := env.Database.GetProjectBranches(ctx, project.ID)
+	branches, err := env.Database.GetKubernetesProjectBranches(ctx, project.ID)
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get project branches", slog.Any("error", err))
 		return DeleteProjectsName500JSONResponse{
@@ -140,9 +140,9 @@ func (Server) DeleteProjectsName(
 	}
 
 	for _, branch := range branches {
-		services, err := env.Database.GetServicesByProject(
+		services, err := env.Database.GetKubernetesServicesByProject(
 			ctx,
-			database.GetServicesByProjectParams{
+			database.GetKubernetesServicesByProjectParams{
 				ProjectID:     project.ID,
 				ProjectBranch: branch,
 			})
@@ -173,7 +173,7 @@ func (Server) DeleteProjectsName(
 					env.Logger.ErrorContext(ctx, "failed to delete ingress", slog.Any("error", err))
 				}
 			}
-			err = env.Database.DeleteServiceById(ctx, svc.ID)
+			err = env.Database.DeleteKubernetesServiceById(ctx, svc.ID)
 			if err != nil {
 				env.Logger.ErrorContext(ctx, "failed to delete service from database", slog.Any("error", err))
 				return DeleteProjectsName500JSONResponse{
@@ -186,9 +186,9 @@ func (Server) DeleteProjectsName(
 		}
 
 		// Delete volumes
-		ids, err := env.Database.GetUnusedVolumeIdentifiers(
+		ids, err := env.Database.GetUnusedKubernetesVolumeIdentifiers(
 			ctx,
-			database.GetUnusedVolumeIdentifiersParams{
+			database.GetUnusedKubernetesVolumeIdentifiersParams{
 				ProjectID: project.ID, ProjectBranch: branch, ExcludeVolumes: nil,
 			})
 		if err != nil {
@@ -206,9 +206,9 @@ func (Server) DeleteProjectsName(
 				env.Logger.ErrorContext(ctx, "failed to delete pvc", slog.Any("error", err))
 			}
 		}
-		err = env.Database.DeleteUnusedVolumes(
+		err = env.Database.DeleteUnusedKubernetesVolumes(
 			ctx,
-			database.DeleteUnusedVolumesParams{
+			database.DeleteUnusedKubernetesVolumesParams{
 				ProjectID: project.ID, ProjectBranch: branch, ExcludeVolumes: nil,
 			})
 		if err != nil {
@@ -430,7 +430,7 @@ func (Server) PutProjectsNameSecrets(
 
 	// Get project branches
 	env.Logger.DebugContext(ctx, "getting project branches")
-	branches, err := env.Database.GetProjectBranches(ctx, project.ID)
+	branches, err := env.Database.GetKubernetesProjectBranches(ctx, project.ID)
 	if err != nil {
 		env.Logger.ErrorContext(ctx, "failed to get project branches", slog.Any("error", err))
 		return PutProjectsNameSecrets500JSONResponse{

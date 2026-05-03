@@ -13,29 +13,28 @@ import (
 type Querier interface {
 	AddUserToProject(ctx context.Context, arg AddUserToProjectParams) error
 	CheckProjectsTableExists(ctx context.Context) (bool, error)
+	CreateKubernetesService(ctx context.Context, arg CreateKubernetesServiceParams) (KubernetesService, error)
+	CreateKubernetesVolume(ctx context.Context, arg CreateKubernetesVolumeParams) (Volume, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
-	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
-	CreateVolume(ctx context.Context, arg CreateVolumeParams) (Volume, error)
+	DeleteKubernetesServiceById(ctx context.Context, id uuid.UUID) error
+	DeleteKubernetesServiceByName(ctx context.Context, arg DeleteKubernetesServiceByNameParams) error
 	DeleteProject(ctx context.Context, id uuid.UUID) error
-	DeleteServiceById(ctx context.Context, id uuid.UUID) error
-	DeleteServiceByName(ctx context.Context, arg DeleteServiceByNameParams) error
-	DeleteUnusedVolumes(ctx context.Context, arg DeleteUnusedVolumesParams) error
+	DeleteUnusedKubernetesVolumes(ctx context.Context, arg DeleteUnusedKubernetesVolumesParams) error
 	GetApiKeyExistance(ctx context.Context, apiKey string) (bool, error)
+	GetKubernetesProjectBranches(ctx context.Context, projectID uuid.UUID) ([]string, error)
+	GetKubernetesServiceByName(ctx context.Context, arg GetKubernetesServiceByNameParams) (KubernetesService, error)
+	GetKubernetesServicesByProject(ctx context.Context, arg GetKubernetesServicesByProjectParams) ([]KubernetesService, error)
+	GetKubernetesServicesByUser(ctx context.Context, userID uuid.UUID) ([]GetKubernetesServicesByUserRow, error)
+	GetKubernetesVolumeIdentifier(ctx context.Context, arg GetKubernetesVolumeIdentifierParams) (uuid.UUID, error)
 	GetProject(ctx context.Context, id uuid.UUID) (Project, error)
-	GetProjectBranches(ctx context.Context, projectID uuid.UUID) ([]string, error)
 	GetProjectById(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectByName(ctx context.Context, name string) (Project, error)
 	GetProjectsByUser(ctx context.Context, userID uuid.UUID) ([]Project, error)
-	GetService(ctx context.Context, id uuid.UUID) (Service, error)
-	GetServiceByName(ctx context.Context, arg GetServiceByNameParams) (Service, error)
-	GetServicesByProject(ctx context.Context, arg GetServicesByProjectParams) ([]Service, error)
-	GetServicesByUser(ctx context.Context, userID uuid.UUID) ([]GetServicesByUserRow, error)
-	GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]uuid.UUID, error)
+	GetUnusedKubernetesVolumeIdentifiers(ctx context.Context, arg GetUnusedKubernetesVolumeIdentifiersParams) ([]uuid.UUID, error)
 	GetUserByApiKey(ctx context.Context, apiKey string) (User, error)
-	GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifierParams) (uuid.UUID, error)
 	IsUserInProject(ctx context.Context, arg IsUserInProjectParams) (bool, error)
-	SetServiceIngress(ctx context.Context, arg SetServiceIngressParams) error
-	SetServiceNodePorts(ctx context.Context, arg SetServiceNodePortsParams) error
+	SetKubernetesServiceIngress(ctx context.Context, arg SetKubernetesServiceIngressParams) error
+	SetKubernetesServiceNodePorts(ctx context.Context, arg SetKubernetesServiceNodePortsParams) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -46,7 +46,7 @@ func main() {
 			log := logging.New(nil)
 
 			log.Info("loading config")
-			config, err := config.LoadConfig()
+			config, err := config.LoadEnvConfig()
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
 			}

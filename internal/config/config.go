@@ -34,7 +34,7 @@ type Database struct {
 	Password string `validate:"required"`
 }
 
-type Config struct {
+type EnvConfig struct {
 	Environment        string `validate:"omitempty,oneof=development production"`
 	Domain             string `validate:"required,hostname_rfc1123"`
 	NimbusStorageClass string
@@ -49,8 +49,8 @@ func loadWithDefault(key, def string) string {
 	return val
 }
 
-func LoadConfig() (Config, error) {
-	conf := Config{
+func LoadEnvConfig() (EnvConfig, error) {
+	conf := EnvConfig{
 		Environment:        loadWithDefault("ENVIRONMENT", "development"),
 		Domain:             loadWithDefault("DOMAIN", ""),
 		NimbusStorageClass: loadWithDefault("NIMBUS_STORAGE_CLASS", ""),

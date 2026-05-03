@@ -46,6 +46,79 @@ func (q *Queries) CheckProjectsTableExists(ctx context.Context) (bool, error) {
 	return exists, err
 }
 
+const createKubernetesService = `-- name: CreateKubernetesService :one
+INSERT INTO kubernetes_services (id, project_id, project_branch, service_name, node_ports, ingress)
+  VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING
+  id, project_id, project_branch, service_name, runtime, node_ports, ingress
+`
+
+type CreateKubernetesServiceParams struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	ProjectBranch string
+	ServiceName   string
+	NodePorts     []int32
+	Ingress       pgtype.Text
+}
+
+func (q *Queries) CreateKubernetesService(ctx context.Context, arg CreateKubernetesServiceParams) (KubernetesService, error) {
+	row := q.db.QueryRow(ctx, createKubernetesService,
+		arg.ID,
+		arg.ProjectID,
+		arg.ProjectBranch,
+		arg.ServiceName,
+		arg.NodePorts,
+		arg.Ingress,
+	)
+	var i KubernetesService
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ProjectBranch,
+		&i.ServiceName,
+		&i.Runtime,
+		&i.NodePorts,
+		&i.Ingress,
+	)
+	return i, err
+}
+
+const createKubernetesVolume = `-- name: CreateKubernetesVolume :one
+INSERT INTO volumes (identifier, volume_name, project_id, project_branch, size)
+  VALUES ($1, $2, $3, $4, $5)
+RETURNING
+  identifier, runtime, volume_name, project_id, project_branch, size
+`
+
+type CreateKubernetesVolumeParams struct {
+	Identifier    uuid.UUID
+	VolumeName    string
+	ProjectID     uuid.UUID
+	ProjectBranch string
+	Size          int32
+}
+
+func (q *Queries) CreateKubernetesVolume(ctx context.Context, arg CreateKubernetesVolumeParams) (Volume, error) {
+	row := q.db.QueryRow(ctx, createKubernetesVolume,
+		arg.Identifier,
+		arg.VolumeName,
+		arg.ProjectID,
+		arg.ProjectBranch,
+		arg.Size,
+	)
+	var i Volume
+	err := row.Scan(
+		&i.Identifier,
+		&i.Runtime,
+		&i.VolumeName,
+		&i.ProjectID,
+		&i.ProjectBranch,
+		&i.Size,
+	)
+	return i, err
+}
+
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (id, name)
   VALUES ($1, $2)
@@ -65,75 +138,32 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 	return i, err
 }
 
-const createService = `-- name: CreateService :one
-INSERT INTO services (id, project_id, project_branch, service_name, node_ports, ingress)
-  VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING
-  id, project_id, project_branch, service_name, node_ports, ingress
+const deleteKubernetesServiceById = `-- name: DeleteKubernetesServiceById :exec
+DELETE FROM kubernetes_services
+WHERE id = $1
 `
 
-type CreateServiceParams struct {
-	ID            uuid.UUID
-	ProjectID     uuid.UUID
-	ProjectBranch string
+func (q *Queries) DeleteKubernetesServiceById(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteKubernetesServiceById, id)
+	return err
+}
+
+const deleteKubernetesServiceByName = `-- name: DeleteKubernetesServiceByName :exec
+DELETE FROM kubernetes_services
+WHERE service_name = $1
+  AND project_id = $2
+  AND project_branch = $3
+`
+
+type DeleteKubernetesServiceByNameParams struct {
 	ServiceName   string
-	NodePorts     []int32
-	Ingress       pgtype.Text
-}
-
-func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (Service, error) {
-	row := q.db.QueryRow(ctx, createService,
-		arg.ID,
-		arg.ProjectID,
-		arg.ProjectBranch,
-		arg.ServiceName,
-		arg.NodePorts,
-		arg.Ingress,
-	)
-	var i Service
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.ProjectBranch,
-		&i.ServiceName,
-		&i.NodePorts,
-		&i.Ingress,
-	)
-	return i, err
-}
-
-const createVolume = `-- name: CreateVolume :one
-INSERT INTO volumes (identifier, volume_name, project_id, project_branch, size)
-  VALUES ($1, $2, $3, $4, $5)
-RETURNING
-  identifier, volume_name, project_id, project_branch, size
-`
-
-type CreateVolumeParams struct {
-	Identifier    uuid.UUID
-	VolumeName    string
 	ProjectID     uuid.UUID
 	ProjectBranch string
-	Size          int32
 }
 
-func (q *Queries) CreateVolume(ctx context.Context, arg CreateVolumeParams) (Volume, error) {
-	row := q.db.QueryRow(ctx, createVolume,
-		arg.Identifier,
-		arg.VolumeName,
-		arg.ProjectID,
-		arg.ProjectBranch,
-		arg.Size,
-	)
-	var i Volume
-	err := row.Scan(
-		&i.Identifier,
-		&i.VolumeName,
-		&i.ProjectID,
-		&i.ProjectBranch,
-		&i.Size,
-	)
-	return i, err
+func (q *Queries) DeleteKubernetesServiceByName(ctx context.Context, arg DeleteKubernetesServiceByNameParams) error {
+	_, err := q.db.Exec(ctx, deleteKubernetesServiceByName, arg.ServiceName, arg.ProjectID, arg.ProjectBranch)
+	return err
 }
 
 const deleteProject = `-- name: DeleteProject :exec
@@ -146,49 +176,21 @@ func (q *Queries) DeleteProject(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const deleteServiceById = `-- name: DeleteServiceById :exec
-DELETE FROM services
-WHERE id = $1
-`
-
-func (q *Queries) DeleteServiceById(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteServiceById, id)
-	return err
-}
-
-const deleteServiceByName = `-- name: DeleteServiceByName :exec
-DELETE FROM services
-WHERE service_name = $1
-  AND project_id = $2
-  AND project_branch = $3
-`
-
-type DeleteServiceByNameParams struct {
-	ServiceName   string
-	ProjectID     uuid.UUID
-	ProjectBranch string
-}
-
-func (q *Queries) DeleteServiceByName(ctx context.Context, arg DeleteServiceByNameParams) error {
-	_, err := q.db.Exec(ctx, deleteServiceByName, arg.ServiceName, arg.ProjectID, arg.ProjectBranch)
-	return err
-}
-
-const deleteUnusedVolumes = `-- name: DeleteUnusedVolumes :exec
-DELETE FROM volumes
+const deleteUnusedKubernetesVolumes = `-- name: DeleteUnusedKubernetesVolumes :exec
+DELETE FROM kubernetes_volumes
 WHERE project_id = $1
   AND project_branch = $2
   AND NOT volume_name = ANY ($3::text[])
 `
 
-type DeleteUnusedVolumesParams struct {
+type DeleteUnusedKubernetesVolumesParams struct {
 	ProjectID      uuid.UUID
 	ProjectBranch  string
 	ExcludeVolumes []string
 }
 
-func (q *Queries) DeleteUnusedVolumes(ctx context.Context, arg DeleteUnusedVolumesParams) error {
-	_, err := q.db.Exec(ctx, deleteUnusedVolumes, arg.ProjectID, arg.ProjectBranch, arg.ExcludeVolumes)
+func (q *Queries) DeleteUnusedKubernetesVolumes(ctx context.Context, arg DeleteUnusedKubernetesVolumesParams) error {
+	_, err := q.db.Exec(ctx, deleteUnusedKubernetesVolumes, arg.ProjectID, arg.ProjectBranch, arg.ExcludeVolumes)
 	return err
 }
 
@@ -210,28 +212,11 @@ func (q *Queries) GetApiKeyExistance(ctx context.Context, apiKey string) (bool, 
 	return exists, err
 }
 
-const getProject = `-- name: GetProject :one
-SELECT
-  id, name
-FROM
-  projects
-WHERE
-  id = $1
-LIMIT 1
-`
-
-func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (Project, error) {
-	row := q.db.QueryRow(ctx, getProject, id)
-	var i Project
-	err := row.Scan(&i.ID, &i.Name)
-	return i, err
-}
-
-const getProjectBranches = `-- name: GetProjectBranches :many
+const getKubernetesProjectBranches = `-- name: GetKubernetesProjectBranches :many
 SELECT
   project_branch
 FROM
-  services s
+  kubernetes_services s
 WHERE
   s.project_id = $1
 UNION
@@ -243,8 +228,8 @@ WHERE
   v.project_id = $1
 `
 
-func (q *Queries) GetProjectBranches(ctx context.Context, projectID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, getProjectBranches, projectID)
+func (q *Queries) GetKubernetesProjectBranches(ctx context.Context, projectID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getKubernetesProjectBranches, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +246,180 @@ func (q *Queries) GetProjectBranches(ctx context.Context, projectID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const getKubernetesServiceByName = `-- name: GetKubernetesServiceByName :one
+SELECT
+  id, project_id, project_branch, service_name, runtime, node_ports, ingress
+FROM
+  kubernetes_services
+WHERE
+  service_name = $1
+  AND project_id = $2
+  AND project_branch = $3
+LIMIT 1
+`
+
+type GetKubernetesServiceByNameParams struct {
+	ServiceName   string
+	ProjectID     uuid.UUID
+	ProjectBranch string
+}
+
+func (q *Queries) GetKubernetesServiceByName(ctx context.Context, arg GetKubernetesServiceByNameParams) (KubernetesService, error) {
+	row := q.db.QueryRow(ctx, getKubernetesServiceByName, arg.ServiceName, arg.ProjectID, arg.ProjectBranch)
+	var i KubernetesService
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ProjectBranch,
+		&i.ServiceName,
+		&i.Runtime,
+		&i.NodePorts,
+		&i.Ingress,
+	)
+	return i, err
+}
+
+const getKubernetesServicesByProject = `-- name: GetKubernetesServicesByProject :many
+SELECT
+  id, project_id, project_branch, service_name, runtime, node_ports, ingress
+FROM
+  kubernetes_services
+WHERE
+  project_id = $1
+  AND project_branch = $2
+ORDER BY
+  service_name
+`
+
+type GetKubernetesServicesByProjectParams struct {
+	ProjectID     uuid.UUID
+	ProjectBranch string
+}
+
+func (q *Queries) GetKubernetesServicesByProject(ctx context.Context, arg GetKubernetesServicesByProjectParams) ([]KubernetesService, error) {
+	rows, err := q.db.Query(ctx, getKubernetesServicesByProject, arg.ProjectID, arg.ProjectBranch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []KubernetesService
+	for rows.Next() {
+		var i KubernetesService
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.ProjectBranch,
+			&i.ServiceName,
+			&i.Runtime,
+			&i.NodePorts,
+			&i.Ingress,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getKubernetesServicesByUser = `-- name: GetKubernetesServicesByUser :many
+SELECT
+  s.id, s.project_id, s.project_branch, s.service_name, s.runtime, s.node_ports, s.ingress,
+  p.name AS project_name
+FROM
+  kubernetes_services s
+  JOIN projects p ON s.project_id = p.id
+  JOIN user_projects up ON up.project_id = p.id
+WHERE
+  up.user_id = $1
+ORDER BY
+  p.name,
+  s.service_name
+`
+
+type GetKubernetesServicesByUserRow struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	ProjectBranch string
+	ServiceName   string
+	Runtime       Runtime
+	NodePorts     []int32
+	Ingress       pgtype.Text
+	ProjectName   string
+}
+
+func (q *Queries) GetKubernetesServicesByUser(ctx context.Context, userID uuid.UUID) ([]GetKubernetesServicesByUserRow, error) {
+	rows, err := q.db.Query(ctx, getKubernetesServicesByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetKubernetesServicesByUserRow
+	for rows.Next() {
+		var i GetKubernetesServicesByUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.ProjectBranch,
+			&i.ServiceName,
+			&i.Runtime,
+			&i.NodePorts,
+			&i.Ingress,
+			&i.ProjectName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getKubernetesVolumeIdentifier = `-- name: GetKubernetesVolumeIdentifier :one
+SELECT
+  identifier
+FROM
+  kubernetes_volumes
+WHERE
+  volume_name = $1
+  AND project_id = $2
+  AND project_branch = $3
+`
+
+type GetKubernetesVolumeIdentifierParams struct {
+	VolumeName    string
+	ProjectID     uuid.UUID
+	ProjectBranch string
+}
+
+func (q *Queries) GetKubernetesVolumeIdentifier(ctx context.Context, arg GetKubernetesVolumeIdentifierParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getKubernetesVolumeIdentifier, arg.VolumeName, arg.ProjectID, arg.ProjectBranch)
+	var identifier uuid.UUID
+	err := row.Scan(&identifier)
+	return identifier, err
+}
+
+const getProject = `-- name: GetProject :one
+SELECT
+  id, name
+FROM
+  projects
+WHERE
+  id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (Project, error) {
+	row := q.db.QueryRow(ctx, getProject, id)
+	var i Project
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
 }
 
 const getProjectById = `-- name: GetProjectById :one
@@ -329,178 +488,25 @@ func (q *Queries) GetProjectsByUser(ctx context.Context, userID uuid.UUID) ([]Pr
 	return items, nil
 }
 
-const getService = `-- name: GetService :one
-SELECT
-  id, project_id, project_branch, service_name, node_ports, ingress
-FROM
-  services
-WHERE
-  id = $1
-LIMIT 1
-`
-
-func (q *Queries) GetService(ctx context.Context, id uuid.UUID) (Service, error) {
-	row := q.db.QueryRow(ctx, getService, id)
-	var i Service
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.ProjectBranch,
-		&i.ServiceName,
-		&i.NodePorts,
-		&i.Ingress,
-	)
-	return i, err
-}
-
-const getServiceByName = `-- name: GetServiceByName :one
-SELECT
-  id, project_id, project_branch, service_name, node_ports, ingress
-FROM
-  services
-WHERE
-  service_name = $1
-  AND project_id = $2
-  AND project_branch = $3
-LIMIT 1
-`
-
-type GetServiceByNameParams struct {
-	ServiceName   string
-	ProjectID     uuid.UUID
-	ProjectBranch string
-}
-
-func (q *Queries) GetServiceByName(ctx context.Context, arg GetServiceByNameParams) (Service, error) {
-	row := q.db.QueryRow(ctx, getServiceByName, arg.ServiceName, arg.ProjectID, arg.ProjectBranch)
-	var i Service
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.ProjectBranch,
-		&i.ServiceName,
-		&i.NodePorts,
-		&i.Ingress,
-	)
-	return i, err
-}
-
-const getServicesByProject = `-- name: GetServicesByProject :many
-SELECT
-  id, project_id, project_branch, service_name, node_ports, ingress
-FROM
-  services
-WHERE
-  project_id = $1
-  AND project_branch = $2
-ORDER BY
-  service_name
-`
-
-type GetServicesByProjectParams struct {
-	ProjectID     uuid.UUID
-	ProjectBranch string
-}
-
-func (q *Queries) GetServicesByProject(ctx context.Context, arg GetServicesByProjectParams) ([]Service, error) {
-	rows, err := q.db.Query(ctx, getServicesByProject, arg.ProjectID, arg.ProjectBranch)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Service
-	for rows.Next() {
-		var i Service
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.ProjectBranch,
-			&i.ServiceName,
-			&i.NodePorts,
-			&i.Ingress,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getServicesByUser = `-- name: GetServicesByUser :many
-SELECT
-  s.id, s.project_id, s.project_branch, s.service_name, s.node_ports, s.ingress,
-  p.name AS project_name
-FROM
-  services s
-  JOIN projects p ON s.project_id = p.id
-  JOIN user_projects up ON up.project_id = p.id
-WHERE
-  up.user_id = $1
-ORDER BY
-  p.name,
-  s.service_name
-`
-
-type GetServicesByUserRow struct {
-	ID            uuid.UUID
-	ProjectID     uuid.UUID
-	ProjectBranch string
-	ServiceName   string
-	NodePorts     []int32
-	Ingress       pgtype.Text
-	ProjectName   string
-}
-
-func (q *Queries) GetServicesByUser(ctx context.Context, userID uuid.UUID) ([]GetServicesByUserRow, error) {
-	rows, err := q.db.Query(ctx, getServicesByUser, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetServicesByUserRow
-	for rows.Next() {
-		var i GetServicesByUserRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.ProjectBranch,
-			&i.ServiceName,
-			&i.NodePorts,
-			&i.Ingress,
-			&i.ProjectName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getUnusedVolumeIdentifiers = `-- name: GetUnusedVolumeIdentifiers :many
+const getUnusedKubernetesVolumeIdentifiers = `-- name: GetUnusedKubernetesVolumeIdentifiers :many
 SELECT
   identifier
 FROM
-  volumes
+  kubernetes_volumes
 WHERE
   project_id = $1
   AND project_branch = $2
   AND NOT volume_name = ANY ($3::text[])
 `
 
-type GetUnusedVolumeIdentifiersParams struct {
+type GetUnusedKubernetesVolumeIdentifiersParams struct {
 	ProjectID      uuid.UUID
 	ProjectBranch  string
 	ExcludeVolumes []string
 }
 
-func (q *Queries) GetUnusedVolumeIdentifiers(ctx context.Context, arg GetUnusedVolumeIdentifiersParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, getUnusedVolumeIdentifiers, arg.ProjectID, arg.ProjectBranch, arg.ExcludeVolumes)
+func (q *Queries) GetUnusedKubernetesVolumeIdentifiers(ctx context.Context, arg GetUnusedKubernetesVolumeIdentifiersParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, getUnusedKubernetesVolumeIdentifiers, arg.ProjectID, arg.ProjectBranch, arg.ExcludeVolumes)
 	if err != nil {
 		return nil, err
 	}
@@ -536,30 +542,6 @@ func (q *Queries) GetUserByApiKey(ctx context.Context, apiKey string) (User, err
 	return i, err
 }
 
-const getVolumeIdentifier = `-- name: GetVolumeIdentifier :one
-SELECT
-  identifier
-FROM
-  volumes
-WHERE
-  volume_name = $1
-  AND project_id = $2
-  AND project_branch = $3
-`
-
-type GetVolumeIdentifierParams struct {
-	VolumeName    string
-	ProjectID     uuid.UUID
-	ProjectBranch string
-}
-
-func (q *Queries) GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifierParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, getVolumeIdentifier, arg.VolumeName, arg.ProjectID, arg.ProjectBranch)
-	var identifier uuid.UUID
-	err := row.Scan(&identifier)
-	return identifier, err
-}
-
 const isUserInProject = `-- name: IsUserInProject :one
 SELECT
   EXISTS (
@@ -584,44 +566,44 @@ func (q *Queries) IsUserInProject(ctx context.Context, arg IsUserInProjectParams
 	return exists, err
 }
 
-const setServiceIngress = `-- name: SetServiceIngress :exec
+const setKubernetesServiceIngress = `-- name: SetKubernetesServiceIngress :exec
 UPDATE
-  services
+  kubernetes_services
 SET
   ingress = $2
 WHERE
   id = $1
 RETURNING
-  id, project_id, project_branch, service_name, node_ports, ingress
+  id, project_id, project_branch, service_name, runtime, node_ports, ingress
 `
 
-type SetServiceIngressParams struct {
+type SetKubernetesServiceIngressParams struct {
 	ID      uuid.UUID
 	Ingress pgtype.Text
 }
 
-func (q *Queries) SetServiceIngress(ctx context.Context, arg SetServiceIngressParams) error {
-	_, err := q.db.Exec(ctx, setServiceIngress, arg.ID, arg.Ingress)
+func (q *Queries) SetKubernetesServiceIngress(ctx context.Context, arg SetKubernetesServiceIngressParams) error {
+	_, err := q.db.Exec(ctx, setKubernetesServiceIngress, arg.ID, arg.Ingress)
 	return err
 }
 
-const setServiceNodePorts = `-- name: SetServiceNodePorts :exec
+const setKubernetesServiceNodePorts = `-- name: SetKubernetesServiceNodePorts :exec
 UPDATE
-  services
+  kubernetes_services
 SET
   node_ports = $2
 WHERE
   id = $1
 RETURNING
-  id, project_id, project_branch, service_name, node_ports, ingress
+  id, project_id, project_branch, service_name, runtime, node_ports, ingress
 `
 
-type SetServiceNodePortsParams struct {
+type SetKubernetesServiceNodePortsParams struct {
 	ID        uuid.UUID
 	NodePorts []int32
 }
 
-func (q *Queries) SetServiceNodePorts(ctx context.Context, arg SetServiceNodePortsParams) error {
-	_, err := q.db.Exec(ctx, setServiceNodePorts, arg.ID, arg.NodePorts)
+func (q *Queries) SetKubernetesServiceNodePorts(ctx context.Context, arg SetKubernetesServiceNodePortsParams) error {
+	_, err := q.db.Exec(ctx, setKubernetesServiceNodePorts, arg.ID, arg.NodePorts)
 	return err
 }

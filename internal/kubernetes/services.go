@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
+	"nimbus/internal/config"
 	"nimbus/internal/database"
 	nimbusEnv "nimbus/internal/env"
-	"nimbus/internal/models"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 
@@ -22,7 +22,7 @@ const (
 )
 
 func GenerateServiceSpec(namespace string,
-	newService *models.Service, oldService *database.Service,
+	newService *config.Service, oldService *database.KubernetesService,
 ) (*corev1.Service, error) {
 	spec := corev1.ServiceSpec{
 		Selector: map[string]string{

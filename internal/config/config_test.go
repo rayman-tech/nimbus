@@ -10,7 +10,7 @@ func TestLoadConfig(t *testing.T) {
 		name      string
 		setup     func(*testing.T)
 		wantError bool
-		validate  func(*testing.T, *Config)
+		validate  func(*testing.T, *EnvConfig)
 	}{
 		{
 			name: "valid config - all fields filled",
@@ -25,7 +25,7 @@ func TestLoadConfig(t *testing.T) {
 				t.Setenv("DB_PASSWORD", "password")
 			},
 			wantError: false,
-			validate: func(t *testing.T, config *Config) {
+			validate: func(t *testing.T, config *EnvConfig) {
 				if config.Environment != "development" {
 					t.Errorf("expected Environment %s, got %s", "development", config.Environment)
 				}
@@ -64,7 +64,7 @@ func TestLoadConfig(t *testing.T) {
 				t.Setenv("DB_PASSWORD", "password")
 			},
 			wantError: false,
-			validate: func(t *testing.T, config *Config) {
+			validate: func(t *testing.T, config *EnvConfig) {
 				if config.Environment != "production" {
 					t.Errorf("expected Environment %s, got %s", "production", config.Environment)
 				}
@@ -80,7 +80,7 @@ func TestLoadConfig(t *testing.T) {
 				t.Setenv("DB_PASSWORD", "password")
 			},
 			wantError: false,
-			validate: func(t *testing.T, config *Config) {
+			validate: func(t *testing.T, config *EnvConfig) {
 				if config.Environment != "development" {
 					t.Errorf("expected default Environment %s, got %s", "development", config.Environment)
 				}
@@ -232,7 +232,7 @@ func TestLoadConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setup(t)
-			config, err := LoadConfig()
+			config, err := LoadEnvConfig()
 
 			if tt.wantError {
 				if err == nil {
@@ -385,7 +385,7 @@ func TestErrorMessages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setup(t)
-			_, err := LoadConfig()
+			_, err := LoadEnvConfig()
 
 			if err == nil {
 				t.Fatal("expected error, got nil")
@@ -500,7 +500,7 @@ func TestValidatePort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setup(t)
-			_, err := LoadConfig()
+			_, err := LoadEnvConfig()
 
 			if tt.wantError {
 				if err == nil {
