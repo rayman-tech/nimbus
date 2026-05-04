@@ -16,6 +16,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -116,5 +117,8 @@ func DeletePVC(ctx context.Context, namespace string, name string, env *env.Env)
 	client := getClient(env).CoreV1().PersistentVolumeClaims(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})
-	return err
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return err
+	}
+	return nil
 }

@@ -218,7 +218,7 @@ func DeleteDeployment(ctx context.Context, namespace, name string, env *nimbusEn
 	client := getClient(env).AppsV1().Deployments(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete deployment: %w", err)
 	}
 

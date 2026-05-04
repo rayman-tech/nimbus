@@ -99,6 +99,9 @@ func CreateIngress(
 func DeleteIngress(ctx context.Context, namespace, host string, env *env.Env) error {
 	ingresses, err := getClient(env).NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
 		return fmt.Errorf("listing ingress: %w", err)
 	}
 
@@ -107,7 +110,7 @@ func DeleteIngress(ctx context.Context, namespace, host string, env *env.Env) er
 			if rule.Host == host {
 				err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(
 					ctx, ingress.Name, metav1.DeleteOptions{})
-				if err != nil {
+				if err != nil && !errors.IsNotFound(err) {
 					return fmt.Errorf("deleting ingress %s: %w", ingress.Name, err)
 				}
 				return nil
@@ -115,7 +118,7 @@ func DeleteIngress(ctx context.Context, namespace, host string, env *env.Env) er
 		}
 	}
 
-	return fmt.Errorf("no ingress found with host %s", host)
+	return nil
 }
 
 func GenerateRandomChars() string {

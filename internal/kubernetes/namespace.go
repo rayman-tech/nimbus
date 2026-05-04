@@ -45,7 +45,7 @@ func ValidateNamespace(ctx context.Context, name string, env *nimbusEnv.Env) (cr
 
 func DeleteNamespace(ctx context.Context, name string, env *nimbusEnv.Env) error {
 	err := getClient(env).CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 	return nil
