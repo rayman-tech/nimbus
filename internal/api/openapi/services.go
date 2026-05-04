@@ -188,8 +188,9 @@ func (Server) GetServicesName(
 		slog.String("service", request.Name),
 		slog.String("project", project.Name))
 	svc, err := env.Database.GetServiceByName(ctx, database.GetServiceByNameParams{
-		ServiceName: request.Name,
-		ProjectID:   project.ID,
+		ServiceName:   request.Name,
+		ProjectID:     project.ID,
+		ProjectBranch: branch,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		env.Logger.ErrorContext(ctx, "service not found",
