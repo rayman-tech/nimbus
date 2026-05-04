@@ -269,7 +269,7 @@ func main() {
 				return err
 			}
 			defer func() { _ = resp.Body.Close() }()
-			if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
 			}
@@ -655,7 +655,7 @@ func main() {
 				return err
 			}
 			defer func() { _ = resp.Body.Close() }()
-			if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				data, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed: %s", string(data))
 			}
