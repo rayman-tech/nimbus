@@ -15,6 +15,7 @@ import (
 	"nimbus/internal/kubernetes"
 	"nimbus/internal/utils"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -60,7 +61,83 @@ func (Server) GetProjects(
 func (Server) PostProjects(
 	ctx context.Context, request PostProjectsRequestObject,
 ) (PostProjectsResponseObject, error) {
-	return PostProjects201JSONResponse{}, nil
+	env := env.FromContext(ctx)
+	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	user := database.UserFromContext(ctx)
+	if user == nil {
+		return PostProjects401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	if request.Body == nil || request.Body.Name == "" {
+		return PostProjects400JSONResponse{
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
+			Message: "project name is required",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Check if project already exists
+	_, err := env.Database.GetProjectByName(ctx, request.Body.Name)
+	if err == nil {
+		return PostProjects400JSONResponse{
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
+			Message: "project already exists",
+			ErrorId: requestid,
+		}, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		env.Logger.ErrorContext(ctx, "failed to check project existence", slog.Any("error", err))
+		return PostProjects500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Create the project
+	env.Logger.DebugContext(ctx, "creating project", slog.String("name", request.Body.Name))
+	projectID := uuid.New()
+	project, err := env.Database.CreateProject(ctx, database.CreateProjectParams{
+		ID:   projectID,
+		Name: request.Body.Name,
+	})
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to create project", slog.Any("error", err))
+		return PostProjects500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Add the creating user to the project
+	err = env.Database.AddUserToProject(ctx, database.AddUserToProjectParams{
+		UserID:    user.ID,
+		ProjectID: project.ID,
+	})
+	if err != nil {
+		env.Logger.ErrorContext(ctx, "failed to add user to project", slog.Any("error", err))
+		return PostProjects500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	return PostProjects201JSONResponse{
+		Id:   &project.ID,
+		Name: &project.Name,
+	}, nil
 }
 
 func (Server) DeleteProjectsName(
