@@ -128,7 +128,7 @@ func DeleteService(ctx context.Context, namespace, name string, env *nimbusEnv.E
 	client := getClient(env).CoreV1().Services(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete service: %w", err)
 	}
 
