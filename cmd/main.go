@@ -3,8 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,7 +21,6 @@ import (
 
 	"nimbus/internal/api"
 	"nimbus/internal/config"
-	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/kubernetes"
 	"nimbus/internal/logging"
@@ -32,7 +29,6 @@ import (
 
 	urllib "net/url"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -732,64 +728,6 @@ func main() {
 	// Users commands
 	userCmd := &cobra.Command{Use: "users", Short: "Manage users"}
 
-	userCreateCmd := &cobra.Command{
-		Use:   "create [username]",
-		Short: "Create a new user (requires direct DB access)",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			username := args[0]
-			if username == "" {
-				return fmt.Errorf("username is required")
-			}
-
-			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-			defer stop()
-
-			const setupTime = 30 * time.Second
-			setupCtx, cancel := context.WithTimeout(ctx, setupTime)
-			defer cancel()
-
-			cfg, err := config.Load()
-			if err != nil {
-				return fmt.Errorf("loading config: %w", err)
-			}
-
-			db, err := setup.Database(setupCtx, *cfg)
-			if err != nil {
-				return fmt.Errorf("setting up database: %w", err)
-			}
-
-			// Check if username already exists
-			_, err = db.GetUserByUsername(ctx, username)
-			if err == nil {
-				return fmt.Errorf("username %q already exists", username)
-			}
-
-			// Generate API key
-			const apiKeyBytes = 32
-			keyBytes := make([]byte, apiKeyBytes)
-			if _, err := rand.Read(keyBytes); err != nil {
-				return fmt.Errorf("generating api key: %w", err)
-			}
-			apiKey := hex.EncodeToString(keyBytes)
-
-			user, err := db.CreateUser(ctx, database.CreateUserParams{
-				ID:       uuid.New(),
-				Username: username,
-				ApiKey:   apiKey,
-			})
-			if err != nil {
-				return fmt.Errorf("creating user: %w", err)
-			}
-
-			fmt.Printf("User created!\n")
-			fmt.Printf("  Username: %s\n", user.Username)
-			fmt.Printf("  API Key:  %s\n", user.ApiKey)
-			fmt.Println("\nSave this API key - it cannot be retrieved again.")
-			return nil
-		},
-	}
-
 	userAddCmd := &cobra.Command{
 		Use:   "add [username]",
 		Short: "Add a user to a project",
@@ -832,7 +770,7 @@ func main() {
 		},
 	}
 	userAddCmd.Flags().String("project", "", "Project name")
-	userCmd.AddCommand(userCreateCmd, userAddCmd)
+	userCmd.AddCommand(userAddCmd)
 	addClientFlags(userAddCmd)
 
 	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd, branchCmd, secretsCmd, userCmd)
