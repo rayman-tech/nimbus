@@ -83,12 +83,16 @@ func (Server) GetServices(
 		} else {
 			status = ServiceListItemStatusUnknown
 		}
-		items = append(items, ServiceListItem{
+		item := ServiceListItem{
 			Project: &svc.ProjectName,
 			Branch:  &svc.ProjectBranch,
 			Name:    &svc.ServiceName,
 			Status:  &status,
-		})
+		}
+		if svc.CommitHash.Valid {
+			item.CommitHash = nullable.NewNullableWithValue(svc.CommitHash.String)
+		}
+		items = append(items, item)
 	}
 
 	return GetServices200JSONResponse{
@@ -234,6 +238,10 @@ func (Server) GetServicesName(
 
 	if svc.Ingress.Valid {
 		res.Ingress = nullable.NewNullableWithValue(svc.Ingress.String)
+	}
+
+	if svc.CommitHash.Valid {
+		res.CommitHash = nullable.NewNullableWithValue(svc.CommitHash.String)
 	}
 
 	return res, nil

@@ -36,6 +36,7 @@ type Querier interface {
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetVolumeIdentifier(ctx context.Context, arg GetVolumeIdentifierParams) (uuid.UUID, error)
 	IsUserInProject(ctx context.Context, arg IsUserInProjectParams) (bool, error)
+	SetServiceCommitHash(ctx context.Context, arg SetServiceCommitHashParams) error
 	SetServiceIngress(ctx context.Context, arg SetServiceIngressParams) error
 	SetServiceNodePorts(ctx context.Context, arg SetServiceNodePortsParams) error
 }

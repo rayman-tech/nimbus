@@ -97,6 +97,9 @@ type ServiceDetail struct {
 	// Branch The branch name
 	Branch *string `json:"branch,omitempty"`
 
+	// CommitHash The git commit hash of the current deployment
+	CommitHash nullable.Nullable[string] `json:"commit_hash,omitempty"`
+
 	// Ingress The ingress hostname (if applicable)
 	Ingress nullable.Nullable[string] `json:"ingress,omitempty"`
 
@@ -120,6 +123,9 @@ type ServiceDetail struct {
 type ServiceListItem struct {
 	// Branch The branch name
 	Branch *string `json:"branch,omitempty"`
+
+	// CommitHash The git commit hash of the current deployment
+	CommitHash nullable.Nullable[string] `json:"commit_hash,omitempty"`
 
 	// Name The service name
 	Name *string `json:"name,omitempty"`
@@ -150,6 +156,9 @@ type DeleteBranchParams struct {
 type PostDeployMultipartBody struct {
 	// Branch The branch name to deploy (defaults to 'main')
 	Branch *string `json:"branch,omitempty"`
+
+	// Commit The git commit hash for this deployment
+	Commit *string `json:"commit,omitempty"`
 
 	// File The nimbus.yaml configuration file
 	File openapi_types.File `json:"file"`

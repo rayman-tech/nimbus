@@ -10,6 +10,7 @@ CREATE TABLE services (
   service_name text NOT NULL,
   node_ports integer[] NULL,
   ingress text NULL,
+  commit_hash text NULL,
   FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
   UNIQUE (project_id, project_branch, service_name)
 );

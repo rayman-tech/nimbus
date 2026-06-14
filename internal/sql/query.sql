@@ -38,8 +38,8 @@ ORDER BY
   service_name;
 
 -- name: CreateService :one
-INSERT INTO services (id, project_id, project_branch, service_name, node_ports, ingress)
-  VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO services (id, project_id, project_branch, service_name, node_ports, ingress, commit_hash)
+  VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING
   *;
 
@@ -52,6 +52,16 @@ WHERE service_name = $1
 -- name: DeleteServiceById :exec
 DELETE FROM services
 WHERE id = $1;
+
+-- name: SetServiceCommitHash :exec
+UPDATE
+  services
+SET
+  commit_hash = $2
+WHERE
+  id = $1
+RETURNING
+  *;
 
 -- name: SetServiceNodePorts :exec
 UPDATE

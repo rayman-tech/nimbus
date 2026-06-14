@@ -89,6 +89,10 @@ paths:
                   type: string
                   description: The branch name to deploy (defaults to 'main')
                   example: main
+                commit:
+                  type: string
+                  description: The git commit hash for this deployment
+                  example: abc123def456
 
       responses:
         "200":
@@ -735,11 +739,16 @@ components:
             - Succeeded
             - Failed
             - Unknown
+        commit_hash:
+          type: string
+          nullable: true
+          description: The git commit hash of the current deployment
       example:
         project: my-app
         branch: main
         name: web
         status: Running
+        commit_hash: abc123def456
 
     PodStatus:
       type: object
@@ -782,6 +791,10 @@ components:
           type: string
           nullable: true
           description: The ingress hostname (if applicable)
+        commit_hash:
+          type: string
+          nullable: true
+          description: The git commit hash of the current deployment
         pod_statuses:
           type: array
           items:
@@ -796,6 +809,7 @@ components:
         name: web
         nodePorts: [30001, 30002]
         ingress: web.example.com
+        commit_hash: abc123def456
         pods:
           - name: web-deployment-abc123
             phase: Running

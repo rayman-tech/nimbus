@@ -57,6 +57,7 @@ type DeployRequest struct {
 	Namespace        string
 	ProjectID        uuid.UUID
 	BranchName       string
+	CommitHash       string
 	ProjectConfig    Config
 	FileContent      []byte
 	ExistingServices []database.Service
