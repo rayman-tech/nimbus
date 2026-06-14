@@ -10,6 +10,7 @@ import (
 
 	"nimbus/internal/config"
 	"nimbus/internal/models"
+	"nimbus/internal/utils"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 
@@ -28,14 +29,18 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 	// 1. If a custom ingress domain is specified and we're on main/master, use it
 	// 2. If an existing ingress host is already assigned, preserve it
 	// 3. Otherwise generate a random subdomain
-	isMainBranch := branch == "main" || branch == "master"
+	isMainBranch := utils.IsMainBranch(branch)
 	var host string
 	if service.Ingress != "" && isMainBranch {
 		host = service.Ingress
 	} else if existingIngress != nil {
 		host = *existingIngress
 	} else {
-		host = fmt.Sprintf("%s.%s", GenerateRandomChars(), cfg.Domain)
+		randChars, err := GenerateRandomChars()
+		if err != nil {
+			return nil, err
+		}
+		host = fmt.Sprintf("%s.%s", randChars, cfg.Domain)
 	}
 
 	spec := networkingv1.IngressSpec{
@@ -94,7 +99,7 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 func CreateIngress(
 	ctx context.Context, namespace string, ingress *networkingv1.Ingress, cfg *config.Config,
 ) (*networkingv1.Ingress, error) {
-	_, err := getClient(cfg).NetworkingV1().Ingresses(namespace).Create(
+	_, err := getClient().NetworkingV1().Ingresses(namespace).Create(
 		ctx, ingress, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
 		return ingress, nil
@@ -106,7 +111,7 @@ func CreateIngress(
 }
 
 func DeleteIngress(ctx context.Context, namespace, host string, cfg *config.Config) error {
-	ingresses, err := getClient(cfg).NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
+	ingresses, err := getClient().NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil
@@ -117,7 +122,7 @@ func DeleteIngress(ctx context.Context, namespace, host string, cfg *config.Conf
 	for _, ingress := range ingresses.Items {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == host {
-				err := getClient(cfg).NetworkingV1().Ingresses(namespace).Delete(
+				err := getClient().NetworkingV1().Ingresses(namespace).Delete(
 					ctx, ingress.Name, metav1.DeleteOptions{})
 				if err != nil && !errors.IsNotFound(err) {
 					return fmt.Errorf("deleting ingress %s: %w", ingress.Name, err)
@@ -130,14 +135,12 @@ func DeleteIngress(ctx context.Context, namespace, host string, cfg *config.Conf
 	return nil
 }
 
-func GenerateRandomChars() string {
+func GenerateRandomChars() (string, error) {
 	const numBytes = 8
 	randBytes := make([]byte, numBytes)
 	_, err := rand.Read(randBytes)
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("generating random chars: %w", err)
 	}
-	randomString := hex.EncodeToString(randBytes)
-
-	return randomString
+	return hex.EncodeToString(randBytes), nil
 }

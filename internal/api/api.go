@@ -2,9 +2,11 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"nimbus/docs"
 	"nimbus/internal/api/middleware"
@@ -20,7 +22,7 @@ import (
 	oapimw "github.com/oapi-codegen/nethttp-middleware"
 )
 
-func Start(port string, env *env.Env) error {
+func Start(ctx context.Context, port string, env *env.Env) error {
 	server := openapi.NewServer()
 	spec, err := docs.Docs.ReadFile("api.yaml")
 	if err != nil {
@@ -67,6 +69,20 @@ func Start(port string, env *env.Env) error {
 		Addr:    "0.0.0.0:" + port,
 	}
 
-	slog.Info("server listening", "address", "0.0.0.0:"+port)
-	return s.ListenAndServe()
+	errCh := make(chan error, 1)
+	go func() {
+		slog.Info("server listening", "address", s.Addr)
+		errCh <- s.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		slog.Info("shutting down server")
+		const shutdownTimeout = 10 * time.Second
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		return s.Shutdown(shutdownCtx)
+	}
 }

@@ -96,7 +96,7 @@ func GenerateServiceSpec(namespace string,
 func CreateService(
 	ctx context.Context, namespace string, service *corev1.Service, cfg *config.Config,
 ) (*corev1.Service, error) {
-	client := getClient(cfg).CoreV1().Services(namespace)
+	client := getClient().CoreV1().Services(namespace)
 
 	existing, err := client.Get(ctx, service.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -125,7 +125,7 @@ func CreateService(
 }
 
 func DeleteService(ctx context.Context, namespace, name string, cfg *config.Config) error {
-	client := getClient(cfg).CoreV1().Services(namespace)
+	client := getClient().CoreV1().Services(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {

@@ -186,7 +186,7 @@ func GenerateDeploymentSpec(
 func CreateDeployment(
 	ctx context.Context, namespace string, deployment *appsv1.Deployment, cfg *config.Config,
 ) (*appsv1.Deployment, error) {
-	client := getClient(cfg).AppsV1().Deployments(namespace)
+	client := getClient().AppsV1().Deployments(namespace)
 
 	existing, err := client.Get(ctx, deployment.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -216,7 +216,7 @@ func CreateDeployment(
 }
 
 func DeleteDeployment(ctx context.Context, namespace, name string, cfg *config.Config) error {
-	client := getClient(cfg).AppsV1().Deployments(namespace)
+	client := getClient().AppsV1().Deployments(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {

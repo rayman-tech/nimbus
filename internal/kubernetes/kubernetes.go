@@ -1,11 +1,10 @@
 package kubernetes
 
 import (
-	"log"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"nimbus/internal/config"
 
@@ -14,39 +13,37 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-var (
-	client *kubernetes.Clientset
-	once   sync.Once
-)
+var client *kubernetes.Clientset
 
-func getClient(cfg *config.Config) *kubernetes.Clientset {
-	once.Do(func() {
-		var config *rest.Config
-		var err error
-		if cfg.Environment == "production" {
-			slog.Debug("Using in-cluster kubeconfig")
-			config, err = rest.InClusterConfig()
-			if err != nil {
-				log.Fatalf("Failed to load in-cluster config: %v", err)
-			}
-		} else {
-			slog.Debug("Using local kubeconfig")
-			home, err := os.UserHomeDir()
-			if err != nil {
-				log.Fatalf("Failed to get home directory: %v", err)
-			}
-			kubeconfig := filepath.Join(home, ".kube", "config")
-			config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-			if err != nil {
-				log.Fatalf("Failed to load local config: %v", err)
-			}
-		}
-
-		client, err = kubernetes.NewForConfig(config)
+func InitClient(cfg *config.Config) error {
+	var restConfig *rest.Config
+	var err error
+	if cfg.Environment == "production" {
+		slog.Debug("Using in-cluster kubeconfig")
+		restConfig, err = rest.InClusterConfig()
 		if err != nil {
-			log.Fatalf("Failed to create Kubernetes client: %v", err)
+			return fmt.Errorf("loading in-cluster config: %w", err)
 		}
-	})
+	} else {
+		slog.Debug("Using local kubeconfig")
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("getting home directory: %w", err)
+		}
+		kubeconfig := filepath.Join(home, ".kube", "config")
+		restConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			return fmt.Errorf("loading local kubeconfig: %w", err)
+		}
+	}
 
+	client, err = kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("creating kubernetes client: %w", err)
+	}
+	return nil
+}
+
+func getClient() *kubernetes.Clientset {
 	return client
 }

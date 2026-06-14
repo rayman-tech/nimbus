@@ -13,7 +13,7 @@ import (
 )
 
 func GetSecret(ctx context.Context, namespace string, cfg *config.Config) (*corev1.Secret, error) {
-	client := getClient(cfg).CoreV1().Secrets(namespace)
+	client := getClient().CoreV1().Secrets(namespace)
 	secret, err := client.Get(ctx, fmt.Sprintf("%s-env", namespace), metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func UpdateSecret(ctx context.Context, namespace, name string, data map[string]s
 		return fmt.Errorf("validating namespace %s: %w", namespace, err)
 	}
 
-	client := getClient(cfg).CoreV1().Secrets(namespace)
+	client := getClient().CoreV1().Secrets(namespace)
 	var secret *corev1.Secret
 	secret, err = client.Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {

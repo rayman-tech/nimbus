@@ -13,11 +13,11 @@ import (
 )
 
 func GetNamespace(ctx context.Context, name string, cfg *config.Config) (*corev1.Namespace, error) {
-	return getClient(cfg).CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
+	return getClient().CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 }
 
 func CreateNamespace(ctx context.Context, name string, cfg *config.Config) error {
-	_, err := getClient(cfg).CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, err := getClient().CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
@@ -45,7 +45,7 @@ func ValidateNamespace(ctx context.Context, name string, cfg *config.Config) (cr
 }
 
 func DeleteNamespace(ctx context.Context, name string, cfg *config.Config) error {
-	err := getClient(cfg).CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
+	err := getClient().CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}

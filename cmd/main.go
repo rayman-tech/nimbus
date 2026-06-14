@@ -25,8 +25,10 @@ import (
 	"nimbus/internal/config"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
+	"nimbus/internal/kubernetes"
 	"nimbus/internal/logging"
 	"nimbus/internal/setup"
+	"nimbus/internal/utils"
 
 	urllib "net/url"
 
@@ -63,7 +65,12 @@ func main() {
 				return fmt.Errorf("setting up database: %w", err)
 			}
 
-			return api.Start(port, &env.Env{
+			slog.Info("initializing kubernetes client")
+			if err := kubernetes.InitClient(cfg); err != nil {
+				return fmt.Errorf("initializing kubernetes client: %w", err)
+			}
+
+			return api.Start(ctx, port, &env.Env{
 				Database: db,
 				Config:   cfg,
 			})
@@ -208,7 +215,10 @@ func main() {
 			if err != nil {
 				return fmt.Errorf("marshaling body: %w", err)
 			}
-			req, _ := http.NewRequest("POST", host+"/projects", bytes.NewBuffer(body))
+			req, err := http.NewRequest("POST", host+"/projects", bytes.NewBuffer(body))
+			if err != nil {
+				return err
+			}
 			req.Header.Set("Content-Type", "application/json")
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
@@ -233,7 +243,10 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := getHost(cmd)
 			apiKey := getAPIKey(cmd)
-			req, _ := http.NewRequest("GET", host+"/projects", nil)
+			req, err := http.NewRequest("GET", host+"/projects", nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -265,7 +278,10 @@ func main() {
 			host := getHost(cmd)
 			apiKey := getAPIKey(cmd)
 			url := fmt.Sprintf("%s/projects/%s", host, args[0])
-			req, _ := http.NewRequest("DELETE", url, nil)
+			req, err := http.NewRequest("DELETE", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -292,7 +308,10 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := getHost(cmd)
 			apiKey := getAPIKey(cmd)
-			req, _ := http.NewRequest("GET", host+"/services", nil)
+			req, err := http.NewRequest("GET", host+"/services", nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -339,8 +358,8 @@ func main() {
 				}
 				sort.SliceStable(branches, func(i, j int) bool {
 					a, b := branches[i], branches[j]
-					isMainA := a == "main" || a == "master"
-					isMainB := b == "main" || b == "master"
+					isMainA := utils.IsMainBranch(a)
+					isMainB := utils.IsMainBranch(b)
 					if isMainA && !isMainB {
 						return true
 					}
@@ -372,10 +391,13 @@ func main() {
 			project, _ := cmd.Flags().GetString("project")
 			branch, _ := cmd.Flags().GetString("branch")
 			if branch == "" {
-				branch = "main"
+				branch = utils.DefaultBranch
 			}
 			url := fmt.Sprintf("%s/services/%s?project=%s&branch=%s", host, args[0], project, branch)
-			req, _ := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -457,10 +479,13 @@ func main() {
 			project, _ := cmd.Flags().GetString("project")
 			branch, _ := cmd.Flags().GetString("branch")
 			if branch == "" {
-				branch = "main"
+				branch = utils.DefaultBranch
 			}
 			url := fmt.Sprintf("%s/services/%s/logs?project=%s&branch=%s", host, args[0], project, branch)
-			req, _ := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -492,7 +517,10 @@ func main() {
 			apiKey := getAPIKey(cmd)
 			project, _ := cmd.Flags().GetString("project")
 			url := fmt.Sprintf("%s/projects/%s/secrets", host, project)
-			req, _ := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -533,7 +561,10 @@ func main() {
 				return fmt.Errorf("project not specified")
 			}
 			url := fmt.Sprintf("%s/projects/%s/secrets?values=true", host, project)
-			req, _ := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -602,7 +633,10 @@ func main() {
 			if err != nil {
 				return fmt.Errorf("marshaling body: %w", err)
 			}
-			req2, _ := http.NewRequest("PUT", fmt.Sprintf("%s/projects/%s/secrets", host, project), bytes.NewBuffer(body))
+			req2, err := http.NewRequest("PUT", fmt.Sprintf("%s/projects/%s/secrets", host, project), bytes.NewBuffer(body))
+			if err != nil {
+				return err
+			}
 			req2.Header.Set("Content-Type", "application/json")
 			if apiKey != "" {
 				req2.Header.Set("X-API-Key", apiKey)
@@ -638,7 +672,10 @@ func main() {
 				return fmt.Errorf("project and branch are required")
 			}
 			url := fmt.Sprintf("%s/branch?project=%s&branch=%s", host, project, branch)
-			req, _ := http.NewRequest("DELETE", url, nil)
+			req, err := http.NewRequest("DELETE", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -738,7 +775,10 @@ func main() {
 				return fmt.Errorf("marshaling body: %w", err)
 			}
 			url := fmt.Sprintf("%s/projects/%s/members", host, project)
-			req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
+			req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+			if err != nil {
+				return err
+			}
 			req.Header.Set("Content-Type", "application/json")
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)

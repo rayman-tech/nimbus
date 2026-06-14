@@ -34,6 +34,9 @@ func Database(ctx context.Context, config config.Config) (*database.Database, er
 	if err != nil {
 		return nil, fmt.Errorf("connecting to db: %w", err)
 	}
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("pinging db: %w", err)
+	}
 	db := database.NewDatabase(pool)
 
 	// Apply schema

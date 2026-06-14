@@ -59,15 +59,10 @@ func (Server) GetServices(
 	ctx context.Context, request GetServicesRequestObject,
 ) (GetServicesResponseObject, error) {
 	env := env.FromContext(ctx)
-	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	rid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
 	if user == nil {
-		return GetServices401JSONResponse{
-			Status:  apierror.InvalidAPIKey.Status(),
-			Code:    apierror.InvalidAPIKey.String(),
-			Message: "authentication required",
-			ErrorId: requestid,
-		}, nil
+		return GetServices401JSONResponse(authError(rid)), nil
 	}
 
 	services, err := env.Database.GetServicesByUser(ctx, user.ID)
@@ -75,12 +70,7 @@ func (Server) GetServices(
 		slog.ErrorContext(ctx, "failed to get services",
 			"user_id", user.ID.String(),
 			"error", err)
-		return GetServices500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestid,
-		}, nil
+		return GetServices500JSONResponse(internalError(rid)), nil
 	}
 
 	items := make([]ServiceListItem, 0, len(services))
@@ -110,22 +100,17 @@ func (Server) GetServicesName(
 	ctx context.Context, request GetServicesNameRequestObject,
 ) (GetServicesNameResponseObject, error) {
 	env := env.FromContext(ctx)
-	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	rid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
 	if user == nil {
-		return GetServicesName401JSONResponse{
-			Status:  apierror.InvalidAPIKey.Status(),
-			Code:    apierror.InvalidAPIKey.String(),
-			Message: "authentication required",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesName401JSONResponse(authError(rid)), nil
 	}
 
 	var branch string
 	if request.Params.Branch != nil {
 		branch = *request.Params.Branch
 	} else {
-		branch = "main"
+		branch = utils.DefaultBranch
 	}
 
 	// Get project
@@ -140,19 +125,14 @@ func (Server) GetServicesName(
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
 			Message: "project not found",
-			ErrorId: requestid,
+			ErrorId: rid,
 		}, nil
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get project by name",
 			"name", request.Params.Project,
 			"error", err)
-		return GetServicesName500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesName500JSONResponse(internalError(rid)), nil
 	}
 
 	// Check permissions
@@ -166,21 +146,11 @@ func (Server) GetServicesName(
 		slog.ErrorContext(ctx, "failed to check user permissions",
 			"project", project.Name,
 			"error", err)
-		return GetServicesName500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesName500JSONResponse(internalError(rid)), nil
 	}
 	if !authorized {
 		slog.ErrorContext(ctx, "insufficient permissions")
-		return GetServicesName403JSONResponse{
-			Status:  apierror.InsufficientPermissions.Status(),
-			Code:    apierror.InsufficientPermissions.String(),
-			Message: "user does not have permissions to view services",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesName403JSONResponse(forbiddenError(rid, "user does not have permissions to view services")), nil
 	}
 
 	// Get service
@@ -201,7 +171,7 @@ func (Server) GetServicesName(
 			Status:  apierror.ServiceNotFound.Status(),
 			Code:    apierror.ServiceNotFound.String(),
 			Message: "service not found",
-			ErrorId: requestid,
+			ErrorId: rid,
 		}, nil
 	}
 	if err != nil {
@@ -209,12 +179,7 @@ func (Server) GetServicesName(
 			"service", request.Name,
 			"project", project.Name,
 			"error", err)
-		return GetServicesName500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesName500JSONResponse(internalError(rid)), nil
 	}
 
 	// Get pods
@@ -225,12 +190,7 @@ func (Server) GetServicesName(
 			"service", request.Name,
 			"namespace", namespace,
 			"error", err)
-		return GetServicesName500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesName500JSONResponse(internalError(rid)), nil
 	}
 
 	var logs string
@@ -242,12 +202,7 @@ func (Server) GetServicesName(
 				"service", request.Name,
 				"pod", pods[0].Name,
 				"error", err)
-			return GetServicesName500JSONResponse{
-				Status:  apierror.InternalServerError.Status(),
-				Code:    apierror.InternalServerError.String(),
-				Message: "Internal Server Error",
-				ErrorId: requestid,
-			}, nil
+			return GetServicesName500JSONResponse(internalError(rid)), nil
 		}
 		logs = string(data)
 	}
@@ -288,22 +243,17 @@ func (Server) GetServicesNameLogs(
 	ctx context.Context, request GetServicesNameLogsRequestObject,
 ) (GetServicesNameLogsResponseObject, error) {
 	env := env.FromContext(ctx)
-	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	rid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 	user := database.UserFromContext(ctx)
 	if user == nil {
-		return GetServicesNameLogs401JSONResponse{
-			Status:  apierror.InvalidAPIKey.Status(),
-			Code:    apierror.InvalidAPIKey.String(),
-			Message: "authentication required",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesNameLogs401JSONResponse(authError(rid)), nil
 	}
 
 	var branch string
 	if request.Params.Branch != nil {
 		branch = *request.Params.Branch
 	} else {
-		branch = "main"
+		branch = utils.DefaultBranch
 	}
 
 	// Get project
@@ -318,19 +268,14 @@ func (Server) GetServicesNameLogs(
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
 			Message: "project not found",
-			ErrorId: requestid,
+			ErrorId: rid,
 		}, nil
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get project by name",
 			"name", request.Params.Project,
 			"error", err)
-		return GetServicesNameLogs500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesNameLogs500JSONResponse(internalError(rid)), nil
 	}
 
 	// Check permissions
@@ -344,22 +289,12 @@ func (Server) GetServicesNameLogs(
 		slog.ErrorContext(ctx, "failed to check user permissions",
 			"project", project.Name,
 			"error", err)
-		return GetServicesNameLogs500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesNameLogs500JSONResponse(internalError(rid)), nil
 	}
 	if !authorized {
 		slog.ErrorContext(ctx, "insufficient permissions",
 			"project", project.Name)
-		return GetServicesNameLogs403JSONResponse{
-			Status:  apierror.InsufficientPermissions.Status(),
-			Code:    apierror.InsufficientPermissions.String(),
-			Message: "user does not have permissions to view services",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesNameLogs403JSONResponse(forbiddenError(rid, "user does not have permissions to view services")), nil
 	}
 
 	// Stream logs
@@ -370,12 +305,7 @@ func (Server) GetServicesNameLogs(
 			"service", request.Name,
 			"namespace", namespace,
 			"error", err)
-		return GetServicesNameLogs500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestid,
-		}, nil
+		return GetServicesNameLogs500JSONResponse(internalError(rid)), nil
 	}
 
 	return StreamingLogsResponse{stream: stream}, nil

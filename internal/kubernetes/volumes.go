@@ -84,14 +84,14 @@ func GetVolumeIdentifiers(
 }
 
 func CheckPVC(ctx context.Context, namespace string, name string, cfg *config.Config) bool {
-	client := getClient(cfg).CoreV1().PersistentVolumeClaims(namespace)
+	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
 
 	_, err := client.Get(ctx, name, metav1.GetOptions{})
 	return err == nil
 }
 
 func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size int32, cfg *config.Config) error {
-	client := getClient(cfg).CoreV1().PersistentVolumeClaims(namespace)
+	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
 
 	_, err := client.Create(ctx, &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -115,7 +115,7 @@ func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size
 }
 
 func DeletePVC(ctx context.Context, namespace string, name string, cfg *config.Config) error {
-	client := getClient(cfg).CoreV1().PersistentVolumeClaims(namespace)
+	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
