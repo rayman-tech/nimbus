@@ -76,7 +76,7 @@ func (Server) GetServices(
 	items := make([]ServiceListItem, 0, len(services))
 	for _, svc := range services {
 		namespace := utils.GetSanitizedNamespace(svc.ProjectName, svc.ProjectBranch)
-		pods, err := kubernetes.GetPods(ctx, namespace, svc.ServiceName, env.Config)
+		pods, err := kubernetes.GetPods(ctx, namespace, svc.ServiceName)
 		var status ServiceListItemStatus
 		if err == nil && len(pods) > 0 {
 			status = ServiceListItemStatus(pods[0].Status.Phase)
@@ -184,7 +184,7 @@ func (Server) GetServicesName(
 
 	// Get pods
 	namespace := utils.GetSanitizedNamespace(project.Name, branch)
-	pods, err := kubernetes.GetPods(ctx, namespace, request.Name, env.Config)
+	pods, err := kubernetes.GetPods(ctx, namespace, request.Name)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get pods",
 			"service", request.Name,
@@ -196,7 +196,7 @@ func (Server) GetServicesName(
 	var logs string
 	const logLines = 20
 	if len(pods) > 0 {
-		data, err := kubernetes.GetPodLogsTail(ctx, namespace, pods[0].Name, logLines, env.Config)
+		data, err := kubernetes.GetPodLogsTail(ctx, namespace, pods[0].Name, logLines)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to get pod logs",
 				"service", request.Name,
@@ -299,7 +299,7 @@ func (Server) GetServicesNameLogs(
 
 	// Stream logs
 	namespace := utils.GetSanitizedNamespace(project.Name, branch)
-	stream, err := kubernetes.StreamServiceLogs(ctx, namespace, request.Name, env.Config)
+	stream, err := kubernetes.StreamServiceLogs(ctx, namespace, request.Name)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to stream logs",
 			"service", request.Name,

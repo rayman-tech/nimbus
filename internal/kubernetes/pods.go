@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io"
 
-	"nimbus/internal/config"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetPods(ctx context.Context, namespace, serviceName string, cfg *config.Config) ([]corev1.Pod, error) {
+func GetPods(ctx context.Context, namespace, serviceName string) ([]corev1.Pod, error) {
 	pods, err := getClient().CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "app=" + serviceName,
 	})
@@ -23,7 +21,7 @@ func GetPods(ctx context.Context, namespace, serviceName string, cfg *config.Con
 
 // StreamPodLogs streams logs for a specific pod within a namespace. The caller
 // should close the returned ReadCloser when finished.
-func StreamPodLogs(ctx context.Context, namespace, podName string, cfg *config.Config) (io.ReadCloser, error) {
+func StreamPodLogs(ctx context.Context, namespace, podName string) (io.ReadCloser, error) {
 	req := getClient().CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{Follow: true})
 	stream, err := req.Stream(ctx)
 	if err != nil {
@@ -34,8 +32,8 @@ func StreamPodLogs(ctx context.Context, namespace, podName string, cfg *config.C
 
 // StreamServiceLogs retrieves the first pod for the given service and streams
 // its logs. If no pods are found an error is returned.
-func StreamServiceLogs(ctx context.Context, namespace, serviceName string, cfg *config.Config) (io.ReadCloser, error) {
-	pods, err := GetPods(ctx, namespace, serviceName, cfg)
+func StreamServiceLogs(ctx context.Context, namespace, serviceName string) (io.ReadCloser, error) {
+	pods, err := GetPods(ctx, namespace, serviceName)
 	if err != nil {
 		return nil, err
 	}
@@ -54,39 +52,39 @@ func StreamServiceLogs(ctx context.Context, namespace, serviceName string, cfg *
 }
 
 // GetPodLogs retrieves the full logs for a given pod.
-func GetPodLogs(ctx context.Context, namespace, podName string, cfg *config.Config) ([]byte, error) {
+func GetPodLogs(ctx context.Context, namespace, podName string) ([]byte, error) {
 	req := getClient().CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{})
 	return req.Do(ctx).Raw()
 }
 
 // GetPodLogsTail retrieves the last n lines of logs for a given pod.
-func GetPodLogsTail(ctx context.Context, namespace, podName string, lines int64, cfg *config.Config) ([]byte, error) {
+func GetPodLogsTail(ctx context.Context, namespace, podName string, lines int64) ([]byte, error) {
 	req := getClient().CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{TailLines: &lines})
 	return req.Do(ctx).Raw()
 }
 
 // GetServiceLogs retrieves the full logs for the first pod of the service.
-func GetServiceLogs(ctx context.Context, namespace, serviceName string, cfg *config.Config) ([]byte, error) {
-	pods, err := GetPods(ctx, namespace, serviceName, cfg)
+func GetServiceLogs(ctx context.Context, namespace, serviceName string) ([]byte, error) {
+	pods, err := GetPods(ctx, namespace, serviceName)
 	if err != nil {
 		return nil, err
 	}
 	if len(pods) == 0 {
 		return nil, fmt.Errorf("no pods found for service %s", serviceName)
 	}
-	return GetPodLogs(ctx, namespace, pods[0].Name, cfg)
+	return GetPodLogs(ctx, namespace, pods[0].Name)
 }
 
 // GetServiceLogsTail retrieves the last n lines of logs for the first pod of the service.
 func GetServiceLogsTail(
-	ctx context.Context, namespace, serviceName string, lines int64, cfg *config.Config,
+	ctx context.Context, namespace, serviceName string, lines int64,
 ) ([]byte, error) {
-	pods, err := GetPods(ctx, namespace, serviceName, cfg)
+	pods, err := GetPods(ctx, namespace, serviceName)
 	if err != nil {
 		return nil, err
 	}
 	if len(pods) == 0 {
 		return nil, fmt.Errorf("no pods found for service %s", serviceName)
 	}
-	return GetPodLogsTail(ctx, namespace, pods[0].Name, lines, cfg)
+	return GetPodLogsTail(ctx, namespace, pods[0].Name, lines)
 }

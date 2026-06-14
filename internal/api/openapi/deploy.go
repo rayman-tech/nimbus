@@ -202,7 +202,7 @@ func parseDeployForm(
 	// Apply project secrets
 	slog.DebugContext(ctx, "applying project secrets",
 		"project", project.Name)
-	secrets, err := kubernetes.GetSecretValues(ctx, project.Name, env.Config)
+	secrets, err := kubernetes.GetSecretValues(ctx, project.Name)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get secret values",
 			"project", project.Name,
@@ -226,7 +226,7 @@ func parseDeployForm(
 	deployRequest.Namespace = utils.GetSanitizedNamespace(
 		project.Name, deployRequest.BranchName)
 	slog.DebugContext(ctx, "validating namespace", "namespace", deployRequest.Namespace)
-	created, err := kubernetes.ValidateNamespace(ctx, deployRequest.Namespace, env.Config)
+	created, err := kubernetes.ValidateNamespace(ctx, deployRequest.Namespace)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to validate namespace",
 			"namespace", deployRequest.Namespace,
@@ -235,7 +235,7 @@ func parseDeployForm(
 	}
 	if created && !utils.IsMainBranch(deployRequest.BranchName) {
 		mainNS := utils.GetSanitizedNamespace(config.AppName, utils.DefaultBranch)
-		vals, err := kubernetes.GetSecretValues(ctx, mainNS, env.Config)
+		vals, err := kubernetes.GetSecretValues(ctx, mainNS)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to get secret values",
 				"namespace", mainNS,
@@ -246,7 +246,7 @@ func parseDeployForm(
 		if len(vals) > 0 {
 			err = kubernetes.UpdateSecret(
 				ctx, deployRequest.Namespace, fmt.Sprintf("%s-env", config.AppName),
-				vals, env.Config)
+				vals)
 			if err != nil {
 				slog.ErrorContext(ctx, "failed to update secrets",
 					"namespace", deployRequest.Namespace,
@@ -273,7 +273,7 @@ func deployService(
 	if err != nil {
 		return nil, fmt.Errorf("generating deployment spec for %s: %w", serviceConfig.Name, err)
 	}
-	_, err = kubernetes.CreateDeployment(ctx, deployRequest.Namespace, deploymentSpec, env.Config)
+	_, err = kubernetes.CreateDeployment(ctx, deployRequest.Namespace, deploymentSpec)
 	if err != nil {
 		return nil, fmt.Errorf("creating deployment for %s: %w", serviceConfig.Name, err)
 	}
@@ -286,7 +286,7 @@ func deployService(
 		if err != nil {
 			return nil, fmt.Errorf("generating service spec for %s: %w", serviceConfig.Name, err)
 		}
-		kubeSvc, err = kubernetes.CreateService(ctx, deployRequest.Namespace, serviceSpec, env.Config)
+		kubeSvc, err = kubernetes.CreateService(ctx, deployRequest.Namespace, serviceSpec)
 		if err != nil {
 			return nil, fmt.Errorf("creating service for %s: %w", serviceConfig.Name, err)
 		}
@@ -337,7 +337,7 @@ func deployService(
 				slog.DebugContext(ctx, "removing existing ingress",
 					"service", serviceConfig.Name,
 					"ingress", *existingIngress)
-				if err := kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress, env.Config); err != nil {
+				if err := kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress); err != nil {
 					slog.ErrorContext(ctx, "failed to delete ingress",
 						"service", serviceConfig.Name,
 						"ingress", *existingIngress,
@@ -386,7 +386,7 @@ func deployService(
 				slog.DebugContext(ctx, "deleting existing ingress for private service",
 					"service", serviceConfig.Name,
 					"ingress", *existingIngress)
-				if err := kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress, env.Config); err != nil {
+				if err := kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress); err != nil {
 					slog.ErrorContext(ctx, "failed to delete ingress",
 						"service", serviceConfig.Name,
 						"ingress", *existingIngress,
@@ -408,7 +408,7 @@ func deployService(
 		if err != nil {
 			return nil, fmt.Errorf("generating ingress spec for %s: %w", serviceConfig.Name, err)
 		}
-		newIngress, err := kubernetes.CreateIngress(ctx, deployRequest.Namespace, ingressSpec, env.Config)
+		newIngress, err := kubernetes.CreateIngress(ctx, deployRequest.Namespace, ingressSpec)
 		if err != nil {
 			return nil, fmt.Errorf("creating ingress for %s: %w", serviceConfig.Name, err)
 		}
@@ -471,7 +471,7 @@ func (Server) PostDeploy(
 	}
 
 	// Delete stale services (k8s errors logged, not fatal)
-	if err := deleteStaleServices(ctx, deployRequest.Namespace, existingServices, serviceNames, env.Config, env.Database); err != nil {
+	if err := deleteStaleServices(ctx, deployRequest.Namespace, existingServices, serviceNames, env.Database); err != nil {
 		slog.ErrorContext(ctx, "failed to delete stale services", "error", err)
 		return PostDeploy500JSONResponse(internalError(rid)), nil
 	}

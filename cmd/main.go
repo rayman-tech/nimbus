@@ -210,7 +210,9 @@ func main() {
 			apiKey := getAPIKey(cmd)
 			fmt.Print("Project name: ")
 			var name string
-			_, _ = fmt.Scanln(&name)
+			if _, err := fmt.Scanln(&name); err != nil {
+				return fmt.Errorf("reading project name: %w", err)
+			}
 			body, err := json.Marshal(map[string]string{"name": name})
 			if err != nil {
 				return fmt.Errorf("marshaling body: %w", err)
@@ -229,7 +231,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusCreated {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Println("Project created!")
@@ -256,7 +261,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Projects []struct{ Name string } }
@@ -291,7 +299,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Println("Project deleted!")
@@ -321,7 +332,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct {
@@ -407,7 +421,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct {
@@ -495,7 +512,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			_, err = io.Copy(os.Stdout, resp.Body)
@@ -530,7 +550,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Secrets []string }
@@ -574,7 +597,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Secrets map[string]string }
@@ -647,7 +673,10 @@ func main() {
 			}
 			defer func() { _ = resp2.Body.Close() }()
 			if resp2.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp2.Body)
+				data, err := io.ReadAll(resp2.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp2.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Println("Secrets updated!")
@@ -685,7 +714,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Println("Branch deleted!")
@@ -789,7 +821,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusCreated {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Printf("User %q added to project %q!\n", username, project)

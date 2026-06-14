@@ -6,10 +6,8 @@ import (
 	"log/slog"
 
 	apierror "nimbus/internal/api/error"
-	"nimbus/internal/config"
 	"nimbus/internal/database"
 	"nimbus/internal/kubernetes"
-	"nimbus/internal/utils"
 
 	"github.com/google/uuid"
 )
@@ -46,16 +44,16 @@ func forbiddenError(rid, msg string) Error {
 // fatal; a DB deletion error is returned.
 func deleteServiceResources(
 	ctx context.Context, namespace string, svc database.Service,
-	db database.Querier, cfg *config.Config,
+	db database.Querier,
 ) error {
-	if err := kubernetes.DeleteDeployment(ctx, namespace, svc.ServiceName, cfg); err != nil {
+	if err := kubernetes.DeleteDeployment(ctx, namespace, svc.ServiceName); err != nil {
 		slog.ErrorContext(ctx, "failed to delete deployment", "service", svc.ServiceName, "error", err)
 	}
-	if err := kubernetes.DeleteService(ctx, namespace, svc.ServiceName, cfg); err != nil {
+	if err := kubernetes.DeleteService(ctx, namespace, svc.ServiceName); err != nil {
 		slog.ErrorContext(ctx, "failed to delete service", "service", svc.ServiceName, "error", err)
 	}
 	if svc.Ingress.Valid {
-		if err := kubernetes.DeleteIngress(ctx, namespace, svc.Ingress.String, cfg); err != nil {
+		if err := kubernetes.DeleteIngress(ctx, namespace, svc.Ingress.String); err != nil {
 			slog.ErrorContext(ctx, "failed to delete ingress", "service", svc.ServiceName, "error", err)
 		}
 	}
@@ -69,7 +67,7 @@ func deleteServiceResources(
 // namespace for a project branch.
 func deleteBranchResources(
 	ctx context.Context, namespace string, projectID uuid.UUID, branch string,
-	db database.Querier, cfg *config.Config,
+	db database.Querier,
 ) error {
 	services, err := db.GetServicesByProject(ctx, database.GetServicesByProjectParams{
 		ProjectID:     projectID,
@@ -80,7 +78,7 @@ func deleteBranchResources(
 	}
 
 	for _, svc := range services {
-		if err := deleteServiceResources(ctx, namespace, svc, db, cfg); err != nil {
+		if err := deleteServiceResources(ctx, namespace, svc, db); err != nil {
 			return err
 		}
 	}
@@ -94,7 +92,7 @@ func deleteBranchResources(
 		return fmt.Errorf("getting unused volumes: %w", err)
 	}
 	for _, id := range ids {
-		if err := kubernetes.DeletePVC(ctx, namespace, fmt.Sprintf("pvc-%s", id.String()), cfg); err != nil {
+		if err := kubernetes.DeletePVC(ctx, namespace, fmt.Sprintf("pvc-%s", id.String())); err != nil {
 			slog.ErrorContext(ctx, "failed to delete pvc", "error", err)
 		}
 	}
@@ -106,7 +104,7 @@ func deleteBranchResources(
 		return fmt.Errorf("deleting unused volumes: %w", err)
 	}
 
-	if err := kubernetes.DeleteNamespace(ctx, namespace, cfg); err != nil {
+	if err := kubernetes.DeleteNamespace(ctx, namespace); err != nil {
 		slog.ErrorContext(ctx, "failed to delete namespace", "namespace", namespace, "error", err)
 	}
 
@@ -118,21 +116,16 @@ func deleteBranchResources(
 func deleteStaleServices(
 	ctx context.Context, namespace string,
 	existingServices map[string]*database.Service, newNames map[string]bool,
-	cfg *config.Config, db database.Querier,
+	db database.Querier,
 ) error {
 	for _, svc := range existingServices {
 		if newNames[svc.ServiceName] {
 			continue
 		}
 		slog.DebugContext(ctx, "deleting stale service", "service", svc.ServiceName, "namespace", namespace)
-		if err := deleteServiceResources(ctx, namespace, *svc, db, cfg); err != nil {
+		if err := deleteServiceResources(ctx, namespace, *svc, db); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// getNamespaceForBranch is a convenience wrapper around utils.GetSanitizedNamespace.
-func getNamespaceForBranch(project, branch string) string {
-	return utils.GetSanitizedNamespace(project, branch)
 }

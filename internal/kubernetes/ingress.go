@@ -97,7 +97,7 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 }
 
 func CreateIngress(
-	ctx context.Context, namespace string, ingress *networkingv1.Ingress, cfg *config.Config,
+	ctx context.Context, namespace string, ingress *networkingv1.Ingress,
 ) (*networkingv1.Ingress, error) {
 	_, err := getClient().NetworkingV1().Ingresses(namespace).Create(
 		ctx, ingress, metav1.CreateOptions{})
@@ -110,7 +110,7 @@ func CreateIngress(
 	return ingress, nil
 }
 
-func DeleteIngress(ctx context.Context, namespace, host string, cfg *config.Config) error {
+func DeleteIngress(ctx context.Context, namespace, host string) error {
 	ingresses, err := getClient().NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {

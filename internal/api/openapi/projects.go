@@ -161,7 +161,7 @@ func (Server) DeleteProjectsName(
 
 	for _, branch := range branches {
 		namespace := utils.GetSanitizedNamespace(project.Name, branch)
-		if err := deleteBranchResources(ctx, namespace, project.ID, branch, env.Database, env.Config); err != nil {
+		if err := deleteBranchResources(ctx, namespace, project.ID, branch, env.Database); err != nil {
 			slog.ErrorContext(ctx, "failed to delete branch resources", "branch", branch, "error", err)
 			return DeleteProjectsName500JSONResponse(internalError(rid)), nil
 		}
@@ -314,7 +314,7 @@ func (Server) GetProjectsNameSecrets(
 	var res []byte
 	slog.DebugContext(ctx, "getting secrets")
 	if request.Params.Values != nil && *request.Params.Values {
-		vals, err := kubernetes.GetSecretValues(ctx, project.Name, env.Config)
+		vals, err := kubernetes.GetSecretValues(ctx, project.Name)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to get secret values", "error", err)
 			return GetProjectsNameSecrets500JSONResponse(internalError(rid)), nil
@@ -328,7 +328,7 @@ func (Server) GetProjectsNameSecrets(
 			return GetProjectsNameSecrets500JSONResponse(internalError(rid)), nil
 		}
 	} else {
-		names, err := kubernetes.ListSecretNames(ctx, project.Name, env.Config)
+		names, err := kubernetes.ListSecretNames(ctx, project.Name)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to get secret names", "error", err)
 			return GetProjectsNameSecrets500JSONResponse(internalError(rid)), nil
@@ -419,7 +419,7 @@ func (Server) PutProjectsNameSecrets(
 		namespace := utils.GetSanitizedNamespace(project.Name, branch)
 		slog.DebugContext(ctx, "Updating secrets for namespace", "namespace", namespace)
 		err = kubernetes.UpdateSecret(
-			ctx, namespace, fmt.Sprintf("%s-env", project.Name), secrets, env.Config,
+			ctx, namespace, fmt.Sprintf("%s-env", project.Name), secrets,
 		)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to update secrets", "error", err)

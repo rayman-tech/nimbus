@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 
 	"nimbus/internal/config"
@@ -65,11 +64,11 @@ func GetVolumeIdentifiers(
 			}
 		} else if err != nil {
 			return nil, fmt.Errorf("getting volume identifier: %w", err)
-		} else if !CheckPVC(ctx, deploymentRequest.Namespace, fmt.Sprintf("pvc-%s", identifier), env.Config) {
+		} else if !CheckPVC(ctx, deploymentRequest.Namespace, fmt.Sprintf("pvc-%s", identifier)) {
 			// ensure PVC in database actually exists (sanity check)
 			err = CreatePVC(ctx, deploymentRequest.Namespace, identifier, volume.Size, env.Config)
 			if err != nil {
-				log.Printf("Error creating PVC: %s\n", err)
+				slog.ErrorContext(ctx, "failed to create PVC", "error", err)
 				return nil, err
 			}
 		}
@@ -83,7 +82,7 @@ func GetVolumeIdentifiers(
 	return volumeMap, nil
 }
 
-func CheckPVC(ctx context.Context, namespace string, name string, cfg *config.Config) bool {
+func CheckPVC(ctx context.Context, namespace string, name string) bool {
 	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
 
 	_, err := client.Get(ctx, name, metav1.GetOptions{})
@@ -114,7 +113,7 @@ func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size
 	return err
 }
 
-func DeletePVC(ctx context.Context, namespace string, name string, cfg *config.Config) error {
+func DeletePVC(ctx context.Context, namespace string, name string) error {
 	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})

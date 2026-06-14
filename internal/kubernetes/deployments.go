@@ -3,10 +3,9 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
-	"nimbus/internal/config"
 	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
 
@@ -135,7 +134,7 @@ func GenerateDeploymentSpec(
 		if err != nil {
 			return nil, fmt.Errorf("failed to get volume identifiers: %w", err)
 		}
-		log.Printf("Volume map: %+v", volumeMap)
+		slog.DebugContext(ctx, "volume map resolved", "volumes", volumeMap)
 
 		for name, volume := range volumeMap {
 			spec.Template.Spec.Volumes = append(spec.Template.Spec.Volumes, corev1.Volume{
@@ -184,7 +183,7 @@ func GenerateDeploymentSpec(
 }
 
 func CreateDeployment(
-	ctx context.Context, namespace string, deployment *appsv1.Deployment, cfg *config.Config,
+	ctx context.Context, namespace string, deployment *appsv1.Deployment,
 ) (*appsv1.Deployment, error) {
 	client := getClient().AppsV1().Deployments(namespace)
 
@@ -215,7 +214,7 @@ func CreateDeployment(
 	return updated, nil
 }
 
-func DeleteDeployment(ctx context.Context, namespace, name string, cfg *config.Config) error {
+func DeleteDeployment(ctx context.Context, namespace, name string) error {
 	client := getClient().AppsV1().Deployments(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})

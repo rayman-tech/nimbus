@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"sort"
 
-	"nimbus/internal/config"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetSecret(ctx context.Context, namespace string, cfg *config.Config) (*corev1.Secret, error) {
+func GetSecret(ctx context.Context, namespace string) (*corev1.Secret, error) {
 	client := getClient().CoreV1().Secrets(namespace)
 	secret, err := client.Get(ctx, fmt.Sprintf("%s-env", namespace), metav1.GetOptions{})
 	if err != nil {
@@ -21,8 +19,8 @@ func GetSecret(ctx context.Context, namespace string, cfg *config.Config) (*core
 	return secret, nil
 }
 
-func GetSecretValues(ctx context.Context, namespace string, cfg *config.Config) (map[string]string, error) {
-	secret, err := GetSecret(ctx, namespace, cfg)
+func GetSecretValues(ctx context.Context, namespace string) (map[string]string, error) {
+	secret, err := GetSecret(ctx, namespace)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return map[string]string{}, nil
@@ -36,8 +34,8 @@ func GetSecretValues(ctx context.Context, namespace string, cfg *config.Config) 
 	return out, nil
 }
 
-func ListSecretNames(ctx context.Context, namespace string, cfg *config.Config) ([]string, error) {
-	secret, err := GetSecret(ctx, namespace, cfg)
+func ListSecretNames(ctx context.Context, namespace string) ([]string, error) {
+	secret, err := GetSecret(ctx, namespace)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return []string{}, nil
@@ -52,9 +50,8 @@ func ListSecretNames(ctx context.Context, namespace string, cfg *config.Config) 
 	return keys, nil
 }
 
-func UpdateSecret(ctx context.Context, namespace, name string, data map[string]string, cfg *config.Config) error {
-	// TODO: remove this, it seems unnecessary
-	_, err := ValidateNamespace(ctx, namespace, cfg)
+func UpdateSecret(ctx context.Context, namespace, name string, data map[string]string) error {
+	_, err := ValidateNamespace(ctx, namespace)
 	if err != nil {
 		return fmt.Errorf("validating namespace %s: %w", namespace, err)
 	}

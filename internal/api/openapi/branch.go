@@ -58,7 +58,7 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 	// Delete branch resources
 	slog.DebugContext(ctx, "deleting branch resources")
 	namespace := utils.GetSanitizedNamespace(project.Name, request.Params.Branch)
-	if err := deleteBranchResources(ctx, namespace, project.ID, request.Params.Branch, env.Database, env.Config); err != nil {
+	if err := deleteBranchResources(ctx, namespace, project.ID, request.Params.Branch, env.Database); err != nil {
 		slog.ErrorContext(ctx, "failed to delete branch resources", "error", err)
 		return DeleteBranch500JSONResponse(internalError(rid)), nil
 	}

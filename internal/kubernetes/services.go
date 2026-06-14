@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"nimbus/internal/config"
 	"nimbus/internal/database"
 	"nimbus/internal/models"
 
@@ -94,7 +93,7 @@ func GenerateServiceSpec(namespace string,
 }
 
 func CreateService(
-	ctx context.Context, namespace string, service *corev1.Service, cfg *config.Config,
+	ctx context.Context, namespace string, service *corev1.Service,
 ) (*corev1.Service, error) {
 	client := getClient().CoreV1().Services(namespace)
 
@@ -118,13 +117,13 @@ func CreateService(
 	existing.Annotations["updated"] = time.Now().Format(time.RFC3339)
 	updated, err := client.Update(ctx, existing, metav1.UpdateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("updating deployment: %w", err)
+		return nil, fmt.Errorf("updating service: %w", err)
 	}
 
 	return updated, nil
 }
 
-func DeleteService(ctx context.Context, namespace, name string, cfg *config.Config) error {
+func DeleteService(ctx context.Context, namespace, name string) error {
 	client := getClient().CoreV1().Services(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})
