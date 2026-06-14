@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"sort"
 
-	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/config"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetSecret(ctx context.Context, namespace string, env *nimbusEnv.Env) (*corev1.Secret, error) {
-	client := getClient(env).CoreV1().Secrets(namespace)
+func GetSecret(ctx context.Context, namespace string, cfg *config.Config) (*corev1.Secret, error) {
+	client := getClient(cfg).CoreV1().Secrets(namespace)
 	secret, err := client.Get(ctx, fmt.Sprintf("%s-env", namespace), metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -21,8 +21,8 @@ func GetSecret(ctx context.Context, namespace string, env *nimbusEnv.Env) (*core
 	return secret, nil
 }
 
-func GetSecretValues(ctx context.Context, namespace string, env *nimbusEnv.Env) (map[string]string, error) {
-	secret, err := GetSecret(ctx, namespace, env)
+func GetSecretValues(ctx context.Context, namespace string, cfg *config.Config) (map[string]string, error) {
+	secret, err := GetSecret(ctx, namespace, cfg)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return map[string]string{}, nil
@@ -36,8 +36,8 @@ func GetSecretValues(ctx context.Context, namespace string, env *nimbusEnv.Env) 
 	return out, nil
 }
 
-func ListSecretNames(ctx context.Context, namespace string, env *nimbusEnv.Env) ([]string, error) {
-	secret, err := GetSecret(ctx, namespace, env)
+func ListSecretNames(ctx context.Context, namespace string, cfg *config.Config) ([]string, error) {
+	secret, err := GetSecret(ctx, namespace, cfg)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return []string{}, nil
@@ -52,14 +52,14 @@ func ListSecretNames(ctx context.Context, namespace string, env *nimbusEnv.Env) 
 	return keys, nil
 }
 
-func UpdateSecret(ctx context.Context, namespace, name string, data map[string]string, env *nimbusEnv.Env) error {
+func UpdateSecret(ctx context.Context, namespace, name string, data map[string]string, cfg *config.Config) error {
 	// TODO: remove this, it seems unnecessary
-	_, err := ValidateNamespace(ctx, namespace, env)
+	_, err := ValidateNamespace(ctx, namespace, cfg)
 	if err != nil {
 		return fmt.Errorf("validating namespace %s: %w", namespace, err)
 	}
 
-	client := getClient(env).CoreV1().Secrets(namespace)
+	client := getClient(cfg).CoreV1().Secrets(namespace)
 	var secret *corev1.Secret
 	secret, err = client.Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {

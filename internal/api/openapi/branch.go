@@ -30,10 +30,10 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 	}
 
 	// Get project
-	env.Logger.DebugContext(ctx, "getting project")
+	slog.DebugContext(ctx, "getting project")
 	project, err := env.Database.GetProjectByName(ctx, request.Params.Project)
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
 		return DeleteBranch404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
@@ -42,7 +42,7 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 		}, nil
 	}
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
 		return DeleteBranch500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -52,14 +52,14 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 	}
 
 	// Check permissions
-	env.Logger.DebugContext(ctx, "getting user permissions")
+	slog.DebugContext(ctx, "getting user permissions")
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
 		UserID:    user.ID,
 		ProjectID: project.ID,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(
-			ctx, "failed to get user permissions", slog.Any("error", err))
+		slog.ErrorContext(
+			ctx, "failed to get user permissions", "error", err)
 		return DeleteBranch500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -68,7 +68,7 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 		}, nil
 	}
 	if !authorized {
-		env.Logger.ErrorContext(ctx, "user does not have permissions")
+		slog.ErrorContext(ctx, "user does not have permissions")
 		return DeleteBranch403JSONResponse{
 			Status:  apierror.InsufficientPermissions.Status(),
 			Code:    apierror.InsufficientPermissions.String(),
@@ -78,14 +78,14 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 	}
 
 	// Get services
-	env.Logger.DebugContext(ctx, "getting services")
+	slog.DebugContext(ctx, "getting services")
 	services, err := env.Database.GetServicesByProject(
 		ctx,
 		database.GetServicesByProjectParams{
 			ProjectID: project.ID, ProjectBranch: request.Params.Branch,
 		})
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get services", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get services", "error", err)
 		return DeleteBranch500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -95,26 +95,26 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 	}
 
 	// Delete resources
-	env.Logger.DebugContext(ctx, "deleting resources")
+	slog.DebugContext(ctx, "deleting resources")
 	namespace := utils.GetSanitizedNamespace(project.Name, request.Params.Branch)
 	for _, svc := range services {
-		err = kubernetes.DeleteDeployment(ctx, namespace, svc.ServiceName, env)
+		err = kubernetes.DeleteDeployment(ctx, namespace, svc.ServiceName, env.Config)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to delete deployment", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to delete deployment", "error", err)
 		}
-		err = kubernetes.DeleteService(ctx, namespace, svc.ServiceName, env)
+		err = kubernetes.DeleteService(ctx, namespace, svc.ServiceName, env.Config)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to delete service", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to delete service", "error", err)
 		}
 		if svc.Ingress.Valid {
-			err = kubernetes.DeleteIngress(ctx, namespace, svc.Ingress.String, env)
+			err = kubernetes.DeleteIngress(ctx, namespace, svc.Ingress.String, env.Config)
 			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to delete ingress", slog.Any("error", err))
+				slog.ErrorContext(ctx, "failed to delete ingress", "error", err)
 			}
 		}
 		err = env.Database.DeleteServiceById(ctx, svc.ID)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to delete service", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to delete service", "error", err)
 			return DeleteBranch500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -133,7 +133,7 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 		},
 	)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to delete volumes", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to delete volumes", "error", err)
 		return DeleteBranch500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -142,9 +142,9 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 		}, nil
 	}
 	for _, id := range ids {
-		err = kubernetes.DeletePVC(ctx, namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+		err = kubernetes.DeletePVC(ctx, namespace, fmt.Sprintf("pvc-%s", id.String()), env.Config)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to delete pvc", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to delete pvc", "error", err)
 		}
 	}
 	err = env.Database.DeleteUnusedVolumes(ctx,
@@ -154,7 +154,7 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 			ExcludeVolumes: nil,
 		})
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to delete unused voumes", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to delete unused voumes", "error", err)
 		return DeleteBranch500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -162,9 +162,9 @@ func (Server) DeleteBranch(ctx context.Context, request DeleteBranchRequestObjec
 			ErrorId: requestid,
 		}, nil
 	}
-	err = kubernetes.DeleteNamespace(ctx, namespace, env)
+	err = kubernetes.DeleteNamespace(ctx, namespace, env.Config)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to delete namespace", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to delete namespace", "error", err)
 		return DeleteBranch500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),

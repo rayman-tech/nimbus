@@ -5,10 +5,8 @@ go 1.24.0
 toolchain go1.25.1
 
 require (
+	github.com/caarlos0/env/v11 v11.4.1
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/go-playground/locales v0.14.1
-	github.com/go-playground/universal-translator v0.18.1
-	github.com/go-playground/validator/v10 v10.30.1
 	github.com/goccy/go-yaml v1.19.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
@@ -31,7 +29,6 @@ require (
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
@@ -47,7 +44,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect

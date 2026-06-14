@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,14 +19,18 @@ import (
 	"syscall"
 	"time"
 
+	"log/slog"
+
 	"nimbus/internal/api"
 	"nimbus/internal/config"
+	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/logging"
 	"nimbus/internal/setup"
 
 	urllib "net/url"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -43,24 +49,23 @@ func main() {
 			defer cancel()
 
 			port, _ := cmd.Flags().GetString("port")
-			log := logging.New(nil)
 
-			log.Info("loading config")
-			config, err := config.LoadConfig()
+			cfg, err := config.Load()
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
 			}
 
-			log.Info("setting up database")
-			db, err := setup.Database(setupCtx, config)
+			logging.Init(cfg.LogLevel)
+
+			slog.Info("setting up database")
+			db, err := setup.Database(setupCtx, *cfg)
 			if err != nil {
 				return fmt.Errorf("setting up database: %w", err)
 			}
 
 			return api.Start(port, &env.Env{
-				Logger:   log,
 				Database: db,
-				Config:   config,
+				Config:   cfg,
 			})
 		},
 	}
@@ -278,12 +283,7 @@ func main() {
 		},
 	}
 	projectCmd.AddCommand(projectCreateCmd, projectListCmd, projectDeleteCmd)
-	projectCreateCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	projectCreateCmd.Flags().StringP("apikey", "a", "", "API key")
-	projectListCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	projectListCmd.Flags().StringP("apikey", "a", "", "API key")
-	projectDeleteCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	projectDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
+	addClientFlags(projectCreateCmd, projectListCmd, projectDeleteCmd)
 
 	serviceCmd := &cobra.Command{Use: "services", Short: "Manage services"}
 	serviceListCmd := &cobra.Command{
@@ -479,14 +479,9 @@ func main() {
 	}
 	serviceLogsCmd.Flags().String("project", "", "Project name")
 	serviceLogsCmd.Flags().String("branch", "", "Branch name")
-	serviceLogsCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	serviceLogsCmd.Flags().StringP("apikey", "a", "", "API key")
 
 	serviceCmd.AddCommand(serviceListCmd, serviceGetCmd, serviceLogsCmd)
-	serviceListCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	serviceListCmd.Flags().StringP("apikey", "a", "", "API key")
-	serviceGetCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	serviceGetCmd.Flags().StringP("apikey", "a", "", "API key")
+	addClientFlags(serviceListCmd, serviceGetCmd, serviceLogsCmd)
 
 	secretsCmd := &cobra.Command{Use: "secrets", Short: "Manage project secrets"}
 	secretsListCmd := &cobra.Command{
@@ -526,8 +521,6 @@ func main() {
 		},
 	}
 	secretsListCmd.Flags().String("project", "", "Project name")
-	secretsListCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	secretsListCmd.Flags().StringP("apikey", "a", "", "API key")
 
 	secretsEditCmd := &cobra.Command{
 		Use:   "edit",
@@ -628,9 +621,8 @@ func main() {
 		},
 	}
 	secretsEditCmd.Flags().String("project", "", "Project name")
-	secretsEditCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	secretsEditCmd.Flags().StringP("apikey", "a", "", "API key")
 	secretsCmd.AddCommand(secretsListCmd, secretsEditCmd)
+	addClientFlags(secretsListCmd, secretsEditCmd)
 
 	branchCmd := &cobra.Command{Use: "branch", Short: "Manage branches"}
 	branchDeleteCmd := &cobra.Command{
@@ -665,14 +657,121 @@ func main() {
 	}
 	branchDeleteCmd.Flags().String("project", "", "Project name")
 	branchDeleteCmd.Flags().String("branch", "", "Branch name")
-	branchDeleteCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	branchDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
 	branchCmd.AddCommand(branchDeleteCmd)
+	addClientFlags(branchDeleteCmd)
 
-	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd, branchCmd, secretsCmd)
+	// Users commands
+	userCmd := &cobra.Command{Use: "users", Short: "Manage users"}
+
+	userCreateCmd := &cobra.Command{
+		Use:   "create [username]",
+		Short: "Create a new user (requires direct DB access)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			username := args[0]
+			if username == "" {
+				return fmt.Errorf("username is required")
+			}
+
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			const setupTime = 30 * time.Second
+			setupCtx, cancel := context.WithTimeout(ctx, setupTime)
+			defer cancel()
+
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("loading config: %w", err)
+			}
+
+			db, err := setup.Database(setupCtx, *cfg)
+			if err != nil {
+				return fmt.Errorf("setting up database: %w", err)
+			}
+
+			// Check if username already exists
+			_, err = db.GetUserByUsername(ctx, username)
+			if err == nil {
+				return fmt.Errorf("username %q already exists", username)
+			}
+
+			// Generate API key
+			const apiKeyBytes = 32
+			keyBytes := make([]byte, apiKeyBytes)
+			if _, err := rand.Read(keyBytes); err != nil {
+				return fmt.Errorf("generating api key: %w", err)
+			}
+			apiKey := hex.EncodeToString(keyBytes)
+
+			user, err := db.CreateUser(ctx, database.CreateUserParams{
+				ID:       uuid.New(),
+				Username: username,
+				ApiKey:   apiKey,
+			})
+			if err != nil {
+				return fmt.Errorf("creating user: %w", err)
+			}
+
+			fmt.Printf("User created!\n")
+			fmt.Printf("  Username: %s\n", user.Username)
+			fmt.Printf("  API Key:  %s\n", user.ApiKey)
+			fmt.Println("\nSave this API key - it cannot be retrieved again.")
+			return nil
+		},
+	}
+
+	userAddCmd := &cobra.Command{
+		Use:   "add [username]",
+		Short: "Add a user to a project",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			host := getHost(cmd)
+			apiKey := getAPIKey(cmd)
+			project, _ := cmd.Flags().GetString("project")
+			if project == "" {
+				return fmt.Errorf("--project is required")
+			}
+			username := args[0]
+			body, err := json.Marshal(map[string]string{"username": username})
+			if err != nil {
+				return fmt.Errorf("marshaling body: %w", err)
+			}
+			url := fmt.Sprintf("%s/projects/%s/members", host, project)
+			req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			if apiKey != "" {
+				req.Header.Set("X-API-Key", apiKey)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != http.StatusCreated {
+				data, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed: %s", string(data))
+			}
+			fmt.Printf("User %q added to project %q!\n", username, project)
+			return nil
+		},
+	}
+	userAddCmd.Flags().String("project", "", "Project name")
+	userCmd.AddCommand(userCreateCmd, userAddCmd)
+	addClientFlags(userAddCmd)
+
+	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd, branchCmd, secretsCmd, userCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+}
+
+// addClientFlags adds --host and --apikey flags to one or more commands.
+func addClientFlags(cmds ...*cobra.Command) {
+	for _, cmd := range cmds {
+		cmd.Flags().StringP("host", "H", "", "Nimbus host (default $NIMBUS_HOST)")
+		cmd.Flags().StringP("apikey", "a", "", "API key (default $NIMBUS_API_KEY)")
 	}
 }
 

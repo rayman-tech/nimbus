@@ -36,7 +36,7 @@ func (Server) GetProjects(
 
 	dbProjects, err := env.Database.GetProjectsByUser(ctx, user.ID)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get projects", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get projects", "error", err)
 		return GetProjects500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -93,7 +93,7 @@ func (Server) PostProjects(
 		}, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "failed to check project existence", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to check project existence", "error", err)
 		return PostProjects500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -103,14 +103,14 @@ func (Server) PostProjects(
 	}
 
 	// Create the project
-	env.Logger.DebugContext(ctx, "creating project", slog.String("name", request.Body.Name))
+	slog.DebugContext(ctx, "creating project", "name", request.Body.Name)
 	projectID := uuid.New()
 	project, err := env.Database.CreateProject(ctx, database.CreateProjectParams{
 		ID:   projectID,
 		Name: request.Body.Name,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to create project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to create project", "error", err)
 		return PostProjects500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -125,7 +125,7 @@ func (Server) PostProjects(
 		ProjectID: project.ID,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to add user to project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to add user to project", "error", err)
 		return PostProjects500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -156,10 +156,10 @@ func (Server) DeleteProjectsName(
 	}
 
 	// Get project
-	env.Logger.DebugContext(ctx, "getting project")
+	slog.DebugContext(ctx, "getting project")
 	project, err := env.Database.GetProjectByName(ctx, request.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
 		return DeleteProjectsName404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
@@ -168,7 +168,7 @@ func (Server) DeleteProjectsName(
 		}, nil
 	}
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
 		return DeleteProjectsName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -178,14 +178,14 @@ func (Server) DeleteProjectsName(
 	}
 
 	// Check permissions
-	env.Logger.DebugContext(ctx, "getting user permissions")
+	slog.DebugContext(ctx, "getting user permissions")
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
 		UserID:    user.ID,
 		ProjectID: project.ID,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(
-			ctx, "failed to get user permissions", slog.Any("error", err))
+		slog.ErrorContext(
+			ctx, "failed to get user permissions", "error", err)
 		return DeleteProjectsName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -194,7 +194,7 @@ func (Server) DeleteProjectsName(
 		}, nil
 	}
 	if !authorized {
-		env.Logger.ErrorContext(ctx, "user does not have permissions")
+		slog.ErrorContext(ctx, "user does not have permissions")
 		return DeleteProjectsName403JSONResponse{
 			Status:  apierror.InsufficientPermissions.Status(),
 			Code:    apierror.InsufficientPermissions.String(),
@@ -204,10 +204,10 @@ func (Server) DeleteProjectsName(
 	}
 
 	// Get project branches
-	env.Logger.DebugContext(ctx, "getting project branches")
+	slog.DebugContext(ctx, "getting project branches")
 	branches, err := env.Database.GetProjectBranches(ctx, project.ID)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project branches", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project branches", "error", err)
 		return DeleteProjectsName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -224,7 +224,7 @@ func (Server) DeleteProjectsName(
 				ProjectBranch: branch,
 			})
 		if err != nil {
-			env.Logger.DebugContext(ctx, "failed to get services", slog.Any("error", err))
+			slog.DebugContext(ctx, "failed to get services", "error", err)
 			return DeleteProjectsName500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -236,23 +236,23 @@ func (Server) DeleteProjectsName(
 		// Delete services
 		namespace := utils.GetSanitizedNamespace(project.Name, branch)
 		for _, svc := range services {
-			err = kubernetes.DeleteDeployment(ctx, namespace, svc.ServiceName, env)
+			err = kubernetes.DeleteDeployment(ctx, namespace, svc.ServiceName, env.Config)
 			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to delete deployment", slog.Any("error", err))
+				slog.ErrorContext(ctx, "failed to delete deployment", "error", err)
 			}
-			err = kubernetes.DeleteService(ctx, namespace, svc.ServiceName, env)
+			err = kubernetes.DeleteService(ctx, namespace, svc.ServiceName, env.Config)
 			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to deleted service", slog.Any("error", err))
+				slog.ErrorContext(ctx, "failed to deleted service", "error", err)
 			}
 			if svc.Ingress.Valid {
-				err = kubernetes.DeleteIngress(ctx, namespace, svc.Ingress.String, env)
+				err = kubernetes.DeleteIngress(ctx, namespace, svc.Ingress.String, env.Config)
 				if err != nil {
-					env.Logger.ErrorContext(ctx, "failed to delete ingress", slog.Any("error", err))
+					slog.ErrorContext(ctx, "failed to delete ingress", "error", err)
 				}
 			}
 			err = env.Database.DeleteServiceById(ctx, svc.ID)
 			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to delete service from database", slog.Any("error", err))
+				slog.ErrorContext(ctx, "failed to delete service from database", "error", err)
 				return DeleteProjectsName500JSONResponse{
 					Status:  apierror.InternalServerError.Status(),
 					Code:    apierror.InternalServerError.String(),
@@ -269,7 +269,7 @@ func (Server) DeleteProjectsName(
 				ProjectID: project.ID, ProjectBranch: branch, ExcludeVolumes: nil,
 			})
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to get volumes", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to get volumes", "error", err)
 			return DeleteProjectsName500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -278,9 +278,9 @@ func (Server) DeleteProjectsName(
 			}, nil
 		}
 		for _, id := range ids {
-			err = kubernetes.DeletePVC(ctx, namespace, fmt.Sprintf("pvc-%s", id.String()), env)
+			err = kubernetes.DeletePVC(ctx, namespace, fmt.Sprintf("pvc-%s", id.String()), env.Config)
 			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to delete pvc", slog.Any("error", err))
+				slog.ErrorContext(ctx, "failed to delete pvc", "error", err)
 			}
 		}
 		err = env.Database.DeleteUnusedVolumes(
@@ -289,7 +289,7 @@ func (Server) DeleteProjectsName(
 				ProjectID: project.ID, ProjectBranch: branch, ExcludeVolumes: nil,
 			})
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to delete unused volumes", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to delete unused volumes", "error", err)
 			return DeleteProjectsName500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -297,9 +297,9 @@ func (Server) DeleteProjectsName(
 				ErrorId: requestid,
 			}, nil
 		}
-		err = kubernetes.DeleteNamespace(ctx, namespace, env)
+		err = kubernetes.DeleteNamespace(ctx, namespace, env.Config)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to delete namespace", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to delete namespace", "error", err)
 			return DeleteProjectsName500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -311,7 +311,7 @@ func (Server) DeleteProjectsName(
 
 	err = env.Database.DeleteProject(ctx, project.ID)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to delete project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to delete project", "error", err)
 		return DeleteProjectsName500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -321,6 +321,133 @@ func (Server) DeleteProjectsName(
 	}
 
 	return DeleteProjectsName204Response{}, nil
+}
+
+func (Server) PostProjectsNameMembers(
+	ctx context.Context, request PostProjectsNameMembersRequestObject,
+) (PostProjectsNameMembersResponseObject, error) {
+	env := env.FromContext(ctx)
+	requestid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+	user := database.UserFromContext(ctx)
+	if user == nil {
+		return PostProjectsNameMembers401JSONResponse{
+			Status:  apierror.InvalidAPIKey.Status(),
+			Code:    apierror.InvalidAPIKey.String(),
+			Message: "authentication required",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Get project
+	project, err := env.Database.GetProjectByName(ctx, request.Name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PostProjectsNameMembers404JSONResponse{
+			Status:  apierror.ProjectNotFound.Status(),
+			Code:    apierror.ProjectNotFound.String(),
+			Message: "project not found",
+			ErrorId: requestid,
+		}, nil
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
+		return PostProjectsNameMembers500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Check caller is in project
+	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
+		UserID:    user.ID,
+		ProjectID: project.ID,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to check user permissions", "error", err)
+		return PostProjectsNameMembers500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+	if !authorized {
+		return PostProjectsNameMembers403JSONResponse{
+			Status:  apierror.InsufficientPermissions.Status(),
+			Code:    apierror.InsufficientPermissions.String(),
+			Message: "user does not have permission to add members",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Look up target user by username
+	if request.Body == nil || request.Body.Username == "" {
+		return PostProjectsNameMembers400JSONResponse{
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
+			Message: "username is required",
+			ErrorId: requestid,
+		}, nil
+	}
+	targetUser, err := env.Database.GetUserByUsername(ctx, request.Body.Username)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PostProjectsNameMembers404JSONResponse{
+			Status:  apierror.UserNotFound.Status(),
+			Code:    apierror.UserNotFound.String(),
+			Message: "user not found",
+			ErrorId: requestid,
+		}, nil
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get user by username", "error", err)
+		return PostProjectsNameMembers500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Check target user isn't already in project
+	alreadyMember, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
+		UserID:    targetUser.ID,
+		ProjectID: project.ID,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to check membership", "error", err)
+		return PostProjectsNameMembers500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+	if alreadyMember {
+		return PostProjectsNameMembers400JSONResponse{
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
+			Message: "user is already a member of this project",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	// Add user to project
+	err = env.Database.AddUserToProject(ctx, database.AddUserToProjectParams{
+		UserID:    targetUser.ID,
+		ProjectID: project.ID,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to add user to project", "error", err)
+		return PostProjectsNameMembers500JSONResponse{
+			Status:  apierror.InternalServerError.Status(),
+			Code:    apierror.InternalServerError.String(),
+			Message: "Internal Server Error",
+			ErrorId: requestid,
+		}, nil
+	}
+
+	return PostProjectsNameMembers201Response{}, nil
 }
 
 func (Server) GetProjectsNameSecrets(
@@ -339,10 +466,10 @@ func (Server) GetProjectsNameSecrets(
 	}
 
 	// Get project
-	env.Logger.DebugContext(ctx, "getting project")
+	slog.DebugContext(ctx, "getting project")
 	project, err := env.Database.GetProjectByName(ctx, request.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
 		return GetProjectsNameSecrets404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
@@ -351,7 +478,7 @@ func (Server) GetProjectsNameSecrets(
 		}, nil
 	}
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
 		return GetProjectsNameSecrets500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -361,14 +488,14 @@ func (Server) GetProjectsNameSecrets(
 	}
 
 	// Check permissions
-	env.Logger.DebugContext(ctx, "getting user permissions")
+	slog.DebugContext(ctx, "getting user permissions")
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
 		UserID:    user.ID,
 		ProjectID: project.ID,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(
-			ctx, "failed to get user permissions", slog.Any("error", err))
+		slog.ErrorContext(
+			ctx, "failed to get user permissions", "error", err)
 		return GetProjectsNameSecrets500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -377,7 +504,7 @@ func (Server) GetProjectsNameSecrets(
 		}, nil
 	}
 	if !authorized {
-		env.Logger.ErrorContext(ctx, "user does not have permissions")
+		slog.ErrorContext(ctx, "user does not have permissions")
 		return GetProjectsNameSecrets403JSONResponse{
 			Status:  apierror.InsufficientPermissions.Status(),
 			Code:    apierror.InsufficientPermissions.String(),
@@ -388,11 +515,11 @@ func (Server) GetProjectsNameSecrets(
 
 	// Get secrets
 	var res []byte
-	env.Logger.DebugContext(ctx, "getting secrets")
+	slog.DebugContext(ctx, "getting secrets")
 	if request.Params.Values != nil && *request.Params.Values {
-		vals, err := kubernetes.GetSecretValues(ctx, project.Name, env)
+		vals, err := kubernetes.GetSecretValues(ctx, project.Name, env.Config)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to get secret values", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to get secret values", "error", err)
 			return GetProjectsNameSecrets500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -405,7 +532,7 @@ func (Server) GetProjectsNameSecrets(
 		}
 		res, err = json.Marshal(SecretsValuesResponse{Secrets: &vals})
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to marshal secret values", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to marshal secret values", "error", err)
 			return GetProjectsNameSecrets500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -414,9 +541,9 @@ func (Server) GetProjectsNameSecrets(
 			}, nil
 		}
 	} else {
-		names, err := kubernetes.ListSecretNames(ctx, project.Name, env)
+		names, err := kubernetes.ListSecretNames(ctx, project.Name, env.Config)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to get secret names", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to get secret names", "error", err)
 			return GetProjectsNameSecrets500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -429,7 +556,7 @@ func (Server) GetProjectsNameSecrets(
 		}
 		res, err = json.Marshal(SecretsNamesResponse{Secrets: &names})
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to marshal secret names", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to marshal secret names", "error", err)
 			return GetProjectsNameSecrets500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),
@@ -458,10 +585,10 @@ func (Server) PutProjectsNameSecrets(
 	}
 
 	// Get project
-	env.Logger.DebugContext(ctx, "getting project")
+	slog.DebugContext(ctx, "getting project")
 	project, err := env.Database.GetProjectByName(ctx, request.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
 		return PutProjectsNameSecrets404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
@@ -470,7 +597,7 @@ func (Server) PutProjectsNameSecrets(
 		}, nil
 	}
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project", "error", err)
 		return PutProjectsNameSecrets500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -480,14 +607,14 @@ func (Server) PutProjectsNameSecrets(
 	}
 
 	// Check permissions
-	env.Logger.DebugContext(ctx, "getting user permissions")
+	slog.DebugContext(ctx, "getting user permissions")
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
 		UserID:    user.ID,
 		ProjectID: project.ID,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(
-			ctx, "failed to get user permissions", slog.Any("error", err))
+		slog.ErrorContext(
+			ctx, "failed to get user permissions", "error", err)
 		return PutProjectsNameSecrets500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -496,7 +623,7 @@ func (Server) PutProjectsNameSecrets(
 		}, nil
 	}
 	if !authorized {
-		env.Logger.ErrorContext(ctx, "user does not have permissions")
+		slog.ErrorContext(ctx, "user does not have permissions")
 		return PutProjectsNameSecrets403JSONResponse{
 			Status:  apierror.InsufficientPermissions.Status(),
 			Code:    apierror.InsufficientPermissions.String(),
@@ -506,10 +633,10 @@ func (Server) PutProjectsNameSecrets(
 	}
 
 	// Get project branches
-	env.Logger.DebugContext(ctx, "getting project branches")
+	slog.DebugContext(ctx, "getting project branches")
 	branches, err := env.Database.GetProjectBranches(ctx, project.ID)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project branches", slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to get project branches", "error", err)
 		return PutProjectsNameSecrets500JSONResponse{
 			Status:  apierror.InternalServerError.Status(),
 			Code:    apierror.InternalServerError.String(),
@@ -532,12 +659,12 @@ func (Server) PutProjectsNameSecrets(
 	}
 	for _, branch := range branches {
 		namespace := utils.GetSanitizedNamespace(project.Name, branch)
-		env.Logger.DebugContext(ctx, "Updating secrets for namespace", slog.String("namespace", namespace))
+		slog.DebugContext(ctx, "Updating secrets for namespace", "namespace", namespace)
 		err = kubernetes.UpdateSecret(
-			ctx, namespace, fmt.Sprintf("%s-env", project.Name), secrets, env,
+			ctx, namespace, fmt.Sprintf("%s-env", project.Name), secrets, env.Config,
 		)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to update secrets", slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to update secrets", "error", err)
 			return PutProjectsNameSecrets500JSONResponse{
 				Status:  apierror.InternalServerError.Status(),
 				Code:    apierror.InternalServerError.String(),

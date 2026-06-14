@@ -23,6 +23,7 @@ type Service struct {
 	EnvOverrides []Override      `yaml:"envOverrides,omitempty"`
 	Volumes      []Volume        `yaml:"volumes,omitempty"`
 	Public       bool            `yaml:"public,omitempty"`
+	Ingress      string          `yaml:"ingress,omitempty"`
 	Template     string          `yaml:"template,omitempty"`
 	Version      string          `yaml:"version,omitempty"`
 	Arch         string          `yaml:"arch,omitempty"`

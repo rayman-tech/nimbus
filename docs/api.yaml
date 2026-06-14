@@ -279,6 +279,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /projects/{name}/members:
+    post:
+      tags:
+        - Projects
+      summary: Add a member to a project
+      description: Add an existing user to a project by username
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: The name of the project
+          schema:
+            type: string
+        - name: X-API-Key
+          in: header
+          description: API key for authentication
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+              properties:
+                username:
+                  type: string
+                  description: The username of the user to add
+      responses:
+        "201":
+          description: Member added successfully
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /projects/{name}/secrets:
     get:
       tags:

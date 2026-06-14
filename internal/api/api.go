@@ -67,6 +67,6 @@ func Start(port string, env *env.Env) error {
 		Addr:    "0.0.0.0:" + port,
 	}
 
-	env.Logger.Info("server listening", slog.String("address", "0.0.0.0:"+port))
+	slog.Info("server listening", "address", "0.0.0.0:"+port)
 	return s.ListenAndServe()
 }

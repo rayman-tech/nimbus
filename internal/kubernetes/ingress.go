@@ -6,10 +6,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"time"
 
-	"nimbus/internal/env"
+	"nimbus/internal/config"
 	"nimbus/internal/models"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -19,17 +18,30 @@ import (
 )
 
 func GenerateIngressSpec(namespace string, service *models.Service,
-	existingIngress *string, env *env.Env,
+	existingIngress *string, branch string, cfg *config.Config,
 ) (*networkingv1.Ingress, error) {
 	if service.Template != "http" || !service.Public {
 		return nil, nil
 	}
 
-	randomString := GenerateRandomChars()
+	// Determine ingress host:
+	// 1. If a custom ingress domain is specified and we're on main/master, use it
+	// 2. If an existing ingress host is already assigned, preserve it
+	// 3. Otherwise generate a random subdomain
+	isMainBranch := branch == "main" || branch == "master"
+	var host string
+	if service.Ingress != "" && isMainBranch {
+		host = service.Ingress
+	} else if existingIngress != nil {
+		host = *existingIngress
+	} else {
+		host = fmt.Sprintf("%s.%s", GenerateRandomChars(), cfg.Domain)
+	}
+
 	spec := networkingv1.IngressSpec{
 		Rules: []networkingv1.IngressRule{
 			{
-				Host: fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
+				Host: host,
 				IngressRuleValue: networkingv1.IngressRuleValue{
 					HTTP: &networkingv1.HTTPIngressRuleValue{
 						Paths: []networkingv1.HTTPIngressPath{
@@ -56,14 +68,11 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 		TLS: []networkingv1.IngressTLS{
 			{
 				Hosts: []string{
-					fmt.Sprintf("%s.%s", randomString, os.Getenv("DOMAIN")),
+					host,
 				},
 				SecretName: fmt.Sprintf("%s-%s", service.Name, "tls"),
 			},
 		},
-	}
-	if existingIngress != nil {
-		spec.Rules[0].Host = *existingIngress
 	}
 
 	return &networkingv1.Ingress{
@@ -83,9 +92,9 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 }
 
 func CreateIngress(
-	ctx context.Context, namespace string, ingress *networkingv1.Ingress, env *env.Env,
+	ctx context.Context, namespace string, ingress *networkingv1.Ingress, cfg *config.Config,
 ) (*networkingv1.Ingress, error) {
-	_, err := getClient(env).NetworkingV1().Ingresses(namespace).Create(
+	_, err := getClient(cfg).NetworkingV1().Ingresses(namespace).Create(
 		ctx, ingress, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
 		return ingress, nil
@@ -96,8 +105,8 @@ func CreateIngress(
 	return ingress, nil
 }
 
-func DeleteIngress(ctx context.Context, namespace, host string, env *env.Env) error {
-	ingresses, err := getClient(env).NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
+func DeleteIngress(ctx context.Context, namespace, host string, cfg *config.Config) error {
+	ingresses, err := getClient(cfg).NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil
@@ -108,7 +117,7 @@ func DeleteIngress(ctx context.Context, namespace, host string, env *env.Env) er
 	for _, ingress := range ingresses.Items {
 		for _, rule := range ingress.Spec.Rules {
 			if rule.Host == host {
-				err := getClient(env).NetworkingV1().Ingresses(namespace).Delete(
+				err := getClient(cfg).NetworkingV1().Ingresses(namespace).Delete(
 					ctx, ingress.Name, metav1.DeleteOptions{})
 				if err != nil && !errors.IsNotFound(err) {
 					return fmt.Errorf("deleting ingress %s: %w", ingress.Name, err)

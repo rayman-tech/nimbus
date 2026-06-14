@@ -44,13 +44,12 @@ func Recover(next http.Handler) http.Handler {
 					panic(rvr)
 				}
 
-				e := env.FromContext(r.Context())
 				requestID := fmt.Sprintf("%d", requestid.FromContext(r.Context()))
 
-				e.Logger.ErrorContext(r.Context(),
+				slog.ErrorContext(r.Context(),
 					"panic recovered",
-					slog.Any("panic", rvr),
-					slog.String("stack", string(debug.Stack())))
+					"panic", rvr,
+					"stack", string(debug.Stack()))
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
@@ -70,9 +69,6 @@ func Recover(next http.Handler) http.Handler {
 func InjectEnvironment(e *env.Env) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if e == nil {
-				e = env.Null()
-			}
 			r = r.WithContext(env.WithContext(r.Context(), e))
 			next.ServeHTTP(w, r)
 		})
@@ -82,22 +78,22 @@ func InjectEnvironment(e *env.Env) func(http.Handler) http.Handler {
 func LogRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		e := env.FromContext(r.Context())
 
-		ctx := r.Context()
 		requestID := ulid.Now()
-		r = r.WithContext(requestid.WithContext(r.Context(), requestID))
-		r = r.WithContext(logging.AppendCtx(ctx, slog.Uint64("request_id", requestID)))
-		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("method", r.Method)))
-		r = r.WithContext(logging.AppendCtx(r.Context(), slog.String("path", r.URL.RequestURI())))
+		ctx := requestid.WithContext(r.Context(), requestID)
+		ctx = logging.With(ctx,
+			"request_id", requestID,
+			"method", r.Method,
+			"path", r.URL.RequestURI(),
+		)
+		r = r.WithContext(ctx)
+
 		lrw := &logResponseWriter{w, http.StatusOK}
 		next.ServeHTTP(lrw, r)
-		e.Logger.LogAttrs(
-			r.Context(),
-			slog.LevelInfo,
-			"Request completed",
-			slog.Duration("duration", time.Since(start)),
-			slog.Int("status", lrw.statusCode),
+
+		slog.InfoContext(r.Context(), "request completed",
+			"duration", time.Since(start),
+			"status", lrw.statusCode,
 		)
 	})
 }
@@ -114,8 +110,6 @@ func Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		apiKey := r.Header.Get("X-API-Key")
 		if apiKey == "" {
-			// No API key provided — let the OAPI validator decide whether
-			// the endpoint requires auth and return the appropriate error.
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -123,8 +117,6 @@ func Authenticate(next http.Handler) http.Handler {
 		e := env.FromContext(r.Context())
 		user, err := e.Database.GetUserByApiKey(r.Context(), apiKey)
 		if err != nil {
-			// Key lookup failed — skip injection, let the OAPI auth
-			// function handle the error response.
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -143,14 +135,8 @@ func OAPIErrorHandler(
 	r *http.Request,
 	opts oapimw.ErrorHandlerOpts,
 ) {
-	// Several scenarios where we are handling an error:
-	//   1. apierror returned from middleware/handler
-	//   2. validation error
-	//   3. fallback - internal server error
-
 	requestID := fmt.Sprintf("%d", requestid.FromContext(r.Context()))
 
-	// 1. apierror
 	var errBody *apierror.Error
 	if errors.As(err, &errBody) {
 		w.Header().Set("Content-Type", "application/json")
@@ -159,7 +145,6 @@ func OAPIErrorHandler(
 		return
 	}
 
-	// 2. Validation error
 	if opts.StatusCode >= 400 && opts.StatusCode < 500 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(opts.StatusCode)
@@ -172,30 +157,23 @@ func OAPIErrorHandler(
 		return
 	}
 
-	// 3. internal server error
 	_ = apierror.EncodeInternalError(w, requestID)
 }
 
 // OAPIAuthFunc is the authentication function for oapi-codegen middleware.
-// It validates the API key and confirms the user exists. The actual user
-// injection into context is handled by the Authenticate middleware, which
-// runs earlier in the middleware chain and properly propagates the modified
-// request to downstream handlers.
 func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput) error {
 	switch input.SecuritySchemeName {
 	case "ApiKeyAuth":
 	default:
-		// No authentication required
 		return nil
 	}
 
-	env := env.FromContext(ctx)
+	e := env.FromContext(ctx)
 	requestID := fmt.Sprintf("%d", requestid.FromContext(ctx))
 
-	// Read API Key
 	apiKey := input.RequestValidationInput.Request.Header.Get("X-API-Key")
 	if apiKey == "" {
-		env.Logger.ErrorContext(ctx, "user is missing api key header")
+		slog.ErrorContext(ctx, "user is missing api key header")
 		return &apierror.Error{
 			Code:    apierror.InvalidAPIKey,
 			Status:  apierror.InvalidAPIKey.Status(),
@@ -204,15 +182,10 @@ func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput
 		}
 	}
 
-	// Validate API key — user lookup is intentionally done here as well for
-	// proper OpenAPI security-scheme error responses (401 for bad keys).
-	// The Authenticate middleware already injected the user into context if
-	// the key was valid, so this is a validation-only check.
-	env.Logger.DebugContext(ctx, "checking api key existence")
-	_, err := env.Database.GetUserByApiKey(ctx, apiKey)
+	slog.DebugContext(ctx, "checking api key existence")
+	_, err := e.Database.GetUserByApiKey(ctx, apiKey)
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "no user found", slog.Any("error", err))
-		env.Logger.ErrorContext(ctx, "api key does not exist")
+		slog.ErrorContext(ctx, "api key does not exist", "error", err)
 		return &apierror.Error{
 			Code:    apierror.InvalidAPIKey,
 			Status:  apierror.InvalidAPIKey.Status(),
@@ -220,7 +193,7 @@ func OAPIAuthFunc(ctx context.Context, input *openapi3filter.AuthenticationInput
 			ErrorID: requestID,
 		}
 	} else if err != nil {
-		env.Logger.DebugContext(ctx, "failed to check existence", slog.Any("error", err))
+		slog.DebugContext(ctx, "failed to check existence", "error", err)
 		return &apierror.Error{
 			Code:    apierror.InternalServerError,
 			Status:  apierror.InternalServerError.Status(),
