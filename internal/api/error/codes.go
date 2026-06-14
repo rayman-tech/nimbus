@@ -15,6 +15,7 @@ const (
 	ProjectNotFound         ErrorCode = "project_not_found"
 	DisabledBranchPreview   ErrorCode = "disabled_branch_preview"
 	ServiceNotFound         ErrorCode = "service_not_found"
+	UserNotFound            ErrorCode = "user_not_found"
 )
 
 var errorCodeToStatusCode = map[ErrorCode]int{
@@ -28,6 +29,7 @@ var errorCodeToStatusCode = map[ErrorCode]int{
 	ProjectNotFound:         http.StatusNotFound,
 	DisabledBranchPreview:   http.StatusConflict,
 	ServiceNotFound:         http.StatusNotFound,
+	UserNotFound:            http.StatusNotFound,
 }
 
 func (ec ErrorCode) Status() int {

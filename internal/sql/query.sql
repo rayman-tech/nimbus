@@ -208,6 +208,21 @@ FROM
 WHERE
   v.project_id = $1;
 
+-- name: CreateUser :one
+INSERT INTO users (id, username, api_key)
+  VALUES ($1, $2, $3)
+RETURNING
+  *;
+
+-- name: GetUserByUsername :one
+SELECT
+  *
+FROM
+  users
+WHERE
+  username = $1
+LIMIT 1;
+
 -- name: CheckProjectsTableExists :one
 SELECT
   EXISTS (

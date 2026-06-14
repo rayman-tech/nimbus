@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"nimbus/internal/database"
-	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -94,13 +93,13 @@ func GenerateServiceSpec(namespace string,
 }
 
 func CreateService(
-	ctx context.Context, namespace string, service *corev1.Service, env *nimbusEnv.Env,
+	ctx context.Context, namespace string, service *corev1.Service,
 ) (*corev1.Service, error) {
-	client := getClient(env).CoreV1().Services(namespace)
+	client := getClient().CoreV1().Services(namespace)
 
 	existing, err := client.Get(ctx, service.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		env.Logger.WarnContext(ctx, "service not found - creating service", slog.String("service", service.Name))
+		slog.WarnContext(ctx, "service not found - creating service", "service", service.Name)
 		service, err := client.Create(ctx, service, metav1.CreateOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("creating service: %w", err)
@@ -118,14 +117,14 @@ func CreateService(
 	existing.Annotations["updated"] = time.Now().Format(time.RFC3339)
 	updated, err := client.Update(ctx, existing, metav1.UpdateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("updating deployment: %w", err)
+		return nil, fmt.Errorf("updating service: %w", err)
 	}
 
 	return updated, nil
 }
 
-func DeleteService(ctx context.Context, namespace, name string, env *nimbusEnv.Env) error {
-	client := getClient(env).CoreV1().Services(namespace)
+func DeleteService(ctx context.Context, namespace, name string) error {
+	client := getClient().CoreV1().Services(namespace)
 
 	err := client.Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {

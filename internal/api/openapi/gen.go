@@ -185,6 +185,18 @@ type DeleteProjectsNameParams struct {
 	XAPIKey *string `json:"X-API-Key,omitempty"`
 }
 
+// PostProjectsNameMembersJSONBody defines parameters for PostProjectsNameMembers.
+type PostProjectsNameMembersJSONBody struct {
+	// Username The username of the user to add
+	Username string `json:"username"`
+}
+
+// PostProjectsNameMembersParams defines parameters for PostProjectsNameMembers.
+type PostProjectsNameMembersParams struct {
+	// XAPIKey API key for authentication
+	XAPIKey *string `json:"X-API-Key,omitempty"`
+}
+
 // GetProjectsNameSecretsParams defines parameters for GetProjectsNameSecrets.
 type GetProjectsNameSecretsParams struct {
 	// Values Set to 'true' to return secret values
@@ -241,6 +253,9 @@ type PostDeployMultipartRequestBody PostDeployMultipartBody
 
 // PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
 type PostProjectsJSONRequestBody PostProjectsJSONBody
+
+// PostProjectsNameMembersJSONRequestBody defines body for PostProjectsNameMembers for application/json ContentType.
+type PostProjectsNameMembersJSONRequestBody PostProjectsNameMembersJSONBody
 
 // PutProjectsNameSecretsJSONRequestBody defines body for PutProjectsNameSecrets for application/json ContentType.
 type PutProjectsNameSecretsJSONRequestBody PutProjectsNameSecretsJSONBody
@@ -340,6 +355,11 @@ type ClientInterface interface {
 
 	// DeleteProjectsName request
 	DeleteProjectsName(ctx context.Context, name string, params *DeleteProjectsNameParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostProjectsNameMembersWithBody request with any body
+	PostProjectsNameMembersWithBody(ctx context.Context, name string, params *PostProjectsNameMembersParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostProjectsNameMembers(ctx context.Context, name string, params *PostProjectsNameMembersParams, body PostProjectsNameMembersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProjectsNameSecrets request
 	GetProjectsNameSecrets(ctx context.Context, name string, params *GetProjectsNameSecretsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -445,6 +465,30 @@ func (c *Client) PostProjects(ctx context.Context, params *PostProjectsParams, b
 
 func (c *Client) DeleteProjectsName(ctx context.Context, name string, params *DeleteProjectsNameParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteProjectsNameRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostProjectsNameMembersWithBody(ctx context.Context, name string, params *PostProjectsNameMembersParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostProjectsNameMembersRequestWithBody(c.Server, name, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostProjectsNameMembers(ctx context.Context, name string, params *PostProjectsNameMembersParams, body PostProjectsNameMembersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostProjectsNameMembersRequest(c.Server, name, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -824,6 +868,68 @@ func NewDeleteProjectsNameRequest(server string, name string, params *DeleteProj
 	if err != nil {
 		return nil, err
 	}
+
+	if params != nil {
+
+		if params.XAPIKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-API-Key", runtime.ParamLocationHeader, *params.XAPIKey)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-API-Key", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostProjectsNameMembersRequest calls the generic PostProjectsNameMembers builder with application/json body
+func NewPostProjectsNameMembersRequest(server string, name string, params *PostProjectsNameMembersParams, body PostProjectsNameMembersJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostProjectsNameMembersRequestWithBody(server, name, params, "application/json", bodyReader)
+}
+
+// NewPostProjectsNameMembersRequestWithBody generates requests for PostProjectsNameMembers with any type of body
+func NewPostProjectsNameMembersRequestWithBody(server string, name string, params *PostProjectsNameMembersParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/projects/%s/members", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -1250,6 +1356,11 @@ type ClientWithResponsesInterface interface {
 	// DeleteProjectsNameWithResponse request
 	DeleteProjectsNameWithResponse(ctx context.Context, name string, params *DeleteProjectsNameParams, reqEditors ...RequestEditorFn) (*DeleteProjectsNameResponse, error)
 
+	// PostProjectsNameMembersWithBodyWithResponse request with any body
+	PostProjectsNameMembersWithBodyWithResponse(ctx context.Context, name string, params *PostProjectsNameMembersParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProjectsNameMembersResponse, error)
+
+	PostProjectsNameMembersWithResponse(ctx context.Context, name string, params *PostProjectsNameMembersParams, body PostProjectsNameMembersJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsNameMembersResponse, error)
+
 	// GetProjectsNameSecretsWithResponse request
 	GetProjectsNameSecretsWithResponse(ctx context.Context, name string, params *GetProjectsNameSecretsParams, reqEditors ...RequestEditorFn) (*GetProjectsNameSecretsResponse, error)
 
@@ -1438,6 +1549,32 @@ func (r DeleteProjectsNameResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r DeleteProjectsNameResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PostProjectsNameMembersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r PostProjectsNameMembersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostProjectsNameMembersResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1644,6 +1781,23 @@ func (c *ClientWithResponses) DeleteProjectsNameWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseDeleteProjectsNameResponse(rsp)
+}
+
+// PostProjectsNameMembersWithBodyWithResponse request with arbitrary body returning *PostProjectsNameMembersResponse
+func (c *ClientWithResponses) PostProjectsNameMembersWithBodyWithResponse(ctx context.Context, name string, params *PostProjectsNameMembersParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProjectsNameMembersResponse, error) {
+	rsp, err := c.PostProjectsNameMembersWithBody(ctx, name, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostProjectsNameMembersResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostProjectsNameMembersWithResponse(ctx context.Context, name string, params *PostProjectsNameMembersParams, body PostProjectsNameMembersJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsNameMembersResponse, error) {
+	rsp, err := c.PostProjectsNameMembers(ctx, name, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostProjectsNameMembersResponse(rsp)
 }
 
 // GetProjectsNameSecretsWithResponse request returning *GetProjectsNameSecretsResponse
@@ -2020,6 +2174,60 @@ func ParseDeleteProjectsNameResponse(rsp *http.Response) (*DeleteProjectsNameRes
 	return response, nil
 }
 
+// ParsePostProjectsNameMembersResponse parses an HTTP response from a PostProjectsNameMembersWithResponse call
+func ParsePostProjectsNameMembersResponse(rsp *http.Response) (*PostProjectsNameMembersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostProjectsNameMembersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetProjectsNameSecretsResponse parses an HTTP response from a GetProjectsNameSecretsWithResponse call
 func ParseGetProjectsNameSecretsResponse(rsp *http.Response) (*GetProjectsNameSecretsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -2296,6 +2504,9 @@ type ServerInterface interface {
 	// Delete a project
 	// (DELETE /projects/{name})
 	DeleteProjectsName(w http.ResponseWriter, r *http.Request, name string, params DeleteProjectsNameParams)
+	// Add a member to a project
+	// (POST /projects/{name}/members)
+	PostProjectsNameMembers(w http.ResponseWriter, r *http.Request, name string, params PostProjectsNameMembersParams)
 	// Get project secrets
 	// (GET /projects/{name}/secrets)
 	GetProjectsNameSecrets(w http.ResponseWriter, r *http.Request, name string, params GetProjectsNameSecretsParams)
@@ -2610,6 +2821,61 @@ func (siw *ServerInterfaceWrapper) DeleteProjectsName(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteProjectsName(w, r, name, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostProjectsNameMembers operation middleware
+func (siw *ServerInterfaceWrapper) PostProjectsNameMembers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", mux.Vars(r)["name"], &name, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostProjectsNameMembersParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-API-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-API-Key")]; found {
+		var XAPIKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-API-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-API-Key", valueList[0], &XAPIKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-API-Key", Err: err})
+			return
+		}
+
+		params.XAPIKey = &XAPIKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProjectsNameMembers(w, r, name, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3066,6 +3332,8 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 
 	r.HandleFunc(options.BaseURL+"/projects/{name}", wrapper.DeleteProjectsName).Methods("DELETE")
 
+	r.HandleFunc(options.BaseURL+"/projects/{name}/members", wrapper.PostProjectsNameMembers).Methods("POST")
+
 	r.HandleFunc(options.BaseURL+"/projects/{name}/secrets", wrapper.GetProjectsNameSecrets).Methods("GET")
 
 	r.HandleFunc(options.BaseURL+"/projects/{name}/secrets", wrapper.PutProjectsNameSecrets).Methods("PUT")
@@ -3415,6 +3683,69 @@ func (response DeleteProjectsName500JSONResponse) VisitDeleteProjectsNameRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type PostProjectsNameMembersRequestObject struct {
+	Name   string `json:"name"`
+	Params PostProjectsNameMembersParams
+	Body   *PostProjectsNameMembersJSONRequestBody
+}
+
+type PostProjectsNameMembersResponseObject interface {
+	VisitPostProjectsNameMembersResponse(w http.ResponseWriter) error
+}
+
+type PostProjectsNameMembers201Response struct {
+}
+
+func (response PostProjectsNameMembers201Response) VisitPostProjectsNameMembersResponse(w http.ResponseWriter) error {
+	w.WriteHeader(201)
+	return nil
+}
+
+type PostProjectsNameMembers400JSONResponse Error
+
+func (response PostProjectsNameMembers400JSONResponse) VisitPostProjectsNameMembersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostProjectsNameMembers401JSONResponse Error
+
+func (response PostProjectsNameMembers401JSONResponse) VisitPostProjectsNameMembersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostProjectsNameMembers403JSONResponse Error
+
+func (response PostProjectsNameMembers403JSONResponse) VisitPostProjectsNameMembersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostProjectsNameMembers404JSONResponse Error
+
+func (response PostProjectsNameMembers404JSONResponse) VisitPostProjectsNameMembersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostProjectsNameMembers500JSONResponse Error
+
+func (response PostProjectsNameMembers500JSONResponse) VisitPostProjectsNameMembersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetProjectsNameSecretsRequestObject struct {
 	Name   string `json:"name"`
 	Params GetProjectsNameSecretsParams
@@ -3703,6 +4034,9 @@ type StrictServerInterface interface {
 	// Delete a project
 	// (DELETE /projects/{name})
 	DeleteProjectsName(ctx context.Context, request DeleteProjectsNameRequestObject) (DeleteProjectsNameResponseObject, error)
+	// Add a member to a project
+	// (POST /projects/{name}/members)
+	PostProjectsNameMembers(ctx context.Context, request PostProjectsNameMembersRequestObject) (PostProjectsNameMembersResponseObject, error)
 	// Get project secrets
 	// (GET /projects/{name}/secrets)
 	GetProjectsNameSecrets(ctx context.Context, request GetProjectsNameSecretsRequestObject) (GetProjectsNameSecretsResponseObject, error)
@@ -3935,6 +4269,40 @@ func (sh *strictHandler) DeleteProjectsName(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteProjectsNameResponseObject); ok {
 		if err := validResponse.VisitDeleteProjectsNameResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProjectsNameMembers operation middleware
+func (sh *strictHandler) PostProjectsNameMembers(w http.ResponseWriter, r *http.Request, name string, params PostProjectsNameMembersParams) {
+	var request PostProjectsNameMembersRequestObject
+
+	request.Name = name
+	request.Params = params
+
+	var body PostProjectsNameMembersJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProjectsNameMembers(ctx, request.(PostProjectsNameMembersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProjectsNameMembers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProjectsNameMembersResponseObject); ok {
+		if err := validResponse.VisitPostProjectsNameMembersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

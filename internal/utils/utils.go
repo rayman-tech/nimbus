@@ -11,6 +11,12 @@ import (
 	"nimbus/internal/env"
 )
 
+const DefaultBranch = "main"
+
+func IsMainBranch(branch string) bool {
+	return branch == "main" || branch == "master"
+}
+
 func FormatServiceURL(domain string, nodePort int32) string {
 	return fmt.Sprintf("%s:%d", domain, nodePort)
 }
@@ -26,7 +32,7 @@ func GetSanitizedNamespace(namespace, branch string) string {
 		"@", "",
 		".", "",
 	)
-	if branch != "main" && branch != "master" {
+	if !IsMainBranch(branch) {
 		sanitizedNamespace = fmt.Sprintf("%s-%s", namespace, replacer.Replace(branch))
 	}
 	return sanitizedNamespace
@@ -35,7 +41,7 @@ func GetSanitizedNamespace(namespace, branch string) string {
 func GetBranch(r *http.Request) string {
 	branch := r.URL.Query().Get("branch")
 	if branch == "" {
-		branch = "main"
+		branch = DefaultBranch
 	}
 	return branch
 }

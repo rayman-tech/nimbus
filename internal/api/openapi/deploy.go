@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"strings"
 
 	apierror "nimbus/internal/api/error"
@@ -35,232 +36,178 @@ func shouldCreateKubeService(service *models.Service) bool {
 	}
 }
 
-func (Server) PostDeploy(
-	ctx context.Context, request PostDeployRequestObject,
-) (PostDeployResponseObject, error) {
-	env := env.FromContext(ctx)
-	requestID := fmt.Sprintf("%d", requestid.FromContext(ctx))
-
-	env.Logger.DebugContext(ctx, "parsing form")
-	const maxSize = 10 << 20 // ~ 10 MB
-	form, err := request.Body.ReadForm(maxSize)
-	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to read form", slog.Any("error", err))
-		return PostDeploy400JSONResponse{
-			Status:  apierror.BadRequest.Status(),
-			Code:    apierror.BadRequest.String(),
-			Message: "invaild form",
-			ErrorId: requestID,
-		}, nil
-	}
-
+// parseDeployForm reads the multipart form, parses the YAML config, validates
+// the project/user, and returns the parsed config, deploy request, and request
+// ID. On failure it returns the appropriate response object.
+func parseDeployForm(
+	ctx context.Context, form *multipart.Form, env *env.Env, rid string,
+) (*models.Config, *models.DeployRequest, PostDeployResponseObject) {
 	if env.Config.NimbusStorageClass == "" {
-		env.Logger.ErrorContext(ctx, "NimbusStorageClass not defined in config")
-		return PostDeploy500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestID,
-		}, nil
+		slog.ErrorContext(ctx, "NimbusStorageClass not defined in config")
+		return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 	}
 
 	// Read File
-	env.Logger.DebugContext(ctx, "retrieving form from file")
+	slog.DebugContext(ctx, "retrieving form from file")
 	files := form.File["file"]
 	if len(files) == 0 {
-		env.Logger.ErrorContext(ctx, "no files in form")
-		return PostDeploy400JSONResponse{
+		slog.ErrorContext(ctx, "no files in form")
+		return nil, nil, PostDeploy400JSONResponse{
 			Status:  apierror.BadRequest.Status(),
 			Code:    apierror.BadRequest.String(),
 			Message: "file not found in form",
-			ErrorId: requestID,
-		}, nil
+			ErrorId: rid,
+		}
 	}
 	fileheader := files[0]
-	env.Logger.DebugContext(ctx, "found file", slog.String("filename", fileheader.Filename))
+	slog.DebugContext(ctx, "found file", "filename", fileheader.Filename)
 
-	env.Logger.DebugContext(ctx, "reading file content", slog.String("filename", fileheader.Filename))
+	slog.DebugContext(ctx, "reading file content", "filename", fileheader.Filename)
 	file, err := fileheader.Open()
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to open file",
-			slog.String("filename", fileheader.Filename),
-			slog.Any("error", err))
-		return PostDeploy400JSONResponse{
+		slog.ErrorContext(ctx, "failed to open file",
+			"filename", fileheader.Filename,
+			"error", err)
+		return nil, nil, PostDeploy400JSONResponse{
 			Status:  apierror.BadRequest.Status(),
 			Code:    apierror.BadRequest.String(),
 			Message: "invalid file",
-			ErrorId: requestID,
-		}, nil
+			ErrorId: rid,
+		}
 	}
 	defer func() { _ = file.Close() }()
 	content, err := io.ReadAll(file)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to read file",
-			slog.String("filename", fileheader.Filename),
-			slog.Any("error", err))
-		return PostDeploy500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestID,
-		}, nil
+		slog.ErrorContext(ctx, "failed to read file",
+			"filename", fileheader.Filename,
+			"error", err)
+		return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 	}
 
-	env.Logger.DebugContext(ctx, "unmarshaling yaml", slog.String("filename", fileheader.Filename))
+	slog.DebugContext(ctx, "unmarshaling yaml", "filename", fileheader.Filename)
 	var config models.Config
 	err = yaml.Unmarshal(content, &config)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to unmarshal yaml",
-			slog.String("filename", fileheader.Filename),
-			slog.Any("error", err))
-		return PostDeploy400JSONResponse{
+		slog.ErrorContext(ctx, "failed to unmarshal yaml",
+			"filename", fileheader.Filename,
+			"error", err)
+		return nil, nil, PostDeploy400JSONResponse{
 			Status:  apierror.BadRequest.Status(),
 			Code:    apierror.BadRequest.String(),
 			Message: "failed to parse file - invalid yaml",
-			ErrorId: requestID,
-		}, nil
+			ErrorId: rid,
+		}
 	}
 	if config.AppName == "" {
-		env.Logger.ErrorContext(ctx, "app name is missing in config",
-			slog.String("filename", fileheader.Filename))
-		return PostDeploy400JSONResponse{
+		slog.ErrorContext(ctx, "app name is missing in config",
+			"filename", fileheader.Filename)
+		return nil, nil, PostDeploy400JSONResponse{
 			Status:  apierror.BadRequest.Status(),
 			Code:    apierror.BadRequest.String(),
 			Message: "app name is missing in file",
-			ErrorId: requestID,
-		}, nil
+			ErrorId: rid,
+		}
 	}
 	if config.AllowBranchPreviews == nil {
 		v := true
 		config.AllowBranchPreviews = &v
-		env.Logger.DebugContext(ctx, "defaulting AllowBranchPreviews to true",
-			slog.String("app", config.AppName))
+		slog.DebugContext(ctx, "defaulting AllowBranchPreviews to true",
+			"app", config.AppName)
 	}
 
 	// Retrieve project
 	var deployRequest models.DeployRequest
-	env.Logger.DebugContext(
-		ctx, "retrieving project by name", slog.String("name", config.AppName))
+	slog.DebugContext(ctx, "retrieving project by name", "name", config.AppName)
 	project, err := env.Database.GetProjectByName(ctx, config.AppName)
 	if errors.Is(err, pgx.ErrNoRows) {
-		env.Logger.ErrorContext(ctx, "project not found",
-			slog.String("app", config.AppName),
-			slog.Any("error", err))
-		return PostDeploy404JSONResponse{
+		slog.ErrorContext(ctx, "project not found",
+			"app", config.AppName,
+			"error", err)
+		return nil, nil, PostDeploy404JSONResponse{
 			Status:  apierror.ProjectNotFound.Status(),
 			Code:    apierror.ProjectNotFound.String(),
 			Message: "project with app name not found",
-			ErrorId: requestID,
-		}, nil
+			ErrorId: rid,
+		}
 	} else if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project",
-			slog.String("app", config.AppName),
-			slog.Any("error", err))
-		return PostDeploy500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestID,
-		}, nil
+		slog.ErrorContext(ctx, "failed to get project",
+			"app", config.AppName,
+			"error", err)
+		return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 	}
 	deployRequest.ProjectID = project.ID
-	env.Logger.DebugContext(ctx, "project retrieved",
-		slog.String("project", project.Name),
-		slog.String("project_id", project.ID.String()))
+	slog.DebugContext(ctx, "project retrieved",
+		"project", project.Name,
+		"project_id", project.ID.String())
 
 	// Check user permissions
-	env.Logger.DebugContext(ctx, "checking user project access")
+	slog.DebugContext(ctx, "checking user project access")
 	user := database.UserFromContext(ctx)
 	if user == nil {
-		return PostDeploy401JSONResponse{
-			Status:  apierror.InvalidAPIKey.Status(),
-			Code:    apierror.InvalidAPIKey.String(),
-			Message: "authentication required",
-			ErrorId: requestID,
-		}, nil
+		return nil, nil, PostDeploy401JSONResponse(authError(rid))
 	}
 	authorized, err := env.Database.IsUserInProject(ctx, database.IsUserInProjectParams{
 		UserID:    user.ID,
 		ProjectID: project.ID,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to check user access",
-			slog.String("project", project.Name),
-			slog.String("project_id", project.ID.String()),
-			slog.Any("error", err))
-		return PostDeploy500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestID,
-		}, nil
+		slog.ErrorContext(ctx, "failed to check user access",
+			"project", project.Name,
+			"project_id", project.ID.String(),
+			"error", err)
+		return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 	}
 	if !authorized {
-		env.Logger.DebugContext(ctx, "user is not authorized to deploy project",
-			slog.String("project", project.Name),
-			slog.String("user_id", user.ID.String()))
-		return PostDeploy403JSONResponse{
-			Status:  apierror.InsufficientPermissions.Status(),
-			Code:    apierror.InsufficientPermissions.String(),
-			Message: "user does not have permissions to deploy project",
-			ErrorId: requestID,
-		}, nil
+		slog.DebugContext(ctx, "user is not authorized to deploy project",
+			"project", project.Name,
+			"user_id", user.ID.String())
+		return nil, nil, PostDeploy403JSONResponse(forbiddenError(rid, "user does not have permissions to deploy project"))
 	}
 
 	// Read branch
 	branches := form.Value["branch"]
 	if len(branches) == 0 || branches[0] == "" {
-		deployRequest.BranchName = "main"
+		deployRequest.BranchName = utils.DefaultBranch
 	} else {
 		deployRequest.BranchName = branches[0]
 	}
 	if config.AllowBranchPreviews != nil &&
 		!*config.AllowBranchPreviews &&
-		deployRequest.BranchName != "main" && deployRequest.BranchName != "master" {
-		return PostDeploy409JSONResponse{
+		!utils.IsMainBranch(deployRequest.BranchName) {
+		return nil, nil, PostDeploy409JSONResponse{
 			Status:  apierror.DisabledBranchPreview.Status(),
 			Code:    apierror.DisabledBranchPreview.String(),
 			Message: "branch previews are disabled",
-			ErrorId: requestID,
-		}, nil
+			ErrorId: rid,
+		}
 	}
 
-	// Get services
-	env.Logger.DebugContext(ctx, "getting project services",
-		slog.String("project", project.Name),
-		slog.String("branch", deployRequest.BranchName))
+	// Get existing services
+	slog.DebugContext(ctx, "getting project services",
+		"project", project.Name,
+		"branch", deployRequest.BranchName)
 	servicesList, err := env.Database.GetServicesByProject(ctx, database.GetServicesByProjectParams{
 		ProjectID:     deployRequest.ProjectID,
 		ProjectBranch: deployRequest.BranchName,
 	})
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get project services",
-			slog.String("project", project.Name),
-			slog.String("branch", deployRequest.BranchName),
-			slog.Any("error", err))
-		return PostDeploy500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestID,
-		}, nil
+		slog.ErrorContext(ctx, "failed to get project services",
+			"project", project.Name,
+			"branch", deployRequest.BranchName,
+			"error", err)
+		return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 	}
 	deployRequest.ExistingServices = servicesList
 
 	// Apply project secrets
-	env.Logger.DebugContext(ctx, "applying project secrets",
-		slog.String("project", project.Name))
-	secrets, err := kubernetes.GetSecretValues(ctx, project.Name, env)
+	slog.DebugContext(ctx, "applying project secrets",
+		"project", project.Name)
+	secrets, err := kubernetes.GetSecretValues(ctx, project.Name)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to get secret values",
-			slog.String("project", project.Name),
-			slog.Any("error", err))
-		return PostDeploy500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestID,
-		}, nil
+		slog.ErrorContext(ctx, "failed to get secret values",
+			"project", project.Name,
+			"error", err)
+		return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 	}
 	for i, service := range config.Services {
 		for j, variable := range service.Env {
@@ -278,442 +225,271 @@ func (Server) PostDeploy(
 	// Validate namespace
 	deployRequest.Namespace = utils.GetSanitizedNamespace(
 		project.Name, deployRequest.BranchName)
-	env.Logger.DebugContext(
-		ctx, "validating namespace", slog.String("namespace", deployRequest.Namespace))
-	created, err := kubernetes.ValidateNamespace(ctx, deployRequest.Namespace, env)
+	slog.DebugContext(ctx, "validating namespace", "namespace", deployRequest.Namespace)
+	created, err := kubernetes.ValidateNamespace(ctx, deployRequest.Namespace)
 	if err != nil {
-		env.Logger.ErrorContext(ctx, "failed to validate namespace",
-			slog.String("namespace", deployRequest.Namespace),
-			slog.Any("error", err))
-		return PostDeploy500JSONResponse{
-			Status:  apierror.InternalServerError.Status(),
-			Code:    apierror.InternalServerError.String(),
-			Message: "Internal Server Error",
-			ErrorId: requestID,
-		}, nil
+		slog.ErrorContext(ctx, "failed to validate namespace",
+			"namespace", deployRequest.Namespace,
+			"error", err)
+		return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 	}
-	if created && deployRequest.BranchName != "main" && deployRequest.BranchName != "master" {
-		mainNS := utils.GetSanitizedNamespace(config.AppName, "main")
-		vals, err := kubernetes.GetSecretValues(ctx, mainNS, env)
+	if created && !utils.IsMainBranch(deployRequest.BranchName) {
+		mainNS := utils.GetSanitizedNamespace(config.AppName, utils.DefaultBranch)
+		vals, err := kubernetes.GetSecretValues(ctx, mainNS)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to get secret values",
-				slog.String("namespace", mainNS),
-				slog.String("source", "main"),
-				slog.Any("error", err))
-			return PostDeploy500JSONResponse{
-				Status:  apierror.InternalServerError.Status(),
-				Code:    apierror.InternalServerError.String(),
-				Message: "Internal Server Error",
-				ErrorId: requestID,
-			}, nil
+			slog.ErrorContext(ctx, "failed to get secret values",
+				"namespace", mainNS,
+				"source", "main",
+				"error", err)
+			return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 		}
 		if len(vals) > 0 {
 			err = kubernetes.UpdateSecret(
 				ctx, deployRequest.Namespace, fmt.Sprintf("%s-env", config.AppName),
-				vals, env)
+				vals)
 			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to update secrets",
-					slog.String("namespace", deployRequest.Namespace),
-					slog.String("app", config.AppName),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
+				slog.ErrorContext(ctx, "failed to update secrets",
+					"namespace", deployRequest.Namespace,
+					"app", config.AppName,
+					"error", err)
+				return nil, nil, PostDeploy500JSONResponse(internalError(rid))
 			}
 		}
 	}
 
-	// Delete removed services
+	return &config, &deployRequest, nil
+}
+
+// deployService deploys a single service: creates the deployment, k8s service,
+// ingress, and DB records. Returns the URLs assigned to this service.
+func deployService(
+	ctx context.Context, deployRequest *models.DeployRequest,
+	serviceConfig *models.Service, existingService *database.Service,
+	env *env.Env,
+) ([]string, error) {
+	// Create deployment
+	slog.DebugContext(ctx, "creating deployment", "service", serviceConfig.Name)
+	deploymentSpec, err := kubernetes.GenerateDeploymentSpec(ctx, deployRequest, serviceConfig, env)
+	if err != nil {
+		return nil, fmt.Errorf("generating deployment spec for %s: %w", serviceConfig.Name, err)
+	}
+	_, err = kubernetes.CreateDeployment(ctx, deployRequest.Namespace, deploymentSpec)
+	if err != nil {
+		return nil, fmt.Errorf("creating deployment for %s: %w", serviceConfig.Name, err)
+	}
+
+	// Create k8s service if needed
+	var kubeSvc *corev1.Service
+	if shouldCreateKubeService(serviceConfig) {
+		slog.DebugContext(ctx, "creating service", "service", serviceConfig.Name)
+		serviceSpec, err := kubernetes.GenerateServiceSpec(deployRequest.Namespace, serviceConfig, existingService)
+		if err != nil {
+			return nil, fmt.Errorf("generating service spec for %s: %w", serviceConfig.Name, err)
+		}
+		kubeSvc, err = kubernetes.CreateService(ctx, deployRequest.Namespace, serviceSpec)
+		if err != nil {
+			return nil, fmt.Errorf("creating service for %s: %w", serviceConfig.Name, err)
+		}
+	}
+
+	// Ensure DB record exists
+	svcExists := existingService != nil
+	var newSvc database.Service
+	if !svcExists {
+		slog.DebugContext(ctx, "creating service in database", "service", serviceConfig.Name)
+		newSvc, err = env.Database.CreateService(ctx, database.CreateServiceParams{
+			ID:            uuid.New(),
+			ProjectID:     deployRequest.ProjectID,
+			ProjectBranch: deployRequest.BranchName,
+			ServiceName:   serviceConfig.Name,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("creating service in database for %s: %w", serviceConfig.Name, err)
+		}
+	}
+
+	var serviceID uuid.UUID
+	var existingIngress *string
+	if svcExists {
+		serviceID = existingService.ID
+		if existingService.Ingress.Valid {
+			existingIngress = &existingService.Ingress.String
+		}
+	} else {
+		serviceID = newSvc.ID
+	}
+
+	// Update networking
+	var urls []string
+	slog.DebugContext(ctx, "updating service networking in database", "service", serviceConfig.Name)
+	if kubeSvc == nil {
+		if serviceConfig.Template != "http" {
+			slog.DebugContext(ctx, "no service ports specified - clearing node ports",
+				"service", serviceConfig.Name)
+			if err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
+				ID:        serviceID,
+				NodePorts: []int32{},
+			}); err != nil {
+				return nil, fmt.Errorf("clearing service ports for %s: %w", serviceConfig.Name, err)
+			}
+		} else {
+			if existingIngress != nil {
+				slog.DebugContext(ctx, "removing existing ingress",
+					"service", serviceConfig.Name,
+					"ingress", *existingIngress)
+				if err := kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress); err != nil {
+					slog.ErrorContext(ctx, "failed to delete ingress",
+						"service", serviceConfig.Name,
+						"ingress", *existingIngress,
+						"error", err)
+				}
+			}
+			if err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
+				ID:      serviceID,
+				Ingress: pgtype.Text{Valid: false},
+			}); err != nil {
+				return nil, fmt.Errorf("setting ingress for %s: %w", serviceConfig.Name, err)
+			}
+		}
+		return urls, nil
+	}
+
+	if serviceConfig.Template != "http" {
+		if !serviceConfig.Public {
+			slog.DebugContext(ctx, "clearing node ports for private service",
+				"service", serviceConfig.Name)
+			if err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
+				ID:        serviceID,
+				NodePorts: []int32{},
+			}); err != nil {
+				return nil, fmt.Errorf("clearing node ports for %s: %w", serviceConfig.Name, err)
+			}
+			return urls, nil
+		}
+
+		var nodePorts []int32
+		slog.DebugContext(ctx, "retrieving node ports from spec",
+			"service", serviceConfig.Name)
+		for _, port := range kubeSvc.Spec.Ports {
+			nodePorts = append(nodePorts, port.NodePort)
+			urls = append(urls, utils.FormatServiceURL(env.Config.Domain, port.NodePort))
+		}
+		if err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
+			ID:        serviceID,
+			NodePorts: nodePorts,
+		}); err != nil {
+			return nil, fmt.Errorf("updating node ports for %s: %w", serviceConfig.Name, err)
+		}
+	} else {
+		if !serviceConfig.Public {
+			if existingIngress != nil {
+				slog.DebugContext(ctx, "deleting existing ingress for private service",
+					"service", serviceConfig.Name,
+					"ingress", *existingIngress)
+				if err := kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress); err != nil {
+					slog.ErrorContext(ctx, "failed to delete ingress",
+						"service", serviceConfig.Name,
+						"ingress", *existingIngress,
+						"error", err)
+				}
+			}
+			if err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
+				ID:      serviceID,
+				Ingress: pgtype.Text{Valid: false},
+			}); err != nil {
+				return nil, fmt.Errorf("setting ingress for %s: %w", serviceConfig.Name, err)
+			}
+			return urls, nil
+		}
+
+		slog.DebugContext(ctx, "creating ingress for service",
+			"service", serviceConfig.Name)
+		ingressSpec, err := kubernetes.GenerateIngressSpec(deployRequest.Namespace, serviceConfig, existingIngress, deployRequest.BranchName, env.Config)
+		if err != nil {
+			return nil, fmt.Errorf("generating ingress spec for %s: %w", serviceConfig.Name, err)
+		}
+		newIngress, err := kubernetes.CreateIngress(ctx, deployRequest.Namespace, ingressSpec)
+		if err != nil {
+			return nil, fmt.Errorf("creating ingress for %s: %w", serviceConfig.Name, err)
+		}
+		if err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
+			ID:      serviceID,
+			Ingress: pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
+		}); err != nil {
+			return nil, fmt.Errorf("updating ingress in database for %s: %w", serviceConfig.Name, err)
+		}
+		urls = append(urls, fmt.Sprintf("https://%s", newIngress.Spec.Rules[0].Host))
+	}
+
+	slog.DebugContext(ctx, "successfully created service", "service", serviceConfig.Name)
+	return urls, nil
+}
+
+func (Server) PostDeploy(
+	ctx context.Context, request PostDeployRequestObject,
+) (PostDeployResponseObject, error) {
+	env := env.FromContext(ctx)
+	rid := fmt.Sprintf("%d", requestid.FromContext(ctx))
+
+	slog.DebugContext(ctx, "parsing form")
+	const maxSize = 10 << 20 // ~ 10 MB
+	form, err := request.Body.ReadForm(maxSize)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to read form", "error", err)
+		return PostDeploy400JSONResponse{
+			Status:  apierror.BadRequest.Status(),
+			Code:    apierror.BadRequest.String(),
+			Message: "invaild form",
+			ErrorId: rid,
+		}, nil
+	}
+
+	config, deployRequest, errResp := parseDeployForm(ctx, form, env, rid)
+	if errResp != nil {
+		return errResp, nil
+	}
+
+	// Build existing services map and validate unique names
 	existingServices := make(map[string]*database.Service)
 	for _, service := range deployRequest.ExistingServices {
 		existingServices[service.ServiceName] = &service
 	}
-	env.Logger.DebugContext(ctx, "deleting services not present in config",
-		slog.String("project", project.Name),
-		slog.String("branch", deployRequest.BranchName))
+
+	slog.DebugContext(ctx, "validating service names")
 	serviceNames := make(map[string]bool)
 	for _, service := range config.Services {
 		if serviceNames[service.Name] {
-			env.Logger.ErrorContext(ctx, "duplicate service name", slog.String("service", service.Name))
+			slog.ErrorContext(ctx, "duplicate service name", "service", service.Name)
 			return PostDeploy422JSONResponse{
 				Status:  apierror.UnprocessibleContent.Status(),
 				Code:    apierror.UnprocessibleContent.String(),
 				Message: "service names must be unique",
-				ErrorId: requestID,
+				ErrorId: rid,
 			}, nil
 		}
 		serviceNames[service.Name] = true
 	}
 
-	for _, service := range existingServices {
-		if _, ok := serviceNames[service.ServiceName]; !ok {
-			env.Logger.DebugContext(
-				ctx, "deleting deployment",
-				slog.String("service", service.ServiceName),
-				slog.String("namespace", deployRequest.Namespace))
-			err := kubernetes.DeleteDeployment(
-				ctx, deployRequest.Namespace, service.ServiceName, env)
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to delete deployment",
-					slog.String("service", service.ServiceName),
-					slog.String("namespace", deployRequest.Namespace),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-
-			env.Logger.DebugContext(ctx, "deleting service",
-				slog.String("service", service.ServiceName),
-				slog.String("namespace", deployRequest.Namespace))
-			err = kubernetes.DeleteService(ctx, deployRequest.Namespace, service.ServiceName, env)
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to delete service",
-					slog.String("service", service.ServiceName),
-					slog.String("namespace", deployRequest.Namespace),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-
-			if service.Ingress.Valid {
-				env.Logger.DebugContext(ctx, "deleting ingress",
-					slog.String("service", service.ServiceName),
-					slog.String("ingress", service.Ingress.String))
-				err = kubernetes.DeleteIngress(ctx, deployRequest.Namespace, service.Ingress.String, env)
-				if err != nil {
-					env.Logger.ErrorContext(ctx, "failed to delete ingress",
-						slog.String("service", service.ServiceName),
-						slog.String("ingress", service.Ingress.String),
-						slog.Any("error", err))
-					return PostDeploy500JSONResponse{
-						Status:  apierror.InternalServerError.Status(),
-						Code:    apierror.InternalServerError.String(),
-						Message: "Internal Server Error",
-						ErrorId: requestID,
-					}, nil
-				}
-			}
-
-			env.Logger.DebugContext(ctx, "deleting service in database",
-				slog.String("service", service.ServiceName))
-			err = env.Database.DeleteServiceById(ctx, service.ID)
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to delete service",
-					slog.String("service", service.ServiceName),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-		}
+	// Delete stale services (k8s errors logged, not fatal)
+	if err := deleteStaleServices(ctx, deployRequest.Namespace, existingServices, serviceNames, env.Database); err != nil {
+		slog.ErrorContext(ctx, "failed to delete stale services", "error", err)
+		return PostDeploy500JSONResponse(internalError(rid)), nil
 	}
 
-	env.Logger.DebugContext(ctx, "creating services and deployments",
-		slog.String("project", project.Name),
-		slog.String("branch", deployRequest.BranchName))
+	// Deploy each service
+	slog.DebugContext(ctx, "creating services and deployments",
+		"project_id", deployRequest.ProjectID.String(),
+		"branch", deployRequest.BranchName)
 	serviceUrls := make(map[string][]string)
 	for _, serviceConfig := range config.Services {
-
-		// Create deployment
-		env.Logger.DebugContext(ctx, "creating deployment",
-			slog.String("service", serviceConfig.Name))
-		deploymentSpec, err := kubernetes.GenerateDeploymentSpec(
-			ctx, &deployRequest, &serviceConfig, env)
+		oldService := existingServices[serviceConfig.Name]
+		urls, err := deployService(ctx, deployRequest, &serviceConfig, oldService, env)
 		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to create deployment",
-				slog.String("service", serviceConfig.Name),
-				slog.Any("error", err))
-			return PostDeploy500JSONResponse{
-				Status:  apierror.InternalServerError.Status(),
-				Code:    apierror.InternalServerError.String(),
-				Message: "Internal Server Error",
-				ErrorId: requestID,
-			}, nil
+			slog.ErrorContext(ctx, "failed to deploy service",
+				"service", serviceConfig.Name,
+				"error", err)
+			return PostDeploy500JSONResponse(internalError(rid)), nil
 		}
-		_, err = kubernetes.CreateDeployment(ctx, deployRequest.Namespace, deploymentSpec, env)
-		if err != nil {
-			env.Logger.ErrorContext(ctx, "failed to create deployment",
-				slog.String("service", serviceConfig.Name),
-				slog.Any("error", err))
-			return PostDeploy500JSONResponse{
-				Status:  apierror.InternalServerError.Status(),
-				Code:    apierror.InternalServerError.String(),
-				Message: "Internal Server Error",
-				ErrorId: requestID,
-			}, nil
-		}
-
-		// Create service if ports specified or template requires it
-		oldService, svcExists := existingServices[serviceConfig.Name]
-		var kubeSvc *corev1.Service
-		if shouldCreateKubeService(&serviceConfig) {
-			env.Logger.DebugContext(ctx, "creating service",
-				slog.String("service", serviceConfig.Name))
-			serviceSpec, err := kubernetes.GenerateServiceSpec(deployRequest.Namespace, &serviceConfig, oldService)
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to generate service spec",
-					slog.String("service", serviceConfig.Name),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-			kubeSvc, err = kubernetes.CreateService(ctx, deployRequest.Namespace, serviceSpec, env)
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to create service",
-					slog.String("service", serviceConfig.Name),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-		}
-
-		var urls []string
-		var newSvc database.Service
-		if !svcExists {
-			env.Logger.DebugContext(ctx, "creating service in database",
-				slog.String("service", serviceConfig.Name))
-			newSvc, err = env.Database.CreateService(ctx, database.CreateServiceParams{
-				ID:            uuid.New(),
-				ProjectID:     deployRequest.ProjectID,
-				ProjectBranch: deployRequest.BranchName,
-				ServiceName:   serviceConfig.Name,
-			})
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to create service in database",
-					slog.String("service", serviceConfig.Name),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-		}
-
-		var serviceID uuid.UUID
-		var existingIngress *string
-		if svcExists {
-			serviceID = oldService.ID
-			if oldService.Ingress.Valid {
-				existingIngress = &oldService.Ingress.String
-			}
-		} else {
-			serviceID = newSvc.ID
-		}
-
-		env.Logger.DebugContext(ctx, "updating service networking in database",
-			slog.String("service", serviceConfig.Name))
-		if kubeSvc == nil {
-			if serviceConfig.Template != "http" {
-				env.Logger.DebugContext(ctx, "no service ports specified - clearing node ports",
-					slog.String("service", serviceConfig.Name))
-				err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
-					ID:        serviceID,
-					NodePorts: []int32{},
-				})
-				if err != nil {
-					env.Logger.ErrorContext(ctx, "failed to clear service ports",
-						slog.String("service", serviceConfig.Name),
-						slog.Any("error", err))
-					return PostDeploy500JSONResponse{
-						Status:  apierror.InternalServerError.Status(),
-						Code:    apierror.InternalServerError.String(),
-						Message: "Internal Server Error",
-						ErrorId: requestID,
-					}, nil
-				}
-			} else {
-				if existingIngress != nil {
-					env.Logger.DebugContext(ctx, "removing existing ingress",
-						slog.String("service", serviceConfig.Name),
-						slog.String("ingress", *existingIngress))
-					err = kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress, env)
-					if err != nil {
-						env.Logger.ErrorContext(ctx, "failed to delete ingress",
-							slog.String("service", serviceConfig.Name),
-							slog.String("ingress", *existingIngress),
-							slog.Any("error", err))
-						return PostDeploy500JSONResponse{
-							Status:  apierror.InternalServerError.Status(),
-							Code:    apierror.InternalServerError.String(),
-							Message: "Internal Server Error",
-							ErrorId: requestID,
-						}, nil
-					}
-				}
-				err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-					ID:      serviceID,
-					Ingress: pgtype.Text{Valid: false},
-				})
-				if err != nil {
-					env.Logger.ErrorContext(ctx, "failed to set ingress",
-						slog.String("service", serviceConfig.Name),
-						slog.Any("error", err))
-					return PostDeploy500JSONResponse{
-						Status:  apierror.InternalServerError.Status(),
-						Code:    apierror.InternalServerError.String(),
-						Message: "Internal Server Error",
-						ErrorId: requestID,
-					}, nil
-				}
-			}
-			serviceUrls[serviceConfig.Name] = urls
-			continue
-		}
-
-		if serviceConfig.Template != "http" {
-			if !serviceConfig.Public {
-				env.Logger.DebugContext(ctx, "clearing node ports for private service",
-					slog.String("service", serviceConfig.Name))
-				err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
-					ID:        serviceID,
-					NodePorts: []int32{},
-				})
-				if err != nil {
-					env.Logger.ErrorContext(ctx, "failed to update service in database",
-						slog.String("service", serviceConfig.Name),
-						slog.Any("error", err))
-					return PostDeploy500JSONResponse{
-						Status:  apierror.InternalServerError.Status(),
-						Code:    apierror.InternalServerError.String(),
-						Message: "Internal Server Error",
-						ErrorId: requestID,
-					}, nil
-				}
-				serviceUrls[serviceConfig.Name] = urls
-				continue
-			}
-
-			var nodePorts []int32
-			env.Logger.DebugContext(ctx, "retrieving node ports from spec",
-				slog.String("service", serviceConfig.Name))
-			for _, port := range kubeSvc.Spec.Ports {
-				nodePorts = append(nodePorts, port.NodePort)
-				urls = append(urls, utils.FormatServiceURL(env.Config.Domain, port.NodePort))
-			}
-			err = env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
-				ID:        serviceID,
-				NodePorts: nodePorts,
-			})
-			if err != nil {
-				env.Logger.ErrorContext(
-					ctx, "failed to update service node ports in database", slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-		} else {
-			if !serviceConfig.Public {
-				if existingIngress != nil {
-					env.Logger.DebugContext(ctx, "deleting existing ingress for private service",
-						slog.String("service", serviceConfig.Name),
-						slog.String("ingress", *existingIngress))
-					err = kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress, env)
-					if err != nil {
-						env.Logger.ErrorContext(ctx, "failed to delete ingress",
-							slog.String("service", serviceConfig.Name),
-							slog.String("ingress", *existingIngress),
-							slog.Any("error", err))
-						return PostDeploy500JSONResponse{
-							Status:  apierror.InternalServerError.Status(),
-							Code:    apierror.InternalServerError.String(),
-							Message: "Internal Server Error",
-							ErrorId: requestID,
-						}, nil
-					}
-				}
-				err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-					ID:      serviceID,
-					Ingress: pgtype.Text{Valid: false},
-				})
-				if err != nil {
-					env.Logger.ErrorContext(ctx, "failed to set service ingress",
-						slog.String("service", serviceConfig.Name),
-						slog.Any("error", err))
-					return PostDeploy500JSONResponse{
-						Status:  apierror.InternalServerError.Status(),
-						Code:    apierror.InternalServerError.String(),
-						Message: "Internal Server Error",
-						ErrorId: requestID,
-					}, nil
-				}
-				serviceUrls[serviceConfig.Name] = urls
-				continue
-			}
-
-			env.Logger.DebugContext(ctx, "creating ingress for service",
-				slog.String("service", serviceConfig.Name))
-			ingressSpec, err := kubernetes.GenerateIngressSpec(deployRequest.Namespace, &serviceConfig, existingIngress, env)
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to create ingress for service",
-					slog.String("service", serviceConfig.Name),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-			newIngress, err := kubernetes.CreateIngress(ctx, deployRequest.Namespace, ingressSpec, env)
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to create ingress",
-					slog.String("service", serviceConfig.Name),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-			err = env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-				ID:      serviceID,
-				Ingress: pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
-			})
-			if err != nil {
-				env.Logger.ErrorContext(ctx, "failed to update ingress in database",
-					slog.String("service", serviceConfig.Name),
-					slog.String("ingress_host", newIngress.Spec.Rules[0].Host),
-					slog.Any("error", err))
-				return PostDeploy500JSONResponse{
-					Status:  apierror.InternalServerError.Status(),
-					Code:    apierror.InternalServerError.String(),
-					Message: "Internal Server Error",
-					ErrorId: requestID,
-				}, nil
-			}
-			urls = append(urls, fmt.Sprintf("https://%s", newIngress.Spec.Rules[0].Host))
-		}
-
-		env.Logger.DebugContext(ctx, "successfully created service",
-			slog.String("service", serviceConfig.Name))
 		serviceUrls[serviceConfig.Name] = urls
 	}
 

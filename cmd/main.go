@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,14 +19,20 @@ import (
 	"syscall"
 	"time"
 
+	"log/slog"
+
 	"nimbus/internal/api"
 	"nimbus/internal/config"
+	"nimbus/internal/database"
 	"nimbus/internal/env"
+	"nimbus/internal/kubernetes"
 	"nimbus/internal/logging"
 	"nimbus/internal/setup"
+	"nimbus/internal/utils"
 
 	urllib "net/url"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -43,24 +51,28 @@ func main() {
 			defer cancel()
 
 			port, _ := cmd.Flags().GetString("port")
-			log := logging.New(nil)
 
-			log.Info("loading config")
-			config, err := config.LoadConfig()
+			cfg, err := config.Load()
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
 			}
 
-			log.Info("setting up database")
-			db, err := setup.Database(setupCtx, config)
+			logging.Init(cfg.LogLevel)
+
+			slog.Info("setting up database")
+			db, err := setup.Database(setupCtx, *cfg)
 			if err != nil {
 				return fmt.Errorf("setting up database: %w", err)
 			}
 
-			return api.Start(port, &env.Env{
-				Logger:   log,
+			slog.Info("initializing kubernetes client")
+			if err := kubernetes.InitClient(cfg); err != nil {
+				return fmt.Errorf("initializing kubernetes client: %w", err)
+			}
+
+			return api.Start(ctx, port, &env.Env{
 				Database: db,
-				Config:   config,
+				Config:   cfg,
 			})
 		},
 	}
@@ -198,12 +210,17 @@ func main() {
 			apiKey := getAPIKey(cmd)
 			fmt.Print("Project name: ")
 			var name string
-			_, _ = fmt.Scanln(&name)
+			if _, err := fmt.Scanln(&name); err != nil {
+				return fmt.Errorf("reading project name: %w", err)
+			}
 			body, err := json.Marshal(map[string]string{"name": name})
 			if err != nil {
 				return fmt.Errorf("marshaling body: %w", err)
 			}
-			req, _ := http.NewRequest("POST", host+"/projects", bytes.NewBuffer(body))
+			req, err := http.NewRequest("POST", host+"/projects", bytes.NewBuffer(body))
+			if err != nil {
+				return err
+			}
 			req.Header.Set("Content-Type", "application/json")
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
@@ -214,7 +231,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusCreated {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Println("Project created!")
@@ -228,7 +248,10 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := getHost(cmd)
 			apiKey := getAPIKey(cmd)
-			req, _ := http.NewRequest("GET", host+"/projects", nil)
+			req, err := http.NewRequest("GET", host+"/projects", nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -238,7 +261,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Projects []struct{ Name string } }
@@ -260,7 +286,10 @@ func main() {
 			host := getHost(cmd)
 			apiKey := getAPIKey(cmd)
 			url := fmt.Sprintf("%s/projects/%s", host, args[0])
-			req, _ := http.NewRequest("DELETE", url, nil)
+			req, err := http.NewRequest("DELETE", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -270,7 +299,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Println("Project deleted!")
@@ -278,12 +310,7 @@ func main() {
 		},
 	}
 	projectCmd.AddCommand(projectCreateCmd, projectListCmd, projectDeleteCmd)
-	projectCreateCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	projectCreateCmd.Flags().StringP("apikey", "a", "", "API key")
-	projectListCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	projectListCmd.Flags().StringP("apikey", "a", "", "API key")
-	projectDeleteCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	projectDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
+	addClientFlags(projectCreateCmd, projectListCmd, projectDeleteCmd)
 
 	serviceCmd := &cobra.Command{Use: "services", Short: "Manage services"}
 	serviceListCmd := &cobra.Command{
@@ -292,7 +319,10 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := getHost(cmd)
 			apiKey := getAPIKey(cmd)
-			req, _ := http.NewRequest("GET", host+"/services", nil)
+			req, err := http.NewRequest("GET", host+"/services", nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -302,7 +332,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct {
@@ -339,8 +372,8 @@ func main() {
 				}
 				sort.SliceStable(branches, func(i, j int) bool {
 					a, b := branches[i], branches[j]
-					isMainA := a == "main" || a == "master"
-					isMainB := b == "main" || b == "master"
+					isMainA := utils.IsMainBranch(a)
+					isMainB := utils.IsMainBranch(b)
 					if isMainA && !isMainB {
 						return true
 					}
@@ -372,10 +405,13 @@ func main() {
 			project, _ := cmd.Flags().GetString("project")
 			branch, _ := cmd.Flags().GetString("branch")
 			if branch == "" {
-				branch = "main"
+				branch = utils.DefaultBranch
 			}
 			url := fmt.Sprintf("%s/services/%s?project=%s&branch=%s", host, args[0], project, branch)
-			req, _ := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -385,7 +421,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct {
@@ -457,10 +496,13 @@ func main() {
 			project, _ := cmd.Flags().GetString("project")
 			branch, _ := cmd.Flags().GetString("branch")
 			if branch == "" {
-				branch = "main"
+				branch = utils.DefaultBranch
 			}
 			url := fmt.Sprintf("%s/services/%s/logs?project=%s&branch=%s", host, args[0], project, branch)
-			req, _ := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -470,7 +512,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			_, err = io.Copy(os.Stdout, resp.Body)
@@ -479,14 +524,9 @@ func main() {
 	}
 	serviceLogsCmd.Flags().String("project", "", "Project name")
 	serviceLogsCmd.Flags().String("branch", "", "Branch name")
-	serviceLogsCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	serviceLogsCmd.Flags().StringP("apikey", "a", "", "API key")
 
 	serviceCmd.AddCommand(serviceListCmd, serviceGetCmd, serviceLogsCmd)
-	serviceListCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	serviceListCmd.Flags().StringP("apikey", "a", "", "API key")
-	serviceGetCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	serviceGetCmd.Flags().StringP("apikey", "a", "", "API key")
+	addClientFlags(serviceListCmd, serviceGetCmd, serviceLogsCmd)
 
 	secretsCmd := &cobra.Command{Use: "secrets", Short: "Manage project secrets"}
 	secretsListCmd := &cobra.Command{
@@ -497,7 +537,10 @@ func main() {
 			apiKey := getAPIKey(cmd)
 			project, _ := cmd.Flags().GetString("project")
 			url := fmt.Sprintf("%s/projects/%s/secrets", host, project)
-			req, _ := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -507,7 +550,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Secrets []string }
@@ -526,8 +572,6 @@ func main() {
 		},
 	}
 	secretsListCmd.Flags().String("project", "", "Project name")
-	secretsListCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	secretsListCmd.Flags().StringP("apikey", "a", "", "API key")
 
 	secretsEditCmd := &cobra.Command{
 		Use:   "edit",
@@ -540,7 +584,10 @@ func main() {
 				return fmt.Errorf("project not specified")
 			}
 			url := fmt.Sprintf("%s/projects/%s/secrets?values=true", host, project)
-			req, _ := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -550,7 +597,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			var out struct{ Secrets map[string]string }
@@ -609,7 +659,10 @@ func main() {
 			if err != nil {
 				return fmt.Errorf("marshaling body: %w", err)
 			}
-			req2, _ := http.NewRequest("PUT", fmt.Sprintf("%s/projects/%s/secrets", host, project), bytes.NewBuffer(body))
+			req2, err := http.NewRequest("PUT", fmt.Sprintf("%s/projects/%s/secrets", host, project), bytes.NewBuffer(body))
+			if err != nil {
+				return err
+			}
 			req2.Header.Set("Content-Type", "application/json")
 			if apiKey != "" {
 				req2.Header.Set("X-API-Key", apiKey)
@@ -620,7 +673,10 @@ func main() {
 			}
 			defer func() { _ = resp2.Body.Close() }()
 			if resp2.StatusCode != http.StatusOK {
-				data, _ := io.ReadAll(resp2.Body)
+				data, err := io.ReadAll(resp2.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp2.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Println("Secrets updated!")
@@ -628,9 +684,8 @@ func main() {
 		},
 	}
 	secretsEditCmd.Flags().String("project", "", "Project name")
-	secretsEditCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	secretsEditCmd.Flags().StringP("apikey", "a", "", "API key")
 	secretsCmd.AddCommand(secretsListCmd, secretsEditCmd)
+	addClientFlags(secretsListCmd, secretsEditCmd)
 
 	branchCmd := &cobra.Command{Use: "branch", Short: "Manage branches"}
 	branchDeleteCmd := &cobra.Command{
@@ -646,7 +701,10 @@ func main() {
 				return fmt.Errorf("project and branch are required")
 			}
 			url := fmt.Sprintf("%s/branch?project=%s&branch=%s", host, project, branch)
-			req, _ := http.NewRequest("DELETE", url, nil)
+			req, err := http.NewRequest("DELETE", url, nil)
+			if err != nil {
+				return err
+			}
 			if apiKey != "" {
 				req.Header.Set("X-API-Key", apiKey)
 			}
@@ -656,7 +714,10 @@ func main() {
 			}
 			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				data, _ := io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
 				return fmt.Errorf("failed: %s", string(data))
 			}
 			fmt.Println("Branch deleted!")
@@ -665,14 +726,127 @@ func main() {
 	}
 	branchDeleteCmd.Flags().String("project", "", "Project name")
 	branchDeleteCmd.Flags().String("branch", "", "Branch name")
-	branchDeleteCmd.Flags().StringP("host", "H", "", "Nimbus host")
-	branchDeleteCmd.Flags().StringP("apikey", "a", "", "API key")
 	branchCmd.AddCommand(branchDeleteCmd)
+	addClientFlags(branchDeleteCmd)
 
-	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd, branchCmd, secretsCmd)
+	// Users commands
+	userCmd := &cobra.Command{Use: "users", Short: "Manage users"}
+
+	userCreateCmd := &cobra.Command{
+		Use:   "create [username]",
+		Short: "Create a new user (requires direct DB access)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			username := args[0]
+			if username == "" {
+				return fmt.Errorf("username is required")
+			}
+
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			const setupTime = 30 * time.Second
+			setupCtx, cancel := context.WithTimeout(ctx, setupTime)
+			defer cancel()
+
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("loading config: %w", err)
+			}
+
+			db, err := setup.Database(setupCtx, *cfg)
+			if err != nil {
+				return fmt.Errorf("setting up database: %w", err)
+			}
+
+			// Check if username already exists
+			_, err = db.GetUserByUsername(ctx, username)
+			if err == nil {
+				return fmt.Errorf("username %q already exists", username)
+			}
+
+			// Generate API key
+			const apiKeyBytes = 32
+			keyBytes := make([]byte, apiKeyBytes)
+			if _, err := rand.Read(keyBytes); err != nil {
+				return fmt.Errorf("generating api key: %w", err)
+			}
+			apiKey := hex.EncodeToString(keyBytes)
+
+			user, err := db.CreateUser(ctx, database.CreateUserParams{
+				ID:       uuid.New(),
+				Username: username,
+				ApiKey:   apiKey,
+			})
+			if err != nil {
+				return fmt.Errorf("creating user: %w", err)
+			}
+
+			fmt.Printf("User created!\n")
+			fmt.Printf("  Username: %s\n", user.Username)
+			fmt.Printf("  API Key:  %s\n", user.ApiKey)
+			fmt.Println("\nSave this API key - it cannot be retrieved again.")
+			return nil
+		},
+	}
+
+	userAddCmd := &cobra.Command{
+		Use:   "add [username]",
+		Short: "Add a user to a project",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			host := getHost(cmd)
+			apiKey := getAPIKey(cmd)
+			project, _ := cmd.Flags().GetString("project")
+			if project == "" {
+				return fmt.Errorf("--project is required")
+			}
+			username := args[0]
+			body, err := json.Marshal(map[string]string{"username": username})
+			if err != nil {
+				return fmt.Errorf("marshaling body: %w", err)
+			}
+			url := fmt.Sprintf("%s/projects/%s/members", host, project)
+			req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Content-Type", "application/json")
+			if apiKey != "" {
+				req.Header.Set("X-API-Key", apiKey)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != http.StatusCreated {
+				data, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+				}
+				return fmt.Errorf("failed: %s", string(data))
+			}
+			fmt.Printf("User %q added to project %q!\n", username, project)
+			return nil
+		},
+	}
+	userAddCmd.Flags().String("project", "", "Project name")
+	userCmd.AddCommand(userCreateCmd, userAddCmd)
+	addClientFlags(userAddCmd)
+
+	rootCmd.AddCommand(serverCmd, deployCmd, projectCmd, serviceCmd, branchCmd, secretsCmd, userCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+}
+
+// addClientFlags adds --host and --apikey flags to one or more commands.
+func addClientFlags(cmds ...*cobra.Command) {
+	for _, cmd := range cmds {
+		cmd.Flags().StringP("host", "H", "", "Nimbus host (default $NIMBUS_HOST)")
+		cmd.Flags().StringP("apikey", "a", "", "API key (default $NIMBUS_API_KEY)")
 	}
 }
 
