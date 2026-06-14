@@ -66,10 +66,10 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 }
 
 const createService = `-- name: CreateService :one
-INSERT INTO services (id, project_id, project_branch, service_name, node_ports, ingress)
-  VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO services (id, project_id, project_branch, service_name, node_ports, ingress, commit_hash)
+  VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING
-  id, project_id, project_branch, service_name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress, commit_hash
 `
 
 type CreateServiceParams struct {
@@ -79,6 +79,7 @@ type CreateServiceParams struct {
 	ServiceName   string
 	NodePorts     []int32
 	Ingress       pgtype.Text
+	CommitHash    pgtype.Text
 }
 
 func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (Service, error) {
@@ -89,6 +90,7 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		arg.ServiceName,
 		arg.NodePorts,
 		arg.Ingress,
+		arg.CommitHash,
 	)
 	var i Service
 	err := row.Scan(
@@ -98,6 +100,7 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		&i.ServiceName,
 		&i.NodePorts,
 		&i.Ingress,
+		&i.CommitHash,
 	)
 	return i, err
 }
@@ -351,7 +354,7 @@ func (q *Queries) GetProjectsByUser(ctx context.Context, userID uuid.UUID) ([]Pr
 
 const getService = `-- name: GetService :one
 SELECT
-  id, project_id, project_branch, service_name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress, commit_hash
 FROM
   services
 WHERE
@@ -369,13 +372,14 @@ func (q *Queries) GetService(ctx context.Context, id uuid.UUID) (Service, error)
 		&i.ServiceName,
 		&i.NodePorts,
 		&i.Ingress,
+		&i.CommitHash,
 	)
 	return i, err
 }
 
 const getServiceByName = `-- name: GetServiceByName :one
 SELECT
-  id, project_id, project_branch, service_name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress, commit_hash
 FROM
   services
 WHERE
@@ -401,13 +405,14 @@ func (q *Queries) GetServiceByName(ctx context.Context, arg GetServiceByNamePara
 		&i.ServiceName,
 		&i.NodePorts,
 		&i.Ingress,
+		&i.CommitHash,
 	)
 	return i, err
 }
 
 const getServicesByProject = `-- name: GetServicesByProject :many
 SELECT
-  id, project_id, project_branch, service_name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress, commit_hash
 FROM
   services
 WHERE
@@ -438,6 +443,7 @@ func (q *Queries) GetServicesByProject(ctx context.Context, arg GetServicesByPro
 			&i.ServiceName,
 			&i.NodePorts,
 			&i.Ingress,
+			&i.CommitHash,
 		); err != nil {
 			return nil, err
 		}
@@ -451,7 +457,7 @@ func (q *Queries) GetServicesByProject(ctx context.Context, arg GetServicesByPro
 
 const getServicesByUser = `-- name: GetServicesByUser :many
 SELECT
-  s.id, s.project_id, s.project_branch, s.service_name, s.node_ports, s.ingress,
+  s.id, s.project_id, s.project_branch, s.service_name, s.node_ports, s.ingress, s.commit_hash,
   p.name AS project_name
 FROM
   services s
@@ -471,6 +477,7 @@ type GetServicesByUserRow struct {
 	ServiceName   string
 	NodePorts     []int32
 	Ingress       pgtype.Text
+	CommitHash    pgtype.Text
 	ProjectName   string
 }
 
@@ -490,6 +497,7 @@ func (q *Queries) GetServicesByUser(ctx context.Context, userID uuid.UUID) ([]Ge
 			&i.ServiceName,
 			&i.NodePorts,
 			&i.Ingress,
+			&i.CommitHash,
 			&i.ProjectName,
 		); err != nil {
 			return nil, err
@@ -621,6 +629,27 @@ func (q *Queries) IsUserInProject(ctx context.Context, arg IsUserInProjectParams
 	return exists, err
 }
 
+const setServiceCommitHash = `-- name: SetServiceCommitHash :exec
+UPDATE
+  services
+SET
+  commit_hash = $2
+WHERE
+  id = $1
+RETURNING
+  id, project_id, project_branch, service_name, node_ports, ingress, commit_hash
+`
+
+type SetServiceCommitHashParams struct {
+	ID         uuid.UUID
+	CommitHash pgtype.Text
+}
+
+func (q *Queries) SetServiceCommitHash(ctx context.Context, arg SetServiceCommitHashParams) error {
+	_, err := q.db.Exec(ctx, setServiceCommitHash, arg.ID, arg.CommitHash)
+	return err
+}
+
 const setServiceIngress = `-- name: SetServiceIngress :exec
 UPDATE
   services
@@ -629,7 +658,7 @@ SET
 WHERE
   id = $1
 RETURNING
-  id, project_id, project_branch, service_name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress, commit_hash
 `
 
 type SetServiceIngressParams struct {
@@ -650,7 +679,7 @@ SET
 WHERE
   id = $1
 RETURNING
-  id, project_id, project_branch, service_name, node_ports, ingress
+  id, project_id, project_branch, service_name, node_ports, ingress, commit_hash
 `
 
 type SetServiceNodePortsParams struct {

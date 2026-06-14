@@ -381,6 +381,20 @@ func (mr *MockQuerierMockRecorder) IsUserInProject(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsUserInProject", reflect.TypeOf((*MockQuerier)(nil).IsUserInProject), ctx, arg)
 }
 
+// SetServiceCommitHash mocks base method.
+func (m *MockQuerier) SetServiceCommitHash(ctx context.Context, arg SetServiceCommitHashParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetServiceCommitHash", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetServiceCommitHash indicates an expected call of SetServiceCommitHash.
+func (mr *MockQuerierMockRecorder) SetServiceCommitHash(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetServiceCommitHash", reflect.TypeOf((*MockQuerier)(nil).SetServiceCommitHash), ctx, arg)
+}
+
 // SetServiceIngress mocks base method.
 func (m *MockQuerier) SetServiceIngress(ctx context.Context, arg SetServiceIngressParams) error {
 	m.ctrl.T.Helper()

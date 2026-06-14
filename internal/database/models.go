@@ -21,6 +21,7 @@ type Service struct {
 	ServiceName   string
 	NodePorts     []int32
 	Ingress       pgtype.Text
+	CommitHash    pgtype.Text
 }
 
 type User struct {

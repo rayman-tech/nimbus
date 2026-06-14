@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -171,6 +172,12 @@ func parseDeployForm(
 	} else {
 		deployRequest.BranchName = branches[0]
 	}
+
+	// Read commit hash
+	commits := form.Value["commit"]
+	if len(commits) > 0 && commits[0] != "" {
+		deployRequest.CommitHash = commits[0]
+	}
 	if config.AllowBranchPreviews != nil &&
 		!*config.AllowBranchPreviews &&
 		!utils.IsMainBranch(deployRequest.BranchName) {
@@ -292,6 +299,12 @@ func deployService(
 		}
 	}
 
+	// Build commit hash for DB storage
+	commitHash := pgtype.Text{}
+	if deployRequest.CommitHash != "" {
+		commitHash = pgtype.Text{String: deployRequest.CommitHash, Valid: true}
+	}
+
 	// Ensure DB record exists
 	svcExists := existingService != nil
 	var newSvc database.Service
@@ -302,9 +315,17 @@ func deployService(
 			ProjectID:     deployRequest.ProjectID,
 			ProjectBranch: deployRequest.BranchName,
 			ServiceName:   serviceConfig.Name,
+			CommitHash:    commitHash,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("creating service in database for %s: %w", serviceConfig.Name, err)
+		}
+	} else {
+		if err := env.Database.SetServiceCommitHash(ctx, database.SetServiceCommitHashParams{
+			ID:         existingService.ID,
+			CommitHash: commitHash,
+		}); err != nil {
+			return nil, fmt.Errorf("updating commit hash for %s: %w", serviceConfig.Name, err)
 		}
 	}
 
@@ -474,6 +495,24 @@ func (Server) PostDeploy(
 	if err := deleteStaleServices(ctx, deployRequest.Namespace, existingServices, serviceNames, env.Database); err != nil {
 		slog.ErrorContext(ctx, "failed to delete stale services", "error", err)
 		return PostDeploy500JSONResponse(internalError(rid)), nil
+	}
+
+	// Rewrite image tags with commit hash for non-template services
+	if deployRequest.CommitHash != "" {
+		for i, serviceConfig := range config.Services {
+			switch serviceConfig.Template {
+			case "postgres", "redis":
+				continue
+			}
+			if serviceConfig.Image == "" {
+				continue
+			}
+			repo := serviceConfig.Image
+			if idx := strings.LastIndex(repo, ":"); idx != -1 {
+				repo = repo[:idx]
+			}
+			config.Services[i].Image = repo + ":" + deployRequest.CommitHash
+		}
 	}
 
 	// Deploy each service

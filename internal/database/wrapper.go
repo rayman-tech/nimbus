@@ -30,12 +30,28 @@ func (db *Database) EnsureSchema(ctx context.Context) error {
 		return fmt.Errorf("checking projects table existance: %w", err)
 	}
 
-	if exists {
+	if !exists {
+		if _, err := db.db.Exec(ctx, sql.Schema()); err != nil {
+			return fmt.Errorf("applying database schema: %w", err)
+		}
 		return nil
 	}
 
-	if _, err := db.db.Exec(ctx, sql.Schema()); err != nil {
-		return fmt.Errorf("applying database schema: %w", err)
+	if err := db.applyMigrations(ctx); err != nil {
+		return fmt.Errorf("applying migrations: %w", err)
+	}
+
+	return nil
+}
+
+// applyMigrations applies incremental schema changes to an existing database.
+func (db *Database) applyMigrations(ctx context.Context) error {
+	// Add commit_hash column to services table if it doesn't exist.
+	const addCommitHash = `
+		ALTER TABLE services ADD COLUMN IF NOT EXISTS commit_hash text NULL
+	`
+	if _, err := db.db.Exec(ctx, addCommitHash); err != nil {
+		return fmt.Errorf("adding commit_hash column: %w", err)
 	}
 
 	return nil
