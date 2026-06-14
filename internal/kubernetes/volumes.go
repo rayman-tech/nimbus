@@ -99,7 +99,7 @@ func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
-				corev1.ReadWriteMany,
+				corev1.ReadWriteOnce,
 			},
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
