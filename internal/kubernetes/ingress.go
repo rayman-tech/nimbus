@@ -86,7 +86,6 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 			Namespace: namespace,
 			Annotations: map[string]string{
 				"created": time.Now().Format(time.RFC3339),
-				"nginx.ingress.kubernetes.io/rewrite-target":    "/",
 				"nginx.ingress.kubernetes.io/ssl-redirect":      "true",
 				"nginx.ingress.kubernetes.io/cors-allow-origin": "*",
 				"cert-manager.io/cluster-issuer":                "letsencrypt-prod",
