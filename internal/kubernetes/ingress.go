@@ -87,8 +87,13 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 		"cert-manager.io/cluster-issuer":                "letsencrypt-prod",
 	}
 
-	if service.SPA {
-		annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = "proxy_intercept_errors on;\nerror_page 404 =200 /index.html;\n"
+	for _, feature := range service.Features {
+		switch feature {
+		case "spa":
+			annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = "proxy_intercept_errors on;\nerror_page 404 =200 /index.html;\n"
+		case "grpc":
+			annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "GRPC"
+		}
 	}
 
 	return &networkingv1.Ingress{
