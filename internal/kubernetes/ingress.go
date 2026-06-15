@@ -43,7 +43,9 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 		host = fmt.Sprintf("%s.%s", randChars, cfg.Domain)
 	}
 
+	ingressClassName := "nginx"
 	spec := networkingv1.IngressSpec{
+		IngressClassName: &ingressClassName,
 		Rules: []networkingv1.IngressRule{
 			{
 				Host: host,
