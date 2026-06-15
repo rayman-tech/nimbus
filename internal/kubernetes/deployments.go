@@ -153,19 +153,31 @@ func GenerateDeploymentSpec(
 		}
 	}
 
+	var nodeSelectorRequirements []corev1.NodeSelectorRequirement
+
+	if len(service.Volumes) > 0 {
+		nodeSelectorRequirements = append(nodeSelectorRequirements, corev1.NodeSelectorRequirement{
+			Key:      "kubernetes.io/hostname",
+			Operator: corev1.NodeSelectorOpIn,
+			Values:   []string{"server-master"},
+		})
+	}
+
 	if service.Arch != "" {
+		nodeSelectorRequirements = append(nodeSelectorRequirements, corev1.NodeSelectorRequirement{
+			Key:      "kubernetes.io/arch",
+			Operator: corev1.NodeSelectorOpIn,
+			Values:   []string{service.Arch},
+		})
+	}
+
+	if len(nodeSelectorRequirements) > 0 {
 		spec.Template.Spec.Affinity = &corev1.Affinity{
 			NodeAffinity: &corev1.NodeAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
 					NodeSelectorTerms: []corev1.NodeSelectorTerm{
 						{
-							MatchExpressions: []corev1.NodeSelectorRequirement{
-								{
-									Key:      "kubernetes.io/arch",
-									Operator: corev1.NodeSelectorOpIn,
-									Values:   []string{service.Arch},
-								},
-							},
+							MatchExpressions: nodeSelectorRequirements,
 						},
 					},
 				},

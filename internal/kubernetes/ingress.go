@@ -80,16 +80,22 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 		},
 	}
 
+	annotations := map[string]string{
+		"created": time.Now().Format(time.RFC3339),
+		"nginx.ingress.kubernetes.io/ssl-redirect":      "true",
+		"nginx.ingress.kubernetes.io/cors-allow-origin": "*",
+		"cert-manager.io/cluster-issuer":                "letsencrypt-prod",
+	}
+
+	if service.SPA {
+		annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = "proxy_intercept_errors on;\nerror_page 404 =200 /index.html;\n"
+	}
+
 	return &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%s", service.Name, "ingress"),
 			Namespace: namespace,
-			Annotations: map[string]string{
-				"created": time.Now().Format(time.RFC3339),
-				"nginx.ingress.kubernetes.io/ssl-redirect":      "true",
-				"nginx.ingress.kubernetes.io/cors-allow-origin": "*",
-				"cert-manager.io/cluster-issuer":                "letsencrypt-prod",
-			},
+			Annotations: annotations,
 		},
 		Spec: spec,
 	}, nil
@@ -98,15 +104,28 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 func CreateIngress(
 	ctx context.Context, namespace string, ingress *networkingv1.Ingress,
 ) (*networkingv1.Ingress, error) {
-	_, err := getClient().NetworkingV1().Ingresses(namespace).Create(
-		ctx, ingress, metav1.CreateOptions{})
-	if errors.IsAlreadyExists(err) {
-		return ingress, nil
+	client := getClient().NetworkingV1().Ingresses(namespace)
+
+	existing, err := client.Get(ctx, ingress.Name, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		created, err := client.Create(ctx, ingress, metav1.CreateOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("creating ingress: %w", err)
+		}
+		return created, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting ingress: %w", err)
 	}
-	return ingress, nil
+
+	existing.Spec = ingress.Spec
+	existing.Annotations = ingress.Annotations
+
+	updated, err := client.Update(ctx, existing, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("updating ingress: %w", err)
+	}
+	return updated, nil
 }
 
 func DeleteIngress(ctx context.Context, namespace, host string) error {
