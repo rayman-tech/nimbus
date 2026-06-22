@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-var client *kubernetes.Clientset
+var client kubernetes.Interface
 
 func InitClient(cfg *config.Config) error {
 	var restConfig *rest.Config
@@ -44,6 +44,6 @@ func InitClient(cfg *config.Config) error {
 	return nil
 }
 
-func getClient() *kubernetes.Clientset {
+func getClient() kubernetes.Interface {
 	return client
 }

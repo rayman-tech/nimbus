@@ -167,6 +167,18 @@ func GenerateDeploymentSpec(
 		}
 	}
 
+	// Volume-backed services use ReadWriteOnce PVCs, which only one pod can
+	// hold at a time. The default RollingUpdate strategy surges a new pod
+	// before tearing down the old one, so the new pod is stuck Pending forever
+	// waiting for a volume the old pod still holds (and the old pod is never
+	// removed because maxUnavailable defaults to 0). Recreate terminates the
+	// old pod first, releasing the volume before the new pod starts.
+	if len(service.Volumes) > 0 {
+		spec.Strategy = appsv1.DeploymentStrategy{
+			Type: appsv1.RecreateDeploymentStrategyType,
+		}
+	}
+
 	var nodeSelectorRequirements []corev1.NodeSelectorRequirement
 
 	if len(service.Volumes) > 0 {

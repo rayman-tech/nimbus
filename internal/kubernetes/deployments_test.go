@@ -4,9 +4,75 @@ import (
 	"context"
 	"testing"
 
+	"nimbus/internal/config"
+	"nimbus/internal/database"
 	nimbusEnv "nimbus/internal/env"
 	"nimbus/internal/models"
+
+	"github.com/google/uuid"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
+
+// stubQuerier embeds the Querier interface so it satisfies the type while only
+// implementing the method GenerateDeploymentSpec exercises. Any other call
+// would panic on the nil embedded interface, which is the intent for this test.
+type stubQuerier struct {
+	database.Querier
+	identifier uuid.UUID
+}
+
+func (s stubQuerier) GetVolumeIdentifier(
+	context.Context, database.GetVolumeIdentifierParams,
+) (uuid.UUID, error) {
+	return s.identifier, nil
+}
+
+func TestGenerateDeploymentSpecStrategy(t *testing.T) {
+	t.Run("stateless service keeps default rolling update", func(t *testing.T) {
+		req := &models.DeployRequest{Namespace: "ns"}
+		service := &models.Service{Name: "svc", Image: "img"}
+
+		dep, err := GenerateDeploymentSpec(context.Background(), req, service, &nimbusEnv.Env{})
+		if err != nil {
+			t.Fatalf("GenerateDeploymentSpec() error = %v", err)
+		}
+
+		// An empty strategy type leaves Kubernetes to apply its RollingUpdate default.
+		if got := dep.Spec.Strategy.Type; got != "" {
+			t.Fatalf("strategy type = %q, want empty (default RollingUpdate)", got)
+		}
+	})
+
+	t.Run("volume-backed service uses recreate", func(t *testing.T) {
+		// Restore the package-level client after swapping in a fake.
+		prevClient := client
+		client = fake.NewSimpleClientset()
+		defer func() { client = prevClient }()
+
+		env := &nimbusEnv.Env{
+			Database: stubQuerier{identifier: uuid.New()},
+			Config:   &config.Config{},
+		}
+		req := &models.DeployRequest{Namespace: "ns"}
+		service := &models.Service{
+			Name:  "db",
+			Image: "img",
+			Volumes: []models.Volume{
+				{Name: "data", MountPath: "/var/lib/data"},
+			},
+		}
+
+		dep, err := GenerateDeploymentSpec(context.Background(), req, service, env)
+		if err != nil {
+			t.Fatalf("GenerateDeploymentSpec() error = %v", err)
+		}
+
+		if got := dep.Spec.Strategy.Type; got != appsv1.RecreateDeploymentStrategyType {
+			t.Fatalf("strategy type = %q, want %q", got, appsv1.RecreateDeploymentStrategyType)
+		}
+	})
+}
 
 func TestGenerateDeploymentSpecMonitoringAnnotations(t *testing.T) {
 	tests := []struct {
