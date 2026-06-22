@@ -8,12 +8,14 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"strings"
+	"time"
 
 	apierror "nimbus/internal/api/error"
 	"nimbus/internal/api/requestid"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/kubernetes"
+	"nimbus/internal/metrics"
 	"nimbus/internal/models"
 	"nimbus/internal/utils"
 
@@ -452,6 +454,9 @@ func (Server) PostDeploy(
 	env := env.FromContext(ctx)
 	rid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 
+	start, success := time.Now(), false
+	defer func() { metrics.ObserveDeploy(start, success) }()
+
 	slog.DebugContext(ctx, "parsing form")
 	const maxSize = 10 << 20 // ~ 10 MB
 	form, err := request.Body.ReadForm(maxSize)
@@ -489,6 +494,16 @@ func (Server) PostDeploy(
 			}, nil
 		}
 		serviceNames[service.Name] = true
+
+		if service.Monitoring != nil && service.Monitoring.Port <= 0 {
+			slog.ErrorContext(ctx, "monitoring port must be a positive integer", "service", service.Name)
+			return PostDeploy422JSONResponse{
+				Status:  apierror.UnprocessibleContent.Status(),
+				Code:    apierror.UnprocessibleContent.String(),
+				Message: fmt.Sprintf("service %q: monitoring.port is required and must be greater than 0", service.Name),
+				ErrorId: rid,
+			}, nil
+		}
 	}
 
 	// Delete stale services (k8s errors logged, not fatal)
@@ -530,8 +545,10 @@ func (Server) PostDeploy(
 			return PostDeploy500JSONResponse(internalError(rid)), nil
 		}
 		serviceUrls[serviceConfig.Name] = urls
+		metrics.ServiceDeployed(serviceConfig.Template)
 	}
 
+	success = true
 	return PostDeploy200JSONResponse{
 		Services: serviceUrls,
 	}, nil

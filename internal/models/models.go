@@ -31,6 +31,17 @@ type Service struct {
 	Configs      []ConfigEntry   `yaml:"configs,omitempty"`
 	Command      []string        `yaml:"command,omitempty"`
 	Args         []string        `yaml:"args,omitempty"`
+	Monitoring   *Monitoring     `yaml:"monitoring,omitempty"`
+}
+
+// Monitoring configures Prometheus scraping for a service. When present, nimbus
+// adds the standard prometheus.io/* annotations to the service's pods so a
+// Prometheus instance using the kubernetes-pods scrape job will discover and
+// scrape the metrics endpoint. Its presence is the on switch — omit the block
+// to disable scraping.
+type Monitoring struct {
+	Port int32  `yaml:"port"`           // container port exposing metrics; required, must be > 0
+	Path string `yaml:"path,omitempty"` // metrics path; defaults to "/metrics"
 }
 
 type Network struct {

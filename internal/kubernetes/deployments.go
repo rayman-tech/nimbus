@@ -7,6 +7,7 @@ import (
 	"time"
 
 	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/metrics"
 	"nimbus/internal/models"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,6 +19,7 @@ import (
 const (
 	defaultPostgresPort = 5432
 	defaultRedisPort    = 6379
+	defaultMetricsPath  = "/metrics"
 )
 
 func GenerateDeploymentSpec(
@@ -61,6 +63,18 @@ func GenerateDeploymentSpec(
 	}
 	if service.Args != nil {
 		spec.Template.Spec.Containers[0].Args = service.Args
+	}
+
+	// Prometheus scrape annotations on the pod template. Presence of the
+	// monitoring block is the on switch; only the port is required.
+	if service.Monitoring != nil {
+		path := service.Monitoring.Path
+		if path == "" {
+			path = defaultMetricsPath
+		}
+		spec.Template.ObjectMeta.Annotations["prometheus.io/scrape"] = "true"
+		spec.Template.ObjectMeta.Annotations["prometheus.io/port"] = fmt.Sprintf("%d", service.Monitoring.Port)
+		spec.Template.ObjectMeta.Annotations["prometheus.io/path"] = path
 	}
 
 	switch service.Template {
@@ -196,7 +210,8 @@ func GenerateDeploymentSpec(
 
 func CreateDeployment(
 	ctx context.Context, namespace string, deployment *appsv1.Deployment,
-) (*appsv1.Deployment, error) {
+) (_ *appsv1.Deployment, err error) {
+	defer metrics.ObserveK8sOp("create_deployment", time.Now(), &err)
 	client := getClient().AppsV1().Deployments(namespace)
 
 	existing, err := client.Get(ctx, deployment.Name, metav1.GetOptions{})
@@ -226,10 +241,11 @@ func CreateDeployment(
 	return updated, nil
 }
 
-func DeleteDeployment(ctx context.Context, namespace, name string) error {
+func DeleteDeployment(ctx context.Context, namespace, name string) (err error) {
+	defer metrics.ObserveK8sOp("delete_deployment", time.Now(), &err)
 	client := getClient().AppsV1().Deployments(namespace)
 
-	err := client.Delete(ctx, name, metav1.DeleteOptions{})
+	err = client.Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete deployment: %w", err)
 	}
