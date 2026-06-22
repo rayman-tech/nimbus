@@ -13,6 +13,7 @@ import (
 	"nimbus/internal/api/openapi"
 	"nimbus/internal/api/requestid"
 	"nimbus/internal/env"
+	"nimbus/internal/metrics"
 
 	apierror "nimbus/internal/api/error"
 
@@ -35,6 +36,7 @@ func Start(ctx context.Context, port string, env *env.Env) error {
 	swagger.Servers = nil
 
 	router := mux.NewRouter()
+	router.Use(metrics.Middleware)
 	router.Use(middleware.InjectEnvironment(env))
 	router.Use(middleware.Recover)
 	router.Use(middleware.LogRequest)
@@ -64,8 +66,16 @@ func Start(ctx context.Context, port string, env *env.Env) error {
 		openapi.NewStrictHandlerWithOptions(server, nil, strictHandlerOptions),
 		router,
 	)
+
+	// Serve metrics on a parent mux so the Prometheus endpoint bypasses the
+	// OpenAPI request validator (which would otherwise reject /metrics as an
+	// unknown route). Everything else falls through to the API handler.
+	root := http.NewServeMux()
+	root.Handle("/metrics", metrics.Handler())
+	root.Handle("/", handler)
+
 	s := &http.Server{
-		Handler: handler,
+		Handler: root,
 		Addr:    "0.0.0.0:" + port,
 	}
 

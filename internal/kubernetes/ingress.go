@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"nimbus/internal/config"
+	"nimbus/internal/metrics"
 	"nimbus/internal/models"
 	"nimbus/internal/utils"
 
@@ -110,7 +111,8 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 
 func CreateIngress(
 	ctx context.Context, namespace string, ingress *networkingv1.Ingress,
-) (*networkingv1.Ingress, error) {
+) (_ *networkingv1.Ingress, err error) {
+	defer metrics.ObserveK8sOp("create_ingress", time.Now(), &err)
 	client := getClient().NetworkingV1().Ingresses(namespace)
 
 	existing, err := client.Get(ctx, ingress.Name, metav1.GetOptions{})
@@ -135,7 +137,8 @@ func CreateIngress(
 	return updated, nil
 }
 
-func DeleteIngress(ctx context.Context, namespace, host string) error {
+func DeleteIngress(ctx context.Context, namespace, host string) (err error) {
+	defer metrics.ObserveK8sOp("delete_ingress", time.Now(), &err)
 	ingresses, err := getClient().NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {

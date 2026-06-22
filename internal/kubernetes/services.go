@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"nimbus/internal/database"
+	"nimbus/internal/metrics"
 	"nimbus/internal/models"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -94,7 +95,8 @@ func GenerateServiceSpec(namespace string,
 
 func CreateService(
 	ctx context.Context, namespace string, service *corev1.Service,
-) (*corev1.Service, error) {
+) (_ *corev1.Service, err error) {
+	defer metrics.ObserveK8sOp("create_service", time.Now(), &err)
 	client := getClient().CoreV1().Services(namespace)
 
 	existing, err := client.Get(ctx, service.Name, metav1.GetOptions{})
@@ -123,10 +125,11 @@ func CreateService(
 	return updated, nil
 }
 
-func DeleteService(ctx context.Context, namespace, name string) error {
+func DeleteService(ctx context.Context, namespace, name string) (err error) {
+	defer metrics.ObserveK8sOp("delete_service", time.Now(), &err)
 	client := getClient().CoreV1().Services(namespace)
 
-	err := client.Delete(ctx, name, metav1.DeleteOptions{})
+	err = client.Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete service: %w", err)
 	}

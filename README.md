@@ -115,6 +115,32 @@ There are pre-defined templates for services, such as databases and Redis, to ma
 
 Deployment can be done through our [GitHub action](https://github.com/rayman-tech/nimbus-action), or through the local CLI, which is used for managing project state.
 
+### Monitoring
+
+To have Prometheus scrape a service, add a `monitoring` block to it. Only the
+port is required; the path defaults to `/metrics`:
+
+```yaml
+services:
+  - name: api
+    image: docker.prayujt.com/api:latest
+    network:
+      ports: [8080]
+    monitoring:
+      port: 8080      # container port exposing metrics
+      path: /metrics  # optional, defaults to /metrics
+```
+
+Nimbus adds the standard `prometheus.io/scrape`, `prometheus.io/port`, and
+`prometheus.io/path` annotations to the service's pods, which a Prometheus
+instance using the `kubernetes-pods` scrape job will discover automatically.
+Omit the block to disable scraping.
+
+Nimbus also exposes its own Prometheus metrics at `GET /metrics` (HTTP request
+counts/latency, deploy outcomes, Kubernetes API operation timings, and Go
+runtime/process metrics). This endpoint is unauthenticated and bypasses the API
+validator.
+
 ## API Documentation
 
 The Nimbus API is documented using the OpenAPI 3.0.1 specification, available in `docs/api.yaml`. This documentation provides detailed information about all available endpoints, request/response schemas, and authentication requirements.

@@ -8,12 +8,14 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"strings"
+	"time"
 
 	apierror "nimbus/internal/api/error"
 	"nimbus/internal/api/requestid"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/kubernetes"
+	"nimbus/internal/metrics"
 	"nimbus/internal/models"
 	"nimbus/internal/utils"
 
@@ -452,6 +454,9 @@ func (Server) PostDeploy(
 	env := env.FromContext(ctx)
 	rid := fmt.Sprintf("%d", requestid.FromContext(ctx))
 
+	start, success := time.Now(), false
+	defer func() { metrics.ObserveDeploy(start, success) }()
+
 	slog.DebugContext(ctx, "parsing form")
 	const maxSize = 10 << 20 // ~ 10 MB
 	form, err := request.Body.ReadForm(maxSize)
@@ -530,8 +535,10 @@ func (Server) PostDeploy(
 			return PostDeploy500JSONResponse(internalError(rid)), nil
 		}
 		serviceUrls[serviceConfig.Name] = urls
+		metrics.ServiceDeployed(serviceConfig.Template)
 	}
 
+	success = true
 	return PostDeploy200JSONResponse{
 		Services: serviceUrls,
 	}, nil
