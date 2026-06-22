@@ -494,6 +494,16 @@ func (Server) PostDeploy(
 			}, nil
 		}
 		serviceNames[service.Name] = true
+
+		if service.Monitoring != nil && service.Monitoring.Port <= 0 {
+			slog.ErrorContext(ctx, "monitoring port must be a positive integer", "service", service.Name)
+			return PostDeploy422JSONResponse{
+				Status:  apierror.UnprocessibleContent.Status(),
+				Code:    apierror.UnprocessibleContent.String(),
+				Message: fmt.Sprintf("service %q: monitoring.port is required and must be greater than 0", service.Name),
+				ErrorId: rid,
+			}, nil
+		}
 	}
 
 	// Delete stale services (k8s errors logged, not fatal)
