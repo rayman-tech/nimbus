@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"time"
 
 	"nimbus/internal/config"
@@ -99,10 +100,14 @@ func GenerateIngressSpec(namespace string, service *models.Service,
 		}
 	}
 
+	// Custom user-supplied annotations are applied last so they can append to
+	// or override the defaults and feature-derived annotations above.
+	maps.Copy(annotations, service.Annotations)
+
 	return &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s", service.Name, "ingress"),
-			Namespace: namespace,
+			Name:        fmt.Sprintf("%s-%s", service.Name, "ingress"),
+			Namespace:   namespace,
 			Annotations: annotations,
 		},
 		Spec: spec,
