@@ -141,6 +141,31 @@ counts/latency, deploy outcomes, Kubernetes API operation timings, and Go
 runtime/process metrics). This endpoint is unauthenticated and bypasses the API
 validator.
 
+### Custom Ingress Annotations
+
+Public `http` services get an ingress with a set of sensible default
+annotations (TLS redirect, cert-manager issuer, CORS). To add your own nginx
+ingress annotations—for example to enable external auth—add an `annotations`
+map to the service. Your keys are merged on top of the defaults, so you can
+both append new annotations and override existing ones:
+
+```yaml
+services:
+  - name: web
+    template: http
+    public: true
+    image: docker.prayujt.com/web:latest
+    network:
+      ports: [8080]
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/auth-url: "https://idp.prayujt.com/sessions/whoami"
+      nginx.ingress.kubernetes.io/auth-signin: "https://proxy.prayujt.com/oauth2/start?rd=$scheme://$host$request_uri"
+```
+
+Annotations only apply to public `http` services (the ones that get an
+ingress); they are ignored for other templates.
+
 ## API Documentation
 
 The Nimbus API is documented using the OpenAPI 3.0.1 specification, available in `docs/api.yaml`. This documentation provides detailed information about all available endpoints, request/response schemas, and authentication requirements.
