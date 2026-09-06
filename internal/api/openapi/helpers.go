@@ -7,6 +7,7 @@ import (
 
 	apierror "nimbus/internal/api/error"
 	"nimbus/internal/database"
+	"nimbus/internal/env"
 	"nimbus/internal/kubernetes"
 
 	"github.com/google/uuid"
@@ -40,22 +41,20 @@ func forbiddenError(rid, msg string) Error {
 }
 
 // deleteServiceResources deletes the k8s deployment, service, and ingress for a
-// single service then removes the DB record. K8s errors are logged but not
-// fatal; a DB deletion error is returned.
+// single service then removes the DB record. Cleanup failures keep the record
+// so teardown can be retried.
 func deleteServiceResources(
 	ctx context.Context, namespace string, svc database.Service,
 	db database.Querier,
 ) error {
+	if err := kubernetes.DeletePublicRoute(ctx, namespace, svc.ServiceName, env.FromContext(ctx).Config); err != nil {
+		return fmt.Errorf("removing public routing for %s: %w", svc.ServiceName, err)
+	}
 	if err := kubernetes.DeleteDeployment(ctx, namespace, svc.ServiceName); err != nil {
-		slog.ErrorContext(ctx, "failed to delete deployment", "service", svc.ServiceName, "error", err)
+		return err
 	}
 	if err := kubernetes.DeleteService(ctx, namespace, svc.ServiceName); err != nil {
-		slog.ErrorContext(ctx, "failed to delete service", "service", svc.ServiceName, "error", err)
-	}
-	if svc.Ingress.Valid {
-		if err := kubernetes.DeleteIngress(ctx, namespace, svc.Ingress.String); err != nil {
-			slog.ErrorContext(ctx, "failed to delete ingress", "service", svc.ServiceName, "error", err)
-		}
+		return err
 	}
 	if err := db.DeleteServiceById(ctx, svc.ID); err != nil {
 		return fmt.Errorf("deleting service %s from database: %w", svc.ServiceName, err)
@@ -112,7 +111,7 @@ func deleteBranchResources(
 }
 
 // deleteStaleServices removes services that exist in the DB but are not present
-// in the new deployment config. K8s errors are logged but not fatal.
+// in the new deployment config. Cleanup errors retain the service record for retry.
 func deleteStaleServices(
 	ctx context.Context, namespace string,
 	existingServices map[string]*database.Service, newNames map[string]bool,

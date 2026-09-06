@@ -790,7 +790,7 @@ components:
         ingress:
           type: string
           nullable: true
-          description: The ingress hostname (if applicable)
+          description: The public hostname (legacy field name; served through Envoy Gateway when applicable)
         commit_hash:
           type: string
           nullable: true

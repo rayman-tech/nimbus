@@ -24,6 +24,7 @@ import (
 	"nimbus/internal/env"
 	"nimbus/internal/kubernetes"
 	"nimbus/internal/logging"
+	"nimbus/internal/routehelper"
 	"nimbus/internal/setup"
 	"nimbus/internal/utils"
 
@@ -34,6 +35,11 @@ import (
 
 func main() {
 	rootCmd := &cobra.Command{Use: "nimbus"}
+	rootCmd.AddCommand(&cobra.Command{Use: "route-helper", Short: "Run the internal SPA/auth adapter", RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return routehelper.Run(ctx)
+	}})
 
 	serverCmd := &cobra.Command{
 		Use:   "server",
