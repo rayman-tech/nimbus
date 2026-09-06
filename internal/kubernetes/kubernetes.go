@@ -8,12 +8,14 @@ import (
 
 	"nimbus/internal/config"
 
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 var client kubernetes.Interface
+var dynamicClient dynamic.Interface
 
 func InitClient(cfg *config.Config) error {
 	var restConfig *rest.Config
@@ -40,6 +42,10 @@ func InitClient(cfg *config.Config) error {
 	client, err = kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return fmt.Errorf("creating kubernetes client: %w", err)
+	}
+	dynamicClient, err = dynamic.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("creating dynamic Kubernetes client: %w", err)
 	}
 	return nil
 }

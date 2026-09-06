@@ -1,14 +1,16 @@
-FROM golang:1.25.1-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS build
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
 COPY . .
 
-RUN apk update && apk add make
-RUN make build
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /app/bin/nimbus ./cmd
 
 
-FROM alpine:latest
+FROM alpine:3.22
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 

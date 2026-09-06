@@ -30,7 +30,18 @@ spec:
             - name: ENVIRONMENT
               value: "production"
             - name: DOMAIN
-              value: <server host> # e.g. prayujt.com, specifies base to spin new ingresses
+              value: <server host> # e.g. prayujt.com, specifies the base domain for new public routes
+            - name: ENVOY_GATEWAY_NAME
+              value: edge
+            - name: ENVOY_GATEWAY_NAMESPACE
+              value: envoy-gateway-system
+            - name: ENVOY_HTTP_LISTENER
+              value: http
+            - name: ENVOY_READY_TIMEOUT_SECONDS
+              value: "180"
+            # Required for SPA or external-auth services: use this Nimbus build's digest.
+            - name: NIMBUS_ROUTE_HELPER_IMAGE
+              value: "<registry>/nimbus@sha256:<actual-manifest-digest>"
             - name: DB_USER
               value: <database username>
             - name: DB_PASSWORD

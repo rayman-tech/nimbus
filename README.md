@@ -141,30 +141,204 @@ counts/latency, deploy outcomes, Kubernetes API operation timings, and Go
 runtime/process metrics). This endpoint is unauthenticated and bypasses the API
 validator.
 
-### Custom Ingress Annotations
+### Envoy Gateway routing
 
-Public `http` services get an ingress with a set of sensible default
-annotations (TLS redirect, cert-manager issuer, CORS). To add your own nginx
-ingress annotations—for example to enable external auth—add an `annotations`
-map to the service. Your keys are merged on top of the defaults, so you can
-both append new annotations and override existing ones:
+Public `http` services now create Gateway API resources instead of NGINX
+Ingress objects. The existing `ingress:` YAML field, API/DB hostname field,
+and `ingress-host` environment references retain their names for compatibility.
+Custom domains on main/master and previously assigned preview hostnames are
+preserved. The GitHub action continues to submit the same deployment request.
+
+Nimbus creates an HTTPS listener on the configured shared Gateway, an
+HTTPRoute (or GRPCRoute for `features: [grpc]`), an HTTP-to-HTTPS redirect,
+a Certificate, and the required policies/ReferenceGrant. Resource and listener
+names identify their service; only long names get a short collision-resistant
+suffix. Other applications' Gateway listeners are preserved during updates and
+cleanup. Existing preview hostname strings are not renamed.
+
+Before deploying this Nimbus version:
+
+- Install Envoy Gateway **1.9.1** with Gateway API **1.6.1**, including its
+  extension CRDs. Enable `config.envoyGateway.extensionApis.enableLua=true`
+  in the controller chart for the request-size policies, then roll out the
+  controller after configuration changes.
+- Configure `ENVOY_GATEWAY_NAME` (default `edge`),
+  `ENVOY_GATEWAY_NAMESPACE` (default `envoy-gateway-system`), and
+  `ENVOY_HTTP_LISTENER` (default `http`). The Gateway needs a port-80 HTTP
+  listener admitting routes from Nimbus application namespaces. Its public
+  Service/router entrypoint must already exist; Nimbus does not replace it.
+- Enable Gateway API in cert-manager and configure `letsencrypt-prod` (or the
+  service's selected ClusterIssuer) for Gateway HTTP-01 on that listener.
+  Certificate issuance must complete before a deployment is reported ready.
+- For SPA or legacy external-auth services, set `NIMBUS_ROUTE_HELPER_IMAGE`
+  to a **digest-pinned image built from this Nimbus version**, available for
+  the application's node architectures. For example,
+  `registry.example.com/nimbus@sha256:<actual-manifest-digest>`.
+  This is not the separate kubeconfigs authentication helper image.
+- Nimbus needs access to its application resources and the configured shared
+  Gateway/ClientTrafficPolicies. The existing installation example grants
+  cluster-admin; this migration does not broaden that binding.
+
+`features: [grpc]` creates a GRPCRoute and marks the backend Service port
+`kubernetes.io/h2c`. Ordinary HTTP routes retain the former 1 MiB request limit
+and 5s connect / 60s idle timeouts. gRPC and WebSocket upgrades are not buffered
+by the HTTP body-limit filter.
+
+`features: [spa]` uses a small per-service helper to preserve the former
+upstream-404 → `/index.html` fallback. External authentication uses the same
+helper's separate auth port. Helpers run the `nimbus route-helper` subcommand,
+with two replicas, read-only configuration, no service-account token, and no
+privileges. Hostnames and upstreams are fixed by each service's ConfigMap;
+requests cannot select an arbitrary upstream. Successful SPA responses stream.
+
+### Envoy annotations
+
+Use `envoy.nimbus.dev/*` settings in `nimbus.yaml`. These are Nimbus configuration
+keys: Nimbus validates them and generates Gateway API routes and Envoy policies.
+They are not native Envoy Gateway annotations, and copying them onto an arbitrary
+Kubernetes resource does not configure Envoy. Unknown keys under this prefix are
+rejected.
+
+For example, external authentication:
 
 ```yaml
 services:
   - name: web
     template: http
     public: true
-    image: docker.prayujt.com/web:latest
+    ingress: app.example.com
+    image: registry.example.com/web:latest
     network:
       ports: [8080]
     annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/auth-url: "https://idp.prayujt.com/sessions/whoami"
-      nginx.ingress.kubernetes.io/auth-signin: "https://proxy.prayujt.com/oauth2/start?rd=$scheme://$host$request_uri"
+      envoy.nimbus.dev/auth-url: "https://idp.example.com/sessions/whoami"
+      envoy.nimbus.dev/auth-signin: "https://login.example.com/start?rd=$scheme://$host$request_uri"
 ```
 
-Annotations only apply to public `http` services (the ones that get an
-ingress); they are ignored for other templates.
+The adapter accepts a successful 2xx session check, preserves 403 denial, and
+turns a 401 into the configured login redirect (or returns 401 when no sign-in
+URL is supplied). Network errors, missing required identity headers, and
+unexpected auth responses deny access. Envoy removes incoming identity headers
+before auth; only configured headers returned by the auth service reach the app.
+This preserves existing session checks; it does not add user/role management.
+
+All keys below use the `envoy.nimbus.dev/` prefix:
+
+| Key | Values / behavior |
+| --- | --- |
+| `backend-protocol` | `http` or `h2c`; `h2c` selects a GRPCRoute and HTTP/2 backend. `features: [grpc]` remains shorthand. Backend TLS is not implemented. |
+| `connect-timeout` | Positive duration, default `5s`. |
+| `stream-idle-timeout` | Duration with no stream activity, default `60s`; `0s` disables it. |
+| `request-timeout` | Entire upstream response timeout, default `0s` (disabled). |
+| `max-stream-duration` | Maximum stream duration, default `0s` (unlimited). |
+| `grpc-service`, `grpc-method` | Optional exact protobuf service/method matches on a gRPC route; omitted means all services/methods. |
+| `grpc-retry-count`, `grpc-retry-on` | Explicit opt-in retries; both required. Count 1–10. Triggers listed below. |
+| `grpc-per-retry-timeout` | Optional positive duration; requires retry count and triggers. |
+| `auth-url`, `auth-signin`, `auth-response-headers` | Session check URL, optional login redirect, comma-separated authenticated identity headers. |
+| `enable-cors` | `true` or `false`; default disabled. |
+| `cors-allow-origin`, `cors-allow-methods`, `cors-allow-headers`, `cors-expose-headers` | Comma-separated CORS values. |
+| `cors-allow-credentials`, `cors-max-age` | Boolean and cache lifetime in seconds. |
+| `body-size` | Request limit, default `1m`; integer bytes or `k`/`m`/`g` suffix; `0` unlimited. Not buffered for gRPC. |
+| `spa` | `true` enables the helper fallback; `features: [spa]` remains shorthand. Cannot combine with gRPC. |
+| `cluster-issuer` | Certificate ClusterIssuer, default `letsencrypt-prod`. |
+| `ssl-redirect` | `true`; public routes always redirect HTTP to HTTPS. |
+
+Timeouts accept Gateway API duration syntax such as `250ms`, `5s`, or `5m`, up
+to 24 hours. Retry triggers are `cancelled`, `deadline-exceeded`, `internal`,
+`resource-exhausted`, `unavailable`, `connect-failure`, `refused-stream`, and
+`reset-before-request`. Retries are absent by default; enable them only for RPCs
+that are safe to repeat. Envoy's gRPC status retries apply to response headers,
+not status codes delivered in trailers, and cannot replay an established stream.
+
+```yaml
+services:
+  - name: grpc-api
+    template: http
+    public: true
+    image: registry.example.com/grpc-api:latest
+    features: [grpc]
+    network:
+      ports: [50051]
+    annotations:
+      envoy.nimbus.dev/backend-protocol: "h2c"
+      envoy.nimbus.dev/connect-timeout: "5s"
+      envoy.nimbus.dev/stream-idle-timeout: "300s"
+      envoy.nimbus.dev/request-timeout: "0s"
+      # Optional restriction to a single protobuf service / RPC:
+      # envoy.nimbus.dev/grpc-service: "example.v1.Catalog"
+      # envoy.nimbus.dev/grpc-method: "GetItem"
+      # Optional retries for an RPC that is safe to repeat:
+      # envoy.nimbus.dev/grpc-retry-count: "2"
+      # envoy.nimbus.dev/grpc-retry-on: "unavailable"
+      # envoy.nimbus.dev/grpc-per-retry-timeout: "5s"
+```
+
+This annotation interface supports a single service/method match and retry policy
+per Nimbus service. Multiple match rules and weighted backends would need a future
+structured configuration interface; arbitrary policy YAML is not accepted.
+
+### Deprecated NGINX aliases
+
+Previously supported `nginx.ingress.kubernetes.io/*` keys remain deprecated input
+aliases. Prefer the Envoy keys above for new configuration. Most keep the same
+suffix; `proxy-body-size` becomes `body-size`, `proxy-connect-timeout` becomes
+`connect-timeout`, and `proxy-read-timeout` / `proxy-send-timeout` become
+`stream-idle-timeout`. Old timeout values are integer seconds; new ones include
+units. `backend-protocol: GRPC` becomes `backend-protocol: h2c`, and the exact old
+SPA `configuration-snippet` becomes `spa: "true"`. The existing
+`cert-manager.io/cluster-issuer` also remains an alias.
+
+Supplying conflicting new and old settings is a validation error. Matching aliases
+are accepted (duration values are compared by elapsed time). An explicit HTTP
+backend conflicts with `features: [grpc]`; `spa: "false"` conflicts with the SPA
+feature/snippet. Unknown NGINX annotations and arbitrary snippets are rejected.
+CORS origin settings alone remain inert unless `enable-cors: "true"` is set.
+CORS and authentication share a SecurityPolicy when both apply. Non-NGINX metadata
+annotations, including the explicit Envoy inputs, remain visible on the HTTPS route.
+
+### Redeploy and cleanup
+
+Redeploy each existing service to migrate its stored hostname. Nimbus installs
+helper/policy resources before attaching the route, waits for fresh route and
+policy acceptance, certificate readiness, and helper availability, then deletes
+only that service's old `<service>-ingress`. Existing TLS Secrets and private-key
+settings are preserved; old Ingress certificate ownership is detached. A failed
+readiness check reports deployment failure and retains the legacy Ingress;
+it does not provide a transactional rollback of all application changes.
+`ENVOY_READY_TIMEOUT_SECONDS` defaults to 180 per service. Set the proxy in
+front of the Nimbus API to allow enough idle time for the deployment request
+(the sum of sequential service waits); the action does not stream progress.
+
+Making a service private, changing it to a non-HTTP template, or deleting a
+service/preview removes its owned routes, shared listener, policies, and helper.
+Cleanup errors retain the DB record/hostname for retry. Certificates/keys are
+retained for redeployment; deleting the branch namespace removes its namespaced
+resources. Do not delete namespaces outside Nimbus and expect shared Gateway
+listeners to be garbage-collected automatically.
+
+The shared Gateway has a 64-listener limit. Capacity and hostname conflicts
+produce errors; Nimbus does not overwrite another application's listener.
+Keep the configured Gateway stable while services are deployed, and avoid
+reapplying a static Gateway manifest that discards Nimbus-added listeners.
+
+This change does not deploy Envoy, switch router ports, or migrate every stored
+service at Nimbus startup. Test browser login, uploads, streaming, and gRPC in
+your deployment environment before retiring a still-active old controller.
+
+### Routing validation
+
+```sh
+go test -race ./...
+go vet ./...
+NIMBUS_ROUTE_FIXTURES=/tmp/nimbus-routes.json go test ./internal/kubernetes -run TestExportRouteFixtures
+python3 scripts/validate-routes.py /tmp/nimbus-routes.json /path/to/envoy-v1.9.1-install.yaml --egctl /path/to/egctl
+```
+
+The offline validator uses the pinned Envoy CRD schemas and synthetic
+certificates/services for xDS translation; it never contacts a cluster. Unit
+tests cover the helper, hostname compatibility, auth/CORS preservation, gRPC,
+readiness-gated ingress retirement, listener isolation, and cleanup ownership.
+
 
 ## API Documentation
 

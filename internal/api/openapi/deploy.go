@@ -270,7 +270,7 @@ func parseDeployForm(
 }
 
 // deployService deploys a single service: creates the deployment, k8s service,
-// ingress, and DB records. Returns the URLs assigned to this service.
+// public routing, and DB records. Returns the URLs assigned to this service.
 func deployService(
 	ctx context.Context, deployRequest *models.DeployRequest,
 	serviceConfig *models.Service, existingService *database.Service,
@@ -342,37 +342,20 @@ func deployService(
 		serviceID = newSvc.ID
 	}
 
-	// Update networking
+	// Remove public routing before clearing its DB hostname. Failures must not leave
+	// an ostensibly private service reachable, nor lose the information needed to retry.
+	if serviceConfig.Template != "http" || !serviceConfig.Public || kubeSvc == nil {
+		if err := kubernetes.DeletePublicRoute(ctx, deployRequest.Namespace, serviceConfig.Name, env.Config); err != nil {
+			return nil, fmt.Errorf("removing public route for %s: %w", serviceConfig.Name, err)
+		}
+		if err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{ID: serviceID, Ingress: pgtype.Text{Valid: false}}); err != nil {
+			return nil, err
+		}
+	}
 	var urls []string
-	slog.DebugContext(ctx, "updating service networking in database", "service", serviceConfig.Name)
 	if kubeSvc == nil {
-		if serviceConfig.Template != "http" {
-			slog.DebugContext(ctx, "no service ports specified - clearing node ports",
-				"service", serviceConfig.Name)
-			if err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{
-				ID:        serviceID,
-				NodePorts: []int32{},
-			}); err != nil {
-				return nil, fmt.Errorf("clearing service ports for %s: %w", serviceConfig.Name, err)
-			}
-		} else {
-			if existingIngress != nil {
-				slog.DebugContext(ctx, "removing existing ingress",
-					"service", serviceConfig.Name,
-					"ingress", *existingIngress)
-				if err := kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress); err != nil {
-					slog.ErrorContext(ctx, "failed to delete ingress",
-						"service", serviceConfig.Name,
-						"ingress", *existingIngress,
-						"error", err)
-				}
-			}
-			if err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-				ID:      serviceID,
-				Ingress: pgtype.Text{Valid: false},
-			}); err != nil {
-				return nil, fmt.Errorf("setting ingress for %s: %w", serviceConfig.Name, err)
-			}
+		if err := env.Database.SetServiceNodePorts(ctx, database.SetServiceNodePortsParams{ID: serviceID, NodePorts: []int32{}}); err != nil {
+			return nil, err
 		}
 		return urls, nil
 	}
@@ -405,43 +388,23 @@ func deployService(
 		}
 	} else {
 		if !serviceConfig.Public {
-			if existingIngress != nil {
-				slog.DebugContext(ctx, "deleting existing ingress for private service",
-					"service", serviceConfig.Name,
-					"ingress", *existingIngress)
-				if err := kubernetes.DeleteIngress(ctx, deployRequest.Namespace, *existingIngress); err != nil {
-					slog.ErrorContext(ctx, "failed to delete ingress",
-						"service", serviceConfig.Name,
-						"ingress", *existingIngress,
-						"error", err)
-				}
-			}
-			if err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
-				ID:      serviceID,
-				Ingress: pgtype.Text{Valid: false},
-			}); err != nil {
-				return nil, fmt.Errorf("setting ingress for %s: %w", serviceConfig.Name, err)
-			}
 			return urls, nil
 		}
 
-		slog.DebugContext(ctx, "creating ingress for service",
+		slog.DebugContext(ctx, "reconciling Envoy route for service",
 			"service", serviceConfig.Name)
-		ingressSpec, err := kubernetes.GenerateIngressSpec(deployRequest.Namespace, serviceConfig, existingIngress, deployRequest.BranchName, env.Config)
+		host, err := kubernetes.ReconcilePublicRoute(ctx, deployRequest.Namespace, serviceConfig, existingIngress, deployRequest.BranchName, env.Config)
 		if err != nil {
-			return nil, fmt.Errorf("generating ingress spec for %s: %w", serviceConfig.Name, err)
+			return nil, fmt.Errorf("reconciling Envoy route for %s: %w", serviceConfig.Name, err)
 		}
-		newIngress, err := kubernetes.CreateIngress(ctx, deployRequest.Namespace, ingressSpec)
-		if err != nil {
-			return nil, fmt.Errorf("creating ingress for %s: %w", serviceConfig.Name, err)
-		}
+
 		if err := env.Database.SetServiceIngress(ctx, database.SetServiceIngressParams{
 			ID:      serviceID,
-			Ingress: pgtype.Text{String: newIngress.Spec.Rules[0].Host, Valid: true},
+			Ingress: pgtype.Text{String: host, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("updating ingress in database for %s: %w", serviceConfig.Name, err)
 		}
-		urls = append(urls, fmt.Sprintf("https://%s", newIngress.Spec.Rules[0].Host))
+		urls = append(urls, fmt.Sprintf("https://%s", host))
 	}
 
 	slog.DebugContext(ctx, "successfully created service", "service", serviceConfig.Name)
@@ -494,6 +457,9 @@ func (Server) PostDeploy(
 			}, nil
 		}
 		serviceNames[service.Name] = true
+		if err := kubernetes.ValidateRoutePrerequisites(&service, env.Config); err != nil {
+			return PostDeploy422JSONResponse{Status: apierror.UnprocessibleContent.Status(), Code: apierror.UnprocessibleContent.String(), Message: fmt.Sprintf("service %q: %v", service.Name, err), ErrorId: rid}, nil
+		}
 
 		if service.Monitoring != nil && service.Monitoring.Port <= 0 {
 			slog.ErrorContext(ctx, "monitoring port must be a positive integer", "service", service.Name)

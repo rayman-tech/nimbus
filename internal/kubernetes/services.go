@@ -84,6 +84,18 @@ func GenerateServiceSpec(namespace string,
 		}
 	}
 
+	if newService.Template == "http" {
+		options, err := routeSettings(newService)
+		if err != nil {
+			return nil, err
+		}
+		if options.GRPC {
+			protocol := "kubernetes.io/h2c"
+			for i := range spec.Ports {
+				spec.Ports[i].AppProtocol = &protocol
+			}
+		}
+	}
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newService.Name,
