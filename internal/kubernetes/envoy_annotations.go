@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"nimbus/internal/models"
 )
 
@@ -22,7 +24,7 @@ func routeSettings(s *models.Service) (routeOptions, error) {
 		a[k] = v
 	}
 	copyService.Annotations = a
-	supported := map[string]bool{}
+	supported := map[string]bool{"auth-provider": true, "authentik-service": true, "authentik-namespace": true, "authentik-port": true}
 	alias := func(key, legacy, value string) error {
 		if old, exists := a[legacy]; exists && old != value {
 			return fmt.Errorf("conflicting %s%s and deprecated %s", envoyAnnotationPrefix, key, legacy)
@@ -94,6 +96,45 @@ func routeSettings(s *models.Service) (routeOptions, error) {
 	if err != nil {
 		return o, err
 	}
+	if provider, exists := a[envoyAnnotationPrefix+"auth-provider"]; exists {
+		if provider != "authentik" {
+			return o, fmt.Errorf("auth-provider must be authentik")
+		}
+		if o.AuthURL != "" || o.SignIn != "" {
+			return o, fmt.Errorf("auth-provider=authentik conflicts with auth-url/auth-signin")
+		}
+		if o.GRPC {
+			return o, fmt.Errorf("auth-provider=authentik requires an HTTP route for browser callbacks")
+		}
+		o.Authentik = true
+		o.AuthentikService = "authentik-server"
+		o.AuthentikNamespace = "authentik"
+		o.AuthentikPort = 80
+		if value, ok := a[envoyAnnotationPrefix+"authentik-service"]; ok {
+			o.AuthentikService = value
+		}
+		if value, ok := a[envoyAnnotationPrefix+"authentik-namespace"]; ok {
+			o.AuthentikNamespace = value
+		}
+		if len(validation.IsDNS1035Label(o.AuthentikService)) != 0 || len(validation.IsDNS1123Label(o.AuthentikNamespace)) != 0 {
+			return o, fmt.Errorf("invalid Authentik service or namespace")
+		}
+		if value, ok := a[envoyAnnotationPrefix+"authentik-port"]; ok {
+			port, e := strconv.ParseInt(value, 10, 32)
+			if e != nil || port < 1 || port > 65535 {
+				return o, fmt.Errorf("authentik-port must be between 1 and 65535")
+			}
+			o.AuthentikPort = port
+		}
+		o.IdentityHeaders = append(o.IdentityHeaders, "X-Authentik-Username", "X-Authentik-Email", "X-Authentik-Name", "X-Authentik-Uid", "X-Authentik-Groups")
+	} else {
+		for _, key := range []string{"authentik-service", "authentik-namespace", "authentik-port"} {
+			if _, exists := a[envoyAnnotationPrefix+key]; exists {
+				return o, fmt.Errorf("%s requires auth-provider=authentik", key)
+			}
+		}
+	}
+
 	for _, setting := range []struct {
 		key    string
 		target *string

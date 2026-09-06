@@ -13,16 +13,19 @@ import (
 )
 
 type routeOptions struct {
-	GRPC, SPA               bool
-	AuthURL, SignIn         string
-	IdentityHeaders         []string
-	Issuer                  string
-	BodyLimit               int64
-	Connect, Idle           string
-	Request, MaxStream      string
-	GRPCService, GRPCMethod string
-	Retry                   map[string]interface{}
-	CORS                    map[string]interface{}
+	GRPC, SPA                            bool
+	Authentik                            bool
+	AuthentikService, AuthentikNamespace string
+	AuthentikPort                        int64
+	AuthURL, SignIn                      string
+	IdentityHeaders                      []string
+	Issuer                               string
+	BodyLimit                            int64
+	Connect, Idle                        string
+	Request, MaxStream                   string
+	GRPCService, GRPCMethod              string
+	Retry                                map[string]interface{}
+	CORS                                 map[string]interface{}
 }
 
 func legacyRouteSettings(s *models.Service) (routeOptions, error) {
