@@ -139,6 +139,16 @@ func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string
 	}
 	parent := object{"name": c.GatewayName, "namespace": c.GatewayNamespace, "sectionName": p.ListenerName}
 	rule := object{"backendRefs": []interface{}{object{"name": backendName, "port": backendPort}}}
+	if o.GRPC && (o.GRPCService != "" || o.GRPCMethod != "") {
+		match := object{"type": "Exact"}
+		if o.GRPCService != "" {
+			match["service"] = o.GRPCService
+		}
+		if o.GRPCMethod != "" {
+			match["method"] = o.GRPCMethod
+		}
+		rule["matches"] = []interface{}{object{"method": match}}
+	}
 	if !o.GRPC {
 		rule["matches"] = []interface{}{object{"path": object{"type": "PathPrefix", "value": "/"}}}
 	}
@@ -177,7 +187,10 @@ func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string
 		}
 	}
 	p.add(clientPolicies, "ClientTrafficPolicy", c.GatewayNamespace, p.ListenerName, object{"targetRefs": []interface{}{object{"group": "gateway.networking.k8s.io", "kind": "Gateway", "name": c.GatewayName, "sectionName": p.ListenerName}}, "headers": object{"earlyRequestHeaders": object{"remove": strs(remove)}}})
-	p.add(backendPolicies, "BackendTrafficPolicy", namespace, name, object{"targetRefs": target, "timeout": object{"tcp": object{"connectTimeout": o.Connect}, "http": object{"requestTimeout": "0s", "streamIdleTimeout": o.Idle, "maxStreamDuration": "0s"}}})
+	p.add(backendPolicies, "BackendTrafficPolicy", namespace, name, object{"targetRefs": target, "timeout": object{"tcp": object{"connectTimeout": o.Connect}, "http": object{"requestTimeout": o.Request, "streamIdleTimeout": o.Idle, "maxStreamDuration": o.MaxStream}}})
+	if o.Retry != nil {
+		_ = unstructured.SetNestedMap(p.Resources[len(p.Resources)-1].Object.Object, o.Retry, "spec", "retry")
+	}
 	if !o.GRPC && o.BodyLimit > 0 {
 		lua := fmt.Sprintf("function envoy_on_request(h)\n if h:headers():get('upgrade') ~= nil then return end\n local n=tonumber(h:headers():get('content-length') or '0')\n if n > %d then h:respond({[':status']='413'}, 'Request too large'); return end\n local b=h:body()\n if b ~= nil and b:length() > %d then h:respond({[':status']='413'}, 'Request too large') end\nend", o.BodyLimit, o.BodyLimit)
 		p.add(extensionPolicies, "EnvoyExtensionPolicy", namespace, name, object{"targetRefs": target, "lua": []interface{}{object{"type": "Inline", "inline": lua}}})

@@ -13,17 +13,20 @@ import (
 )
 
 type routeOptions struct {
-	GRPC, SPA       bool
-	AuthURL, SignIn string
-	IdentityHeaders []string
-	Issuer          string
-	BodyLimit       int64
-	Connect, Idle   string
-	CORS            map[string]interface{}
+	GRPC, SPA               bool
+	AuthURL, SignIn         string
+	IdentityHeaders         []string
+	Issuer                  string
+	BodyLimit               int64
+	Connect, Idle           string
+	Request, MaxStream      string
+	GRPCService, GRPCMethod string
+	Retry                   map[string]interface{}
+	CORS                    map[string]interface{}
 }
 
-func routeSettings(s *models.Service) (routeOptions, error) {
-	o := routeOptions{Issuer: "letsencrypt-prod", BodyLimit: 1048576, Connect: "5s", Idle: "60s"}
+func legacyRouteSettings(s *models.Service) (routeOptions, error) {
+	o := routeOptions{Issuer: "letsencrypt-prod", BodyLimit: 1048576, Connect: "5s", Idle: "60s", Request: "0s", MaxStream: "0s"}
 	for _, f := range s.Features {
 		switch f {
 		case "grpc":

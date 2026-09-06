@@ -184,7 +184,7 @@ func Run(ctx context.Context) error {
 	}
 	if cfg.ResponseHeaderTimeout != "" {
 		response, err = time.ParseDuration(cfg.ResponseHeaderTimeout)
-		if err != nil || response <= 0 {
+		if err != nil || response < 0 {
 			return fmt.Errorf("invalid response timeout")
 		}
 	}

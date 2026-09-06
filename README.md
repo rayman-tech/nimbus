@@ -191,10 +191,15 @@ with two replicas, read-only configuration, no service-account token, and no
 privileges. Hostnames and upstreams are fixed by each service's ConfigMap;
 requests cannot select an arbitrary upstream. Successful SPA responses stream.
 
-### Existing annotations
+### Envoy annotations
 
-Existing supported NGINX annotations are translated to Envoy behavior so
-service repositories can migrate independently:
+Use `envoy.nimbus.dev/*` settings in `nimbus.yaml`. These are Nimbus configuration
+keys: Nimbus validates them and generates Gateway API routes and Envoy policies.
+They are not native Envoy Gateway annotations, and copying them onto an arbitrary
+Kubernetes resource does not configure Envoy. Unknown keys under this prefix are
+rejected.
+
+For example, external authentication:
 
 ```yaml
 services:
@@ -206,8 +211,8 @@ services:
     network:
       ports: [8080]
     annotations:
-      nginx.ingress.kubernetes.io/auth-url: "https://idp.example.com/sessions/whoami"
-      nginx.ingress.kubernetes.io/auth-signin: "https://login.example.com/start?rd=$scheme://$host$request_uri"
+      envoy.nimbus.dev/auth-url: "https://idp.example.com/sessions/whoami"
+      envoy.nimbus.dev/auth-signin: "https://login.example.com/start?rd=$scheme://$host$request_uri"
 ```
 
 The adapter accepts a successful 2xx session check, preserves 403 denial, and
@@ -217,13 +222,79 @@ unexpected auth responses deny access. Envoy removes incoming identity headers
 before auth; only configured headers returned by the auth service reach the app.
 This preserves existing session checks; it does not add user/role management.
 
-Supported annotations cover external auth, explicitly enabled CORS, TLS issuer,
-body size, connection/read/send timeouts, HTTP/GRPC backend protocol, and the
-exact built-in SPA fallback snippet. Arbitrary NGINX snippets and unsupported
-NGINX annotations are rejected with a validation error, rather than silently
-losing their behavior. `cors-allow-origin` alone remains inert unless
-`enable-cors: "true"` is set. CORS and authentication share a SecurityPolicy
-when both apply. Non-NGINX metadata annotations are retained on the HTTPS route.
+All keys below use the `envoy.nimbus.dev/` prefix:
+
+| Key | Values / behavior |
+| --- | --- |
+| `backend-protocol` | `http` or `h2c`; `h2c` selects a GRPCRoute and HTTP/2 backend. `features: [grpc]` remains shorthand. Backend TLS is not implemented. |
+| `connect-timeout` | Positive duration, default `5s`. |
+| `stream-idle-timeout` | Duration with no stream activity, default `60s`; `0s` disables it. |
+| `request-timeout` | Entire upstream response timeout, default `0s` (disabled). |
+| `max-stream-duration` | Maximum stream duration, default `0s` (unlimited). |
+| `grpc-service`, `grpc-method` | Optional exact protobuf service/method matches on a gRPC route; omitted means all services/methods. |
+| `grpc-retry-count`, `grpc-retry-on` | Explicit opt-in retries; both required. Count 1–10. Triggers listed below. |
+| `grpc-per-retry-timeout` | Optional positive duration; requires retry count and triggers. |
+| `auth-url`, `auth-signin`, `auth-response-headers` | Session check URL, optional login redirect, comma-separated authenticated identity headers. |
+| `enable-cors` | `true` or `false`; default disabled. |
+| `cors-allow-origin`, `cors-allow-methods`, `cors-allow-headers`, `cors-expose-headers` | Comma-separated CORS values. |
+| `cors-allow-credentials`, `cors-max-age` | Boolean and cache lifetime in seconds. |
+| `body-size` | Request limit, default `1m`; integer bytes or `k`/`m`/`g` suffix; `0` unlimited. Not buffered for gRPC. |
+| `spa` | `true` enables the helper fallback; `features: [spa]` remains shorthand. Cannot combine with gRPC. |
+| `cluster-issuer` | Certificate ClusterIssuer, default `letsencrypt-prod`. |
+| `ssl-redirect` | `true`; public routes always redirect HTTP to HTTPS. |
+
+Timeouts accept Gateway API duration syntax such as `250ms`, `5s`, or `5m`, up
+to 24 hours. Retry triggers are `cancelled`, `deadline-exceeded`, `internal`,
+`resource-exhausted`, `unavailable`, `connect-failure`, `refused-stream`, and
+`reset-before-request`. Retries are absent by default; enable them only for RPCs
+that are safe to repeat. Envoy's gRPC status retries apply to response headers,
+not status codes delivered in trailers, and cannot replay an established stream.
+
+```yaml
+services:
+  - name: grpc-api
+    template: http
+    public: true
+    image: registry.example.com/grpc-api:latest
+    features: [grpc]
+    network:
+      ports: [50051]
+    annotations:
+      envoy.nimbus.dev/backend-protocol: "h2c"
+      envoy.nimbus.dev/connect-timeout: "5s"
+      envoy.nimbus.dev/stream-idle-timeout: "300s"
+      envoy.nimbus.dev/request-timeout: "0s"
+      # Optional restriction to a single protobuf service / RPC:
+      # envoy.nimbus.dev/grpc-service: "example.v1.Catalog"
+      # envoy.nimbus.dev/grpc-method: "GetItem"
+      # Optional retries for an RPC that is safe to repeat:
+      # envoy.nimbus.dev/grpc-retry-count: "2"
+      # envoy.nimbus.dev/grpc-retry-on: "unavailable"
+      # envoy.nimbus.dev/grpc-per-retry-timeout: "5s"
+```
+
+This annotation interface supports a single service/method match and retry policy
+per Nimbus service. Multiple match rules and weighted backends would need a future
+structured configuration interface; arbitrary policy YAML is not accepted.
+
+### Deprecated NGINX aliases
+
+Previously supported `nginx.ingress.kubernetes.io/*` keys remain deprecated input
+aliases. Prefer the Envoy keys above for new configuration. Most keep the same
+suffix; `proxy-body-size` becomes `body-size`, `proxy-connect-timeout` becomes
+`connect-timeout`, and `proxy-read-timeout` / `proxy-send-timeout` become
+`stream-idle-timeout`. Old timeout values are integer seconds; new ones include
+units. `backend-protocol: GRPC` becomes `backend-protocol: h2c`, and the exact old
+SPA `configuration-snippet` becomes `spa: "true"`. The existing
+`cert-manager.io/cluster-issuer` also remains an alias.
+
+Supplying conflicting new and old settings is a validation error. Matching aliases
+are accepted (duration values are compared by elapsed time). An explicit HTTP
+backend conflicts with `features: [grpc]`; `spa: "false"` conflicts with the SPA
+feature/snippet. Unknown NGINX annotations and arbitrary snippets are rejected.
+CORS origin settings alone remain inert unless `enable-cors: "true"` is set.
+CORS and authentication share a SecurityPolicy when both apply. Non-NGINX metadata
+annotations, including the explicit Envoy inputs, remain visible on the HTTPS route.
 
 ### Redeploy and cleanup
 

@@ -111,6 +111,6 @@ if args.egctl:
         visit(translated)
         assert not failures, json.dumps(failures, indent=2)
         normalized = result.stdout.lower().replace('_', '')
-        for feature in ['envoy.filters.http.ext_authz', 'envoy.filters.http.cors', 'envoy.filters.http.lua', 'early_header_mutation_extensions', 'http2_protocol_options']:
+        for feature in ['envoy.filters.http.ext_authz', 'envoy.filters.http.cors', 'envoy.filters.http.lua', 'early_header_mutation_extensions', 'http2_protocol_options', 'retry_policy', '/example.v1.API/Read']:
             assert feature.lower().replace('_', '') in normalized, feature
     print('Offline Envoy translation passed for HTTP, gRPC, SPA, auth, and CORS fixtures. Synthetic TLS/services only; no cluster contacted.')

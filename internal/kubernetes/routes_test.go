@@ -215,11 +215,23 @@ func TestExportRouteFixtures(t *testing.T) {
 		if variant == "grpc" || variant == "spa" {
 			s.Features = []string{variant}
 		}
+		if variant == "grpc" {
+			s.Annotations = map[string]string{
+				envoyAnnotationPrefix + "backend-protocol":       "h2c",
+				envoyAnnotationPrefix + "stream-idle-timeout":    "300s",
+				envoyAnnotationPrefix + "request-timeout":        "0s",
+				envoyAnnotationPrefix + "grpc-service":           "example.v1.API",
+				envoyAnnotationPrefix + "grpc-method":            "Read",
+				envoyAnnotationPrefix + "grpc-retry-count":       "2",
+				envoyAnnotationPrefix + "grpc-retry-on":          "unavailable",
+				envoyAnnotationPrefix + "grpc-per-retry-timeout": "5s",
+			}
+		}
 		if strings.Contains(variant, "auth") {
-			s.Annotations["nginx.ingress.kubernetes.io/auth-url"] = "http://identity.auth.svc/sessions/whoami"
+			s.Annotations[envoyAnnotationPrefix+"auth-url"] = "http://identity.auth.svc/sessions/whoami"
 		}
 		if strings.Contains(variant, "cors") {
-			s.Annotations["nginx.ingress.kubernetes.io/enable-cors"] = "true"
+			s.Annotations[envoyAnnotationPrefix+"enable-cors"] = "true"
 		}
 		p, e := GenerateRoutePlan("fixture", s, nil, "main", routeConfig())
 		if e != nil {
