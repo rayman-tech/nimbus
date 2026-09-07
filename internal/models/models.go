@@ -3,6 +3,7 @@ package models
 import (
 	"nimbus/internal/database"
 
+	"github.com/goccy/go-yaml"
 	"github.com/google/uuid"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,7 +15,24 @@ type Config struct {
 	Services            []Service `yaml:"services"`
 }
 
+// Auth selects the cluster's authentication provider for a public HTTP service.
+type Auth struct {
+	Provider string `yaml:"provider"`
+}
+
+// Reject misspelled fields and server overrides instead of silently ignoring them.
+func (a *Auth) UnmarshalYAML(data []byte) error {
+	type plainAuth Auth
+	var decoded plainAuth
+	if err := yaml.UnmarshalWithOptions(data, &decoded, yaml.Strict()); err != nil {
+		return err
+	}
+	*a = Auth(decoded)
+	return nil
+}
+
 type Service struct {
+	Auth         *Auth             `yaml:"auth,omitempty"`
 	Name         string            `yaml:"name"`
 	Image        string            `yaml:"image,omitempty"`
 	Replicas     int32             `yaml:"replicas,omitempty"`

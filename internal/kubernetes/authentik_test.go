@@ -2,6 +2,8 @@ package kubernetes
 
 import (
 	"context"
+	"github.com/goccy/go-yaml"
+	"nimbus/internal/models"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,7 +14,9 @@ import (
 
 func TestAuthentikDirectAuthAndCallbackIsolation(t *testing.T) {
 	s := publicService()
-	s.Annotations = map[string]string{"envoy.nimbus.dev/auth-provider": "authentik"}
+	if err := yaml.Unmarshal([]byte("auth:\n  provider: authentik\n"), s); err != nil {
+		t.Fatal(err)
+	}
 	cfg := routeConfig()
 	cfg.RouteHelperImage = ""
 	p, err := GenerateRoutePlan("app", s, nil, "main", cfg)
@@ -29,7 +33,7 @@ func TestAuthentikDirectAuthAndCallbackIsolation(t *testing.T) {
 		t.Fatalf("unexpected auth policy: %v", policy.Object)
 	}
 	refs, _, _ := unstructured.NestedSlice(policy.Object, "spec", "extAuth", "http", "backendRefs")
-	if refs[0].(map[string]interface{})["namespace"] != "authentik" {
+	if ref := refs[0].(map[string]interface{}); ref["namespace"] != "authentik" || ref["name"] != "authentik-server" || ref["port"] != int64(80) {
 		t.Fatal("wrong outpost namespace")
 	}
 	targets, _, _ := unstructured.NestedSlice(policy.Object, "spec", "targetRefs")
@@ -69,17 +73,54 @@ func TestAuthentikConfigurationRejectsAmbiguity(t *testing.T) {
 	cases := []map[string]string{
 		{"envoy.nimbus.dev/auth-provider": "unknown"},
 		{"envoy.nimbus.dev/authentik-service": "authentik-server"},
-		{"envoy.nimbus.dev/auth-provider": "authentik", "envoy.nimbus.dev/auth-url": "https://old.example.com/auth"},
-		{"envoy.nimbus.dev/auth-provider": "authentik", "nginx.ingress.kubernetes.io/auth-url": "https://old.example.com/auth"},
+		{"envoy.nimbus.dev/auth-url": "https://old.example.com/auth"},
+		{"nginx.ingress.kubernetes.io/auth-url": "https://old.example.com/auth"},
 		{"envoy.nimbus.dev/auth-provider": "authentik", "envoy.nimbus.dev/authentik-port": "0"},
 		{"envoy.nimbus.dev/auth-provider": "authentik", "envoy.nimbus.dev/authentik-namespace": "../other"},
-		{"envoy.nimbus.dev/auth-provider": "authentik", "envoy.nimbus.dev/backend-protocol": "h2c"},
+		{"envoy.nimbus.dev/backend-protocol": "h2c"},
 	}
 	for _, a := range cases {
 		s := publicService()
+		s.Auth = &models.Auth{Provider: "authentik"}
 		s.Annotations = a
 		if _, err := routeSettings(s); err == nil {
 			t.Fatalf("accepted invalid config %v", a)
+		}
+	}
+}
+
+func TestStructuredAuthValidation(t *testing.T) {
+	for _, input := range []string{
+		"auth: {}",
+		"auth: {provider: unknown}",
+		"auth: {provider: authentik, service: other}",
+		"auth: {provider: authentik, namespace: other}",
+		"auth: {provider: authentik, port: 8080}",
+		"auth: {provider: authentik, authentik: {service: other}}",
+		"auth: {provder: authentik}",
+	} {
+		s := publicService()
+		err := yaml.Unmarshal([]byte(input), s)
+		if err == nil {
+			err = ValidateRouting(s)
+		}
+		if err == nil {
+			t.Fatalf("accepted invalid auth: %s", input)
+		}
+	}
+	for _, kind := range []string{"private", "tcp", "grpc"} {
+		s := publicService()
+		s.Auth = &models.Auth{Provider: "authentik"}
+		switch kind {
+		case "private":
+			s.Public = false
+		case "tcp":
+			s.Template = "tcp"
+		case "grpc":
+			s.Features = []string{"grpc"}
+		}
+		if err := ValidateRouting(s); err == nil {
+			t.Fatalf("accepted auth for %s", kind)
 		}
 	}
 }

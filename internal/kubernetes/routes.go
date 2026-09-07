@@ -33,6 +33,11 @@ var (
 	deployments       = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 )
 
+// Authentik is a single cluster-owned installation, not a per-service endpoint.
+const authentikService = "authentik-server"
+const authentikNamespace = "authentik"
+const authentikPort int64 = 80
+
 const managedBy = "app.kubernetes.io/managed-by"
 const serviceLabel = "nimbus.dev/service"
 const namespaceLabel = "nimbus.dev/namespace"
@@ -89,6 +94,9 @@ func (p *RoutePlan) add(gvr schema.GroupVersionResource, kind, namespace, name s
 
 func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string, branch string, cfg *config.Config) (*RoutePlan, error) {
 	if s.Template != "http" || !s.Public {
+		if s.Auth != nil {
+			return nil, fmt.Errorf("auth requires a public HTTP service")
+		}
 		return nil, nil
 	}
 	if err := ValidateRoutePrerequisites(s, cfg); err != nil {
@@ -178,7 +186,7 @@ func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string
 
 		if o.Authentik {
 			spec["extAuth"] = object{"failOpen": false, "headersToExtAuth": []interface{}{"Cookie"}, "http": object{
-				"backendRefs": []interface{}{object{"name": o.AuthentikService, "namespace": o.AuthentikNamespace, "port": o.AuthentikPort}},
+				"backendRefs": []interface{}{object{"name": authentikService, "namespace": authentikNamespace, "port": authentikPort}},
 				"path":        "/outpost.goauthentik.io/auth/envoy", "headersToBackend": strs(o.IdentityHeaders),
 			}}
 		}
@@ -191,7 +199,7 @@ func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string
 		p.add(httpRoutes, "HTTPRoute", namespace, routeName(s.Name, "authentik"), object{
 			"parentRefs": []interface{}{parent}, "hostnames": []interface{}{host}, "rules": []interface{}{object{
 				"matches":     []interface{}{object{"path": object{"type": "PathPrefix", "value": "/outpost.goauthentik.io"}}},
-				"backendRefs": []interface{}{object{"name": o.AuthentikService, "namespace": o.AuthentikNamespace, "port": o.AuthentikPort}},
+				"backendRefs": []interface{}{object{"name": authentikService, "namespace": authentikNamespace, "port": authentikPort}},
 			}},
 		})
 	}

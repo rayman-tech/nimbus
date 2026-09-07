@@ -394,16 +394,17 @@ We welcome contributions! Feel free to submit issues and pull requests to improv
 
 ## Native Authentik forward auth
 
-For HTTP applications, select direct Authentik integration explicitly:
+For public HTTP applications, add this structured field to the service in
+`nimbus.yaml`:
 
 ```yaml
-annotations:
-  envoy.nimbus.dev/auth-provider: authentik
-  # Optional; these are the defaults:
-  envoy.nimbus.dev/authentik-service: authentik-server
-  envoy.nimbus.dev/authentik-namespace: authentik
-  envoy.nimbus.dev/authentik-port: "80"
+auth:
+  provider: authentik
 ```
+
+Nimbus always uses the cluster installation at `authentik-server.authentik:80`.
+There are no per-service server overrides. Omit `auth` to disable this integration.
+Unknown auth fields/providers and the superseded Authentik annotations are rejected.
 
 Nimbus emits a fail-closed SecurityPolicy calling
 /outpost.goauthentik.io/auth/envoy and an unauthenticated callback HTTPRoute for
