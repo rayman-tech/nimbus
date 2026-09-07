@@ -94,6 +94,20 @@ func routeSettings(s *models.Service) (routeOptions, error) {
 	if err != nil {
 		return o, err
 	}
+	if s.Auth != nil {
+		if s.Auth.Provider != "authentik" {
+			return o, fmt.Errorf("auth.provider must be authentik")
+		}
+		if o.AuthURL != "" || o.SignIn != "" {
+			return o, fmt.Errorf("auth.provider conflicts with auth-url/auth-signin")
+		}
+		if o.GRPC {
+			return o, fmt.Errorf("auth.provider requires an HTTP route for browser callbacks")
+		}
+		o.Authentik = true
+		o.IdentityHeaders = append(o.IdentityHeaders, "X-Authentik-Username", "X-Authentik-Email", "X-Authentik-Name", "X-Authentik-Uid", "X-Authentik-Groups")
+	}
+
 	for _, setting := range []struct {
 		key    string
 		target *string

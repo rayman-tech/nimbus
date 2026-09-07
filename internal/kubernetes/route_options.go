@@ -14,6 +14,7 @@ import (
 
 type routeOptions struct {
 	GRPC, SPA               bool
+	Authentik               bool
 	AuthURL, SignIn         string
 	IdentityHeaders         []string
 	Issuer                  string
@@ -192,6 +193,9 @@ func strs(v []string) []interface{} {
 }
 func ValidateRouting(s *models.Service) error {
 	if s.Template != "http" || !s.Public {
+		if s.Auth != nil {
+			return fmt.Errorf("auth requires a public HTTP service")
+		}
 		return nil
 	}
 	_, e := routeSettings(s)
@@ -201,6 +205,9 @@ func ValidateRouting(s *models.Service) error {
 // ValidateRoutePrerequisites runs before any service networking is reconciled.
 func ValidateRoutePrerequisites(s *models.Service, cfg *config.Config) error {
 	if s.Template != "http" || !s.Public {
+		if s.Auth != nil {
+			return fmt.Errorf("auth requires a public HTTP service")
+		}
 		return nil
 	}
 	o, e := routeSettings(s)

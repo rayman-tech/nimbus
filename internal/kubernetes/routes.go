@@ -33,6 +33,11 @@ var (
 	deployments       = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 )
 
+// Authentik is a single cluster-owned installation, not a per-service endpoint.
+const authentikService = "authentik-server"
+const authentikNamespace = "authentik"
+const authentikPort int64 = 80
+
 const managedBy = "app.kubernetes.io/managed-by"
 const serviceLabel = "nimbus.dev/service"
 const namespaceLabel = "nimbus.dev/namespace"
@@ -89,6 +94,9 @@ func (p *RoutePlan) add(gvr schema.GroupVersionResource, kind, namespace, name s
 
 func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string, branch string, cfg *config.Config) (*RoutePlan, error) {
 	if s.Template != "http" || !s.Public {
+		if s.Auth != nil {
+			return nil, fmt.Errorf("auth requires a public HTTP service")
+		}
 		return nil, nil
 	}
 	if err := ValidateRoutePrerequisites(s, cfg); err != nil {
@@ -163,7 +171,7 @@ func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string
 
 	p.add(httpRoutes, "HTTPRoute", namespace, routeName(s.Name, "https-redirect"), object{"parentRefs": []interface{}{object{"name": c.GatewayName, "namespace": c.GatewayNamespace, "sectionName": c.GatewayHTTPListener}}, "hostnames": []interface{}{host}, "rules": []interface{}{object{"filters": []interface{}{object{"type": "RequestRedirect", "requestRedirect": object{"scheme": "https", "port": int64(443), "statusCode": int64(308)}}}}}})
 	target := []interface{}{object{"group": "gateway.networking.k8s.io", "kind": kind, "name": name}}
-	if o.AuthURL != "" || o.CORS != nil {
+	if o.AuthURL != "" || o.Authentik || o.CORS != nil {
 		spec := object{"targetRefs": target}
 		if o.CORS != nil {
 			spec["cors"] = o.CORS
@@ -175,10 +183,31 @@ func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string
 			}
 			spec["extAuth"] = object{"failOpen": false, "headersToExtAuth": []interface{}{"Cookie", "Authorization"}, "http": http}
 		}
+
+		if o.Authentik {
+			spec["extAuth"] = object{"failOpen": false, "headersToExtAuth": []interface{}{"Cookie"}, "http": object{
+				"backendRefs": []interface{}{object{"name": authentikService, "namespace": authentikNamespace, "port": authentikPort}},
+				"path":        "/outpost.goauthentik.io/auth/envoy", "headersToBackend": strs(o.IdentityHeaders),
+			}}
+		}
 		p.add(securityPolicies, "SecurityPolicy", namespace, name, spec)
+	}
+
+	if o.Authentik {
+		// A separate route bypasses only the application auth check for outpost endpoints.
+		// The app administrator must grant cross-namespace access to this exact Service.
+		p.add(httpRoutes, "HTTPRoute", namespace, routeName(s.Name, "authentik"), object{
+			"parentRefs": []interface{}{parent}, "hostnames": []interface{}{host}, "rules": []interface{}{object{
+				"matches":     []interface{}{object{"path": object{"type": "PathPrefix", "value": "/outpost.goauthentik.io"}}},
+				"backendRefs": []interface{}{object{"name": authentikService, "namespace": authentikNamespace, "port": authentikPort}},
+			}},
+		})
 	}
 	// Remove untrusted identity headers before ext_authz, scoped to this listener only.
 	remove := []string{"X-Auth-Request-User", "X-Auth-Request-Email"}
+	if o.Authentik {
+		remove = append(remove, "X-Authentik-Jwt", "X-Authentik-Meta-Jwks", "X-Authentik-Meta-Outpost", "X-Authentik-Meta-Provider", "X-Authentik-Meta-App", "X-Authentik-Meta-Version")
+	}
 	seen := map[string]bool{"X-Auth-Request-User": true, "X-Auth-Request-Email": true}
 	for _, h := range o.IdentityHeaders {
 		if !seen[h] {

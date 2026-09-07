@@ -354,6 +354,11 @@ func pruneRouteResources(ctx context.Context, p *RoutePlan) error {
 			}
 		}
 	}
+	if !wanted[httpRoutes.Resource+"/"+routeName(p.ServiceName, "authentik")] {
+		if e := deleteOwned(ctx, httpRoutes, p.Namespace, routeName(p.ServiceName, "authentik"), p.Namespace, p.ServiceName); e != nil {
+			return e
+		}
+	}
 	return nil
 }
 func deleteLegacyIngress(ctx context.Context, namespace, service string) error {
@@ -395,7 +400,7 @@ func DeletePublicRoute(ctx context.Context, namespace, service string, cfg *conf
 		g        schema.GroupVersionResource
 		ns, name string
 	}{
-		{httpRoutes, namespace, routeName(service, "route")}, {grpcRoutes, namespace, routeName(service, "route")}, {httpRoutes, namespace, routeName(service, "https-redirect")},
+		{httpRoutes, namespace, routeName(service, "authentik")}, {httpRoutes, namespace, routeName(service, "route")}, {grpcRoutes, namespace, routeName(service, "route")}, {httpRoutes, namespace, routeName(service, "https-redirect")},
 		{securityPolicies, namespace, routeName(service, "route")}, {backendPolicies, namespace, routeName(service, "route")}, {extensionPolicies, namespace, routeName(service, "route")},
 		{clientPolicies, c.GatewayNamespace, p.ListenerName}, {referenceGrants, namespace, routeName(service, "edge-tls")},
 		{deployments, namespace, routeName(service, "route-helper")}, {services, namespace, routeName(service, "route-helper")}, {configMaps, namespace, routeName(service, "route-helper")},

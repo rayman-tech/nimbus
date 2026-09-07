@@ -391,3 +391,39 @@ Running `nimbus server` will start the server locally.
 ## Contributing
 
 We welcome contributions! Feel free to submit issues and pull requests to improve Nimbus.
+
+## Native Authentik forward auth
+
+For public HTTP applications, add this structured field to the service in
+`nimbus.yaml`:
+
+```yaml
+auth:
+  provider: authentik
+```
+
+Nimbus always uses the cluster installation at `authentik-server.authentik:80`.
+There are no per-service server overrides. Omit `auth` to disable this integration.
+Unknown auth fields/providers and the superseded Authentik annotations are rejected.
+
+Nimbus emits a fail-closed SecurityPolicy calling
+/outpost.goauthentik.io/auth/envoy and an unauthenticated callback HTTPRoute for
+/outpost.goauthentik.io only. The normal application route stays protected. The
+outpost returns login redirects directly; no auth-signin adapter is required.
+Incoming identity headers are removed before authorization. SPA helpers remain
+independent; an auth-only application no longer needs a helper image or deployment.
+
+Configure a single-application forward-auth provider in Authentik for the actual
+hostname and assign it to a healthy outpost before deployment. Preview hostnames
+need their own provider; unknown hosts fail closed. In the Authentik namespace,
+an administrator must create a ReferenceGrant admitting SecurityPolicy and HTTPRoute
+from the application's namespace to the exact outpost Service, plus any necessary
+NetworkPolicy allowing the Envoy proxy. Nimbus does not grant itself cross-namespace
+permissions or configure Authentik users/providers. Do not attach auth to the callback
+route, and do not use a Gateway-wide auth policy that also catches callbacks.
+
+This mode cannot be combined with auth-url/auth-signin (including deprecated NGINX
+aliases), and browser forward-auth on GRPCRoute is rejected. Existing gRPC routing,
+legacy auth and SPA behavior are unchanged. Removing the setting or deleting the
+service also removes its owned callback route. The feature is inactive until a
+service explicitly selects it.
