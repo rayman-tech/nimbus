@@ -2,8 +2,7 @@
 
 ## Local build and push
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 \
-  -t docker.prayujt.com/nimbus:latest \
-  -t docker.prayujt.com/nimbus:$(git rev-parse --short HEAD) \
-  --push .
+KO_DOCKER_REPO=docker.prayujt.com/nimbus \
+  ko build ./cmd --bare --platform=linux/amd64,linux/arm64 \
+  --tags="latest,$(git rev-parse --short HEAD)"
 ```

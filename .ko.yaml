@@ -1,0 +1,3 @@
+defaultBaseImage: alpine:latest
+defaultEnv:
+  - CGO_ENABLED=0

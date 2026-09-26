@@ -427,3 +427,17 @@ aliases), and browser forward-auth on GRPCRoute is rejected. Existing gRPC routi
 legacy auth and SPA behavior are unchanged. Removing the setting or deleting the
 service also removes its owned callback route. The feature is inactive until a
 service explicitly selects it.
+
+## Container builds
+
+Go images are built with ko v0.19.1 using the Go version in `go.mod`.
+CI saves Go modules and compiler outputs between commits. Image repositories,
+tags, target architectures, and deployment triggers are preserved.
+
+To build locally with ko and Docker installed:
+
+```sh
+ko build ./cmd --local --platform=linux/amd64
+```
+
+The development Compose workflow continues to use `Dockerfile.dev`.
