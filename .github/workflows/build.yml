@@ -9,13 +9,35 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      KO_DOCKER_REPO: docker.prayujt.com/nimbus
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      - name: Set up Go
+        id: go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Cache Go modules and build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-${{ runner.arch }}-ko-${{ github.workflow }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-ko-${{ github.workflow }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.sum') }}-
+            ${{ runner.os }}-${{ runner.arch }}-ko-${{ github.workflow }}-${{ steps.go.outputs.go-version }}-
+
+      - name: Set up ko
+        uses: ko-build/setup-ko@v0.9
+        with:
+          version: v0.19.1
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -24,14 +46,7 @@ jobs:
           username: ${{ secrets.PRAYUJ_DOCKER_USERNAME }}
           password: ${{ secrets.PRAYUJ_DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            docker.prayujt.com/nimbus:latest
-            docker.prayujt.com/nimbus:${{ github.sha }}
-          cache-from: type=registry,ref=docker.prayujt.com/nimbus:cache
-          cache-to: type=registry,ref=docker.prayujt.com/nimbus:cache,mode=max
+      - name: Build and push image with ko
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: ko build ./cmd --bare --platform=linux/amd64,linux/arm64 --tags="$IMAGE_TAG,latest"
