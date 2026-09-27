@@ -27,6 +27,10 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: NIMBUS_IMAGE_REFRESH_INTERVAL
+              value: "5s" # Only services with imageAutoRefresh: true are polled.
+            - name: DOCKER_CONFIG
+              value: /etc/nimbus/registry
             - name: ENVIRONMENT
               value: "production"
             - name: DOMAIN
@@ -57,9 +61,16 @@ spec:
           args:
             - "server"
           volumeMounts:
+            - mountPath: /etc/nimbus/registry
+              name: registry-auth
+              readOnly: true
             - mountPath: "/volumes" # must always be mounted to /volumes
               name: nimbus-volumes
       volumes:
+        - name: registry-auth
+          secret:
+            secretName: nimbus-registry-auth
+            optional: true
         - name: nimbus-volumes
           persistentVolumeClaim:
             claimName: <pvc name> # create your own PVC that binds to the same PV as above, must also be ReadWriteMany

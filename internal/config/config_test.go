@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 )
 
 func TestLoad(t *testing.T) {
@@ -163,6 +164,37 @@ func TestLoad(t *testing.T) {
 
 			if tt.validate != nil {
 				tt.validate(t, cfg)
+			}
+		})
+	}
+}
+
+func TestImageRefreshInterval(t *testing.T) {
+	for _, tc := range []struct {
+		value     string
+		want      time.Duration
+		wantError bool
+	}{
+		{"", 5 * time.Second, false},
+		{"20s", 20 * time.Second, false},
+		{"1m", time.Minute, false},
+		{"0s", 0, true},
+		{"-1s", 0, true},
+		{"invalid", 0, true},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Setenv("DOMAIN", "example.com")
+			t.Setenv("DB_HOST", "localhost")
+			t.Setenv("DB_NAME", "nimbus")
+			t.Setenv("DB_USER", "nimbus")
+			t.Setenv("DB_PASSWORD", "password")
+			t.Setenv("NIMBUS_IMAGE_REFRESH_INTERVAL", tc.value)
+			cfg, err := Load()
+			if (err != nil) != tc.wantError {
+				t.Fatalf("error = %v", err)
+			}
+			if !tc.wantError && cfg.ImageRefreshInterval != tc.want {
+				t.Fatalf("interval = %s, want %s", cfg.ImageRefreshInterval, tc.want)
 			}
 		})
 	}

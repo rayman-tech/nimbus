@@ -27,6 +27,14 @@ const (
 	ApiKeyAuthScopes = "ApiKeyAuth.Scopes"
 )
 
+// Defines values for ImageRefreshStatusState.
+const (
+	ImageRefreshStatusStateFailed   ImageRefreshStatusState = "failed"
+	ImageRefreshStatusStatePaused   ImageRefreshStatusState = "paused"
+	ImageRefreshStatusStateReady    ImageRefreshStatusState = "ready"
+	ImageRefreshStatusStateUpdating ImageRefreshStatusState = "updating"
+)
+
 // Defines values for PodStatusPhase.
 const (
 	PodStatusPhaseFailed    PodStatusPhase = "Failed"
@@ -58,6 +66,28 @@ type Error struct {
 	Message string `json:"message"`
 	Status  int    `json:"status"`
 }
+
+// ImageRefreshStatus defines model for ImageRefreshStatus.
+type ImageRefreshStatus struct {
+	// Image Desired immutable image reference on the Deployment; check state for rollout completion
+	Image string `json:"image"`
+
+	// LastError Last registry lookup error, cleared after recovery
+	LastError *string `json:"last_error,omitempty"`
+
+	// PreviousImage Image reference before the last automatic update
+	PreviousImage *string `json:"previous_image,omitempty"`
+
+	// Source Registry tag being followed
+	Source string                  `json:"source"`
+	State  ImageRefreshStatusState `json:"state"`
+
+	// UpdatedAt RFC3339 time of the last automatic image change
+	UpdatedAt *string `json:"updated_at,omitempty"`
+}
+
+// ImageRefreshStatusState defines model for ImageRefreshStatus.State.
+type ImageRefreshStatusState string
 
 // PodStatus defines model for PodStatus.
 type PodStatus struct {
@@ -97,10 +127,11 @@ type ServiceDetail struct {
 	// Branch The branch name
 	Branch *string `json:"branch,omitempty"`
 
-	// CommitHash The git commit hash of the current deployment
-	CommitHash nullable.Nullable[string] `json:"commit_hash,omitempty"`
+	// CommitHash The git commit that submitted the configuration; not the followed image version
+	CommitHash   nullable.Nullable[string] `json:"commit_hash,omitempty"`
+	ImageRefresh *ImageRefreshStatus       `json:"image_refresh,omitempty"`
 
-	// Ingress The ingress hostname (if applicable)
+	// Ingress The public hostname (legacy field name; served through Envoy Gateway when applicable)
 	Ingress nullable.Nullable[string] `json:"ingress,omitempty"`
 
 	// Logs Recent logs from the service (last 20 lines)
@@ -124,8 +155,9 @@ type ServiceListItem struct {
 	// Branch The branch name
 	Branch *string `json:"branch,omitempty"`
 
-	// CommitHash The git commit hash of the current deployment
-	CommitHash nullable.Nullable[string] `json:"commit_hash,omitempty"`
+	// CommitHash The git commit that submitted the configuration; not the followed image version
+	CommitHash   nullable.Nullable[string] `json:"commit_hash,omitempty"`
+	ImageRefresh *ImageRefreshStatus       `json:"image_refresh,omitempty"`
 
 	// Name The service name
 	Name *string `json:"name,omitempty"`

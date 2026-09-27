@@ -1,6 +1,8 @@
 package models
 
 import (
+	"encoding/json"
+
 	"nimbus/internal/database"
 
 	"github.com/goccy/go-yaml"
@@ -32,25 +34,39 @@ func (a *Auth) UnmarshalYAML(data []byte) error {
 }
 
 type Service struct {
-	Auth         *Auth             `yaml:"auth,omitempty"`
-	Name         string            `yaml:"name"`
-	Image        string            `yaml:"image,omitempty"`
-	Replicas     int32             `yaml:"replicas,omitempty"`
-	Network      Network           `yaml:"network,omitempty"`
-	Env          []corev1.EnvVar   `yaml:"env,omitempty"`
-	EnvOverrides []Override        `yaml:"envOverrides,omitempty"`
-	Volumes      []Volume          `yaml:"volumes,omitempty"`
-	Public       bool              `yaml:"public,omitempty"`
-	Ingress      string            `yaml:"ingress,omitempty"`
-	Annotations  map[string]string `yaml:"annotations,omitempty"`
-	Template     string            `yaml:"template,omitempty"`
-	Version      string            `yaml:"version,omitempty"`
-	Arch         string            `yaml:"arch,omitempty"`
-	Features     []string          `yaml:"features,omitempty"`
-	Configs      []ConfigEntry     `yaml:"configs,omitempty"`
-	Command      []string          `yaml:"command,omitempty"`
-	Args         []string          `yaml:"args,omitempty"`
-	Monitoring   *Monitoring       `yaml:"monitoring,omitempty"`
+	Auth             *Auth             `yaml:"auth,omitempty"`
+	Name             string            `yaml:"name"`
+	Image            string            `yaml:"image,omitempty"`
+	ImageAutoRefresh bool              `yaml:"imageAutoRefresh,omitempty"`
+	ImageSource      string            `yaml:"-"`
+	ReadinessProbe   *ReadinessProbe   `yaml:"readinessProbe,omitempty"`
+	Replicas         int32             `yaml:"replicas,omitempty"`
+	Network          Network           `yaml:"network,omitempty"`
+	Env              []corev1.EnvVar   `yaml:"env,omitempty"`
+	EnvOverrides     []Override        `yaml:"envOverrides,omitempty"`
+	Volumes          []Volume          `yaml:"volumes,omitempty"`
+	Public           bool              `yaml:"public,omitempty"`
+	Ingress          string            `yaml:"ingress,omitempty"`
+	Annotations      map[string]string `yaml:"annotations,omitempty"`
+	Template         string            `yaml:"template,omitempty"`
+	Version          string            `yaml:"version,omitempty"`
+	Arch             string            `yaml:"arch,omitempty"`
+	Features         []string          `yaml:"features,omitempty"`
+	Configs          []ConfigEntry     `yaml:"configs,omitempty"`
+	Command          []string          `yaml:"command,omitempty"`
+	Args             []string          `yaml:"args,omitempty"`
+	Monitoring       *Monitoring       `yaml:"monitoring,omitempty"`
+}
+
+// ReadinessProbe uses Kubernetes' JSON decoding for fields such as IntOrString.
+type ReadinessProbe corev1.Probe
+
+func (p *ReadinessProbe) UnmarshalYAML(data []byte) error {
+	value, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(value, (*corev1.Probe)(p))
 }
 
 // Monitoring configures Prometheus scraping for a service. When present, nimbus

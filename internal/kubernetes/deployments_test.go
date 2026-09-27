@@ -7,10 +7,13 @@ import (
 	"nimbus/internal/config"
 	"nimbus/internal/database"
 	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/imageupdate"
 	"nimbus/internal/models"
 
+	"github.com/goccy/go-yaml"
 	"github.com/google/uuid"
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -20,6 +23,80 @@ import (
 type stubQuerier struct {
 	database.Querier
 	identifier uuid.UUID
+}
+
+func TestImageRefreshOptInAndReadinessProbe(t *testing.T) {
+	var cfg models.Config
+	err := yaml.Unmarshal([]byte(`services:
+  - name: followed
+    image: registry.example.com/app:latest
+    imageAutoRefresh: true
+    readinessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      periodSeconds: 5
+  - name: manual
+    image: registry.example.com/app:latest
+`), &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolve := func(context.Context, string) (string, error) {
+		return "registry.example.com/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil
+	}
+	if err := imageupdate.Prepare(context.Background(), cfg.Services, "abc", resolve); err != nil {
+		t.Fatal(err)
+	}
+	for i := range cfg.Services {
+		s := &cfg.Services[i]
+		dep, err := GenerateDeploymentSpec(context.Background(), &models.DeployRequest{Namespace: "ns"}, s, &nimbusEnv.Env{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 1 {
+			if dep.Labels[imageupdate.Label] != "" || len(dep.Annotations) != 0 {
+				t.Fatal("service opted in by default")
+			}
+			continue
+		}
+		if dep.Labels[imageupdate.Label] != "true" || dep.Annotations[imageupdate.SourceAnnotation] != "registry.example.com/app:latest" {
+			t.Fatal("missing tracking metadata")
+		}
+		probe := dep.Spec.Template.Spec.Containers[0].ReadinessProbe
+		if probe == nil || probe.HTTPGet == nil || probe.HTTPGet.Path != "/healthz" || probe.HTTPGet.Port.IntVal != 8080 || probe.PeriodSeconds != 5 {
+			t.Fatalf("readiness probe not decoded: %+v", probe)
+		}
+	}
+}
+
+func TestDisableImageRefreshRemovesTrackingMetadata(t *testing.T) {
+	previousClient := client
+	client = fake.NewSimpleClientset()
+	t.Cleanup(func() { client = previousClient })
+	dep := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "ns"}}
+	setImageTracking(dep, "registry.example.com/app:latest", "app")
+	dep.Annotations["other-owner"] = "keep"
+	dep.Annotations[imageupdate.ErrorAnnotation] = "lookup failed"
+	if _, err := client.AppsV1().Deployments("ns").Create(context.Background(), dep, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	replacement := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "ns"}}
+	got, err := CreateDeployment(context.Background(), "ns", replacement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Labels[imageupdate.Label] != "" {
+		t.Fatal("disabled deployment remains discoverable by worker")
+	}
+	for _, key := range imageupdate.MetadataKeys {
+		if _, ok := got.Annotations[key]; ok {
+			t.Fatalf("tracking field retained: %s", key)
+		}
+	}
+	if got.Annotations["other-owner"] != "keep" {
+		t.Fatal("unrelated metadata changed")
+	}
 }
 
 func (s stubQuerier) GetVolumeIdentifier(
