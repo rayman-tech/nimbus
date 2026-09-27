@@ -413,19 +413,32 @@ outpost returns login redirects directly; no auth-signin adapter is required.
 Incoming identity headers are removed before authorization. SPA helpers remain
 independent; an auth-only application no longer needs a helper image or deployment.
 
-Configure a single-application forward-auth provider in Authentik for the actual
-hostname and assign it to a healthy outpost before deployment. Preview hostnames
-need their own provider; unknown hosts fail closed. In the Authentik namespace,
-an administrator must create a ReferenceGrant admitting SecurityPolicy and HTTPRoute
-from the application's namespace to the exact outpost Service, plus any necessary
-NetworkPolicy allowing the Envoy proxy. Nimbus does not grant itself cross-namespace
-permissions or configure Authentik users/providers. Do not attach auth to the callback
+Configure a forward-auth provider in Authentik and assign it to a healthy outpost
+before deployment. Single-application providers must match the actual hostname,
+including previews. A domain-level provider can cover previews under a shared
+parent domain with the same access policy; unknown hosts still fail closed.
+Nimbus does not configure Authentik users, providers, or access policies.
+
+Nimbus creates a separate ReferenceGrant for each authenticated service in the
+Authentik namespace. It admits only SecurityPolicy and HTTPRoute references from
+that service's namespace to the exact `authentik-server` Service. This works for
+dynamically created preview namespaces without editing a shared allowlist. Grants
+carry Nimbus ownership labels and a Namespace owner reference, so namespace
+deletion also garbage-collects them after interrupted deployments. Nimbus leaves
+administrator-managed grants unchanged.
+
+The Nimbus service account needs get/create/update/delete access to ReferenceGrants
+in `authentik` and read access to application Namespaces (the supplied Kubernetes
+permissions already include these). Any NetworkPolicy must permit the Envoy proxy
+to reach the outpost. Route readiness failures report the pending resource and
+Envoy condition reasons, including denied references. Do not attach auth to the callback
 route, and do not use a Gateway-wide auth policy that also catches callbacks.
 
 This mode cannot be combined with auth-url/auth-signin (including deprecated NGINX
 aliases), and browser forward-auth on GRPCRoute is rejected. Existing gRPC routing,
 legacy auth and SPA behavior are unchanged. Removing the setting or deleting the
-service also removes its owned callback route. The feature is inactive until a
+service also removes its owned callback route and Authentik grant. Other services
+in the same preview namespace keep their grants. The feature is inactive until a
 service explicitly selects it.
 
 ## Container builds
