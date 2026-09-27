@@ -1,0 +1,14 @@
+# Optional example for rancher.io/local-path clusters. Apply separately after
+# matching the node topology/path settings to your production storage class.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-preview
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: kubernetes.io/hostname
+        values:
+          - server-master

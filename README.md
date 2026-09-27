@@ -34,13 +34,86 @@ Additionally, to run Nimbus in production, you must set the environment variable
 
 ### Persistent Storage Requirement
 
-For hosting a Nimbus server, you need some kind of NFS persistent volume provisioner installed. The recommended provisioner is:
+Nimbus volumes use a Kubernetes dynamic storage provisioner. Set
+`NIMBUS_STORAGE_CLASS` to the production storage class; there is no default.
+Use `reclaimPolicy: Retain` when production data must survive application deletion.
 
-[NFS Subdir External Provisioner](https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner)
+Set `NIMBUS_PREVIEW_STORAGE_CLASS` to a separate class with `reclaimPolicy: Delete`.
+Nimbus uses it for new volumes on every branch except `main`/`master`. It rejects
+new preview volumes if this setting is missing or the class does not explicitly
+use `Delete`. Existing claims are reused on ordinary redeploys; they are not
+recreated or silently migrated. Stateless previews do not need this setting.
 
-Ensure that your cluster has a properly configured NFS provisioner before deploying Nimbus to prevent storage-related issues.
+For Rancher local-path clusters, [local-preview.yaml](kubernetes/examples/local-preview.yaml)
+is an optional example. Match its topology and any provisioner path parameters
+to your existing production class, apply it separately, then configure Nimbus:
 
-You also need to set the environment variable `NIMBUS_STORAGE_CLASS` with the name of the storage class you have configured with the provisioner. By default, this is set to `nfs-client`.
+```text
+NIMBUS_STORAGE_CLASS=local
+NIMBUS_PREVIEW_STORAGE_CLASS=local-preview
+NIMBUS_CLEANUP_TIMEOUT=3m
+```
+
+Deleting a preview removes its PVCs and namespace. Nimbus waits for the namespace,
+claims, and all PVs referring to that namespace to disappear before reporting
+success and removing volume database records. The provisioner owns deletion of
+PV data; Nimbus never force-deletes PV objects, removes finalizers, or deletes
+host directories. Verify that your provisioner's teardown actually removes data
+(some NFS provisioners archive directories even with a `Delete` policy).
+Deletion errors and timeouts return an API error and retain volume records for
+retry. Temporary API deletion errors receive bounded retries. A retry also finds
+PVs whose PVCs were already deleted using their claim references. Production
+cleanup preserves its configured PV retention policy.
+
+**Existing previews:** changing the setting affects new claims only. Preview
+cleanup refuses to remove claims if a PV in that namespace still uses `Retain`.
+An administrator must first verify that each such PV belongs to a disposable
+preview and explicitly change that PV's reclaim policy to `Delete`, then retry
+cleanup. Do not change the production class or bulk-patch all released PVs.
+Older orphan PVs whose branch database records have already been removed require
+separate, deliberate cleanup.
+
+### Automatically retire branch previews
+
+Nimbus does not receive GitHub branch events itself. Call its branch-delete API
+when a PR closes (merged or unmerged) and when its branch is deleted. The reusable
+[cleanup workflow](.github/workflows/cleanup-preview.yml) retries failed requests,
+refuses `main`/`master` or an empty branch, and waits for the API's cleanup result.
+Add a caller like this to each application repository, pinning the Nimbus workflow
+to a reviewed commit or release:
+
+```yaml
+name: Clean up previews
+on:
+  pull_request:
+    types: [closed]
+  delete:
+permissions: {}
+# Use the SAME group in the preview deployment workflow so closing a PR cancels
+# an in-progress deployment instead of allowing it to recreate the preview.
+concurrency:
+  group: nimbus-preview-${{ github.event.pull_request.head.ref || github.event.ref }}
+  cancel-in-progress: true
+jobs:
+  cleanup:
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'delete' && github.event.ref_type == 'branch')
+    uses: rayman-tech/nimbus/.github/workflows/cleanup-preview.yml@<commit-or-release>
+    with:
+      project: your-project
+      branch: ${{ github.event.pull_request.head.ref || github.event.ref }}
+      server: https://nimbus.example.com
+    secrets:
+      NIMBUS_API_KEY: ${{ secrets.NIMBUS_API_KEY }}
+```
+
+Repeated PR-close and branch-delete events are safe. A failed job must be retried;
+check for no remaining branch namespace, no PVs referencing its namespace, and
+successful provisioner teardown. A healthy disposable-preview lifecycle should
+be tested with a temporary volume before enabling this policy broadly. No live
+storage migration is performed by installing the new Nimbus binary.
 
 To restrict deployments to only the `main` or `master` branches for a project, add `allowBranchPreviews: false` to your project's `nimbus.yaml`. When disabled, deploy requests from any other branch will be rejected.
 

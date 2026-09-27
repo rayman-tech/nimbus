@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	apierror "nimbus/internal/api/error"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/kubernetes"
+	"nimbus/internal/utils"
 
 	"github.com/google/uuid"
 )
@@ -47,6 +49,16 @@ func deleteServiceResources(
 	ctx context.Context, namespace string, svc database.Service,
 	db database.Querier,
 ) error {
+	if err := deleteServiceKubernetesResources(ctx, namespace, svc); err != nil {
+		return err
+	}
+	if err := db.DeleteServiceById(ctx, svc.ID); err != nil {
+		return fmt.Errorf("deleting service %s from database: %w", svc.ServiceName, err)
+	}
+	return nil
+}
+
+func deleteServiceKubernetesResources(ctx context.Context, namespace string, svc database.Service) error {
 	if err := kubernetes.DeletePublicRoute(ctx, namespace, svc.ServiceName, env.FromContext(ctx).Config); err != nil {
 		return fmt.Errorf("removing public routing for %s: %w", svc.ServiceName, err)
 	}
@@ -56,9 +68,7 @@ func deleteServiceResources(
 	if err := kubernetes.DeleteService(ctx, namespace, svc.ServiceName); err != nil {
 		return err
 	}
-	if err := db.DeleteServiceById(ctx, svc.ID); err != nil {
-		return fmt.Errorf("deleting service %s from database: %w", svc.ServiceName, err)
-	}
+
 	return nil
 }
 
@@ -77,7 +87,7 @@ func deleteBranchResources(
 	}
 
 	for _, svc := range services {
-		if err := deleteServiceResources(ctx, namespace, svc, db); err != nil {
+		if err := deleteServiceKubernetesResources(ctx, namespace, svc); err != nil {
 			return err
 		}
 	}
@@ -85,26 +95,41 @@ func deleteBranchResources(
 	ids, err := db.GetUnusedVolumeIdentifiers(ctx, database.GetUnusedVolumeIdentifiersParams{
 		ProjectID:      projectID,
 		ProjectBranch:  branch,
-		ExcludeVolumes: nil,
+		ExcludeVolumes: []string{},
 	})
 	if err != nil {
 		return fmt.Errorf("getting unused volumes: %w", err)
 	}
+	return finishBranchCleanup(ctx, namespace, projectID, branch, ids, services, db, kubernetes.DeleteBranchStorage)
+}
+
+// Keep service and volume records until Kubernetes finishes cleanup. Project
+// deletion can then rediscover even stateless branches after a failed attempt.
+func finishBranchCleanup(ctx context.Context, namespace string, projectID uuid.UUID, branch string,
+	ids []uuid.UUID, services []database.Service, db database.Querier,
+	cleanup func(context.Context, string, []string, bool, time.Duration) error,
+) error {
+	names := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if err := kubernetes.DeletePVC(ctx, namespace, fmt.Sprintf("pvc-%s", id.String())); err != nil {
-			slog.ErrorContext(ctx, "failed to delete pvc", "error", err)
+		names = append(names, fmt.Sprintf("pvc-%s", id))
+	}
+	timeout := env.FromContext(ctx).Config.CleanupTimeout
+	if timeout <= 0 {
+		timeout = 3 * time.Minute
+	}
+	preview := branch != "" && !utils.IsMainBranch(branch)
+	if err := cleanup(ctx, namespace, names, preview, timeout); err != nil {
+		return fmt.Errorf("cleaning branch storage: %w", err)
+	}
+	for _, svc := range services {
+		if err := db.DeleteServiceById(ctx, svc.ID); err != nil {
+			return fmt.Errorf("deleting service %s from database: %w", svc.ServiceName, err)
 		}
 	}
 	if err := db.DeleteUnusedVolumes(ctx, database.DeleteUnusedVolumesParams{
-		ProjectID:      projectID,
-		ProjectBranch:  branch,
-		ExcludeVolumes: nil,
+		ProjectID: projectID, ProjectBranch: branch, ExcludeVolumes: []string{},
 	}); err != nil {
 		return fmt.Errorf("deleting unused volumes: %w", err)
-	}
-
-	if err := kubernetes.DeleteNamespace(ctx, namespace); err != nil {
-		slog.ErrorContext(ctx, "failed to delete namespace", "namespace", namespace, "error", err)
 	}
 
 	return nil

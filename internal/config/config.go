@@ -17,6 +17,8 @@ type Database struct {
 }
 
 type Config struct {
+	PreviewStorageClass  string        `env:"NIMBUS_PREVIEW_STORAGE_CLASS"`
+	CleanupTimeout       time.Duration `env:"NIMBUS_CLEANUP_TIMEOUT" envDefault:"3m"`
 	ImageRefreshInterval time.Duration `env:"NIMBUS_IMAGE_REFRESH_INTERVAL" envDefault:"5s"`
 	GatewayName          string        `env:"ENVOY_GATEWAY_NAME" envDefault:"edge"`
 	GatewayNamespace     string        `env:"ENVOY_GATEWAY_NAMESPACE" envDefault:"envoy-gateway-system"`
@@ -37,6 +39,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.ImageRefreshInterval <= 0 {
 		return nil, fmt.Errorf("NIMBUS_IMAGE_REFRESH_INTERVAL must be a positive duration")
+	}
+	if cfg.CleanupTimeout <= 0 {
+		return nil, fmt.Errorf("NIMBUS_CLEANUP_TIMEOUT must be a positive duration")
 	}
 	return &cfg, nil
 }
