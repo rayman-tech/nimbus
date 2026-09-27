@@ -14,6 +14,7 @@ import (
 	"nimbus/internal/api/requestid"
 	"nimbus/internal/database"
 	"nimbus/internal/env"
+	"nimbus/internal/imageupdate"
 	"nimbus/internal/kubernetes"
 	"nimbus/internal/metrics"
 	"nimbus/internal/models"
@@ -472,28 +473,21 @@ func (Server) PostDeploy(
 		}
 	}
 
+	// Resolve followed images before modifying any existing workloads.
+	if err := imageupdate.Prepare(ctx, config.Services, deployRequest.CommitHash, imageupdate.Resolve); err != nil {
+		slog.ErrorContext(ctx, "preparing service images", "error", err)
+		return PostDeploy422JSONResponse{
+			Status:  apierror.UnprocessibleContent.Status(),
+			Code:    apierror.UnprocessibleContent.String(),
+			Message: "Unable to prepare service images; check image references and Nimbus registry credentials.",
+			ErrorId: rid,
+		}, nil
+	}
+
 	// Delete stale services (k8s errors logged, not fatal)
 	if err := deleteStaleServices(ctx, deployRequest.Namespace, existingServices, serviceNames, env.Database); err != nil {
 		slog.ErrorContext(ctx, "failed to delete stale services", "error", err)
 		return PostDeploy500JSONResponse(internalError(rid)), nil
-	}
-
-	// Rewrite image tags with commit hash for non-template services
-	if deployRequest.CommitHash != "" {
-		for i, serviceConfig := range config.Services {
-			switch serviceConfig.Template {
-			case "postgres", "redis":
-				continue
-			}
-			if serviceConfig.Image == "" {
-				continue
-			}
-			repo := serviceConfig.Image
-			if idx := strings.LastIndex(repo, ":"); idx != -1 {
-				repo = repo[:idx]
-			}
-			config.Services[i].Image = repo + ":" + deployRequest.CommitHash
-		}
 	}
 
 	// Deploy each service

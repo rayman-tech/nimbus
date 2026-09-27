@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -16,22 +17,26 @@ type Database struct {
 }
 
 type Config struct {
-	GatewayName         string   `env:"ENVOY_GATEWAY_NAME" envDefault:"edge"`
-	GatewayNamespace    string   `env:"ENVOY_GATEWAY_NAMESPACE" envDefault:"envoy-gateway-system"`
-	GatewayHTTPListener string   `env:"ENVOY_HTTP_LISTENER" envDefault:"http"`
-	RouteHelperImage    string   `env:"NIMBUS_ROUTE_HELPER_IMAGE"`
-	RouteReadyTimeout   int      `env:"ENVOY_READY_TIMEOUT_SECONDS" envDefault:"180"`
-	Environment         string   `env:"ENVIRONMENT" envDefault:"development"`
-	Domain              string   `env:"DOMAIN,required"`
-	NimbusStorageClass  string   `env:"NIMBUS_STORAGE_CLASS"`
-	LogLevel            string   `env:"LOG_LEVEL" envDefault:"debug"`
-	Database            Database `envPrefix:""`
+	ImageRefreshInterval time.Duration `env:"NIMBUS_IMAGE_REFRESH_INTERVAL" envDefault:"5s"`
+	GatewayName          string        `env:"ENVOY_GATEWAY_NAME" envDefault:"edge"`
+	GatewayNamespace     string        `env:"ENVOY_GATEWAY_NAMESPACE" envDefault:"envoy-gateway-system"`
+	GatewayHTTPListener  string        `env:"ENVOY_HTTP_LISTENER" envDefault:"http"`
+	RouteHelperImage     string        `env:"NIMBUS_ROUTE_HELPER_IMAGE"`
+	RouteReadyTimeout    int           `env:"ENVOY_READY_TIMEOUT_SECONDS" envDefault:"180"`
+	Environment          string        `env:"ENVIRONMENT" envDefault:"development"`
+	Domain               string        `env:"DOMAIN,required"`
+	NimbusStorageClass   string        `env:"NIMBUS_STORAGE_CLASS"`
+	LogLevel             string        `env:"LOG_LEVEL" envDefault:"debug"`
+	Database             Database      `envPrefix:""`
 }
 
 func Load() (*Config, error) {
 	var cfg Config
 	if err := env.Parse(&cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+	if cfg.ImageRefreshInterval <= 0 {
+		return nil, fmt.Errorf("NIMBUS_IMAGE_REFRESH_INTERVAL must be a positive duration")
 	}
 	return &cfg, nil
 }

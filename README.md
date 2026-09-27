@@ -115,6 +115,18 @@ There are pre-defined templates for services, such as databases and Redis, to ma
 
 Deployment can be done through our [GitHub action](https://github.com/rayman-tech/nimbus-action), or through the local CLI, which is used for managing project state.
 
+### Following published images
+
+Set `imageAutoRefresh: true` on an individual service to follow its image tag.
+Nimbus resolves the tag to an immutable digest on deployment, then checks for
+changes using the global `NIMBUS_IMAGE_REFRESH_INTERVAL` (default `5s`). Services
+without this flag are not polled. A changed digest starts a rollout; an unchanged
+digest does not restart the service. The publishing repository only needs to
+build, test, and publish its image; no deployment action is needed for image updates.
+
+See [image refresh setup](docs/image-refresh.md) for registry credentials,
+configuration, status, and disabling updates or rolling back.
+
 ### Monitoring
 
 To have Prometheus scrape a service, add a `monitoring` block to it. Only the

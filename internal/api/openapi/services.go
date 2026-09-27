@@ -84,10 +84,11 @@ func (Server) GetServices(
 			status = ServiceListItemStatusUnknown
 		}
 		item := ServiceListItem{
-			Project: &svc.ProjectName,
-			Branch:  &svc.ProjectBranch,
-			Name:    &svc.ServiceName,
-			Status:  &status,
+			ImageRefresh: getImageRefreshStatus(ctx, namespace, svc.ServiceName),
+			Project:      &svc.ProjectName,
+			Branch:       &svc.ProjectBranch,
+			Name:         &svc.ServiceName,
+			Status:       &status,
 		}
 		if svc.CommitHash.Valid {
 			item.CommitHash = nullable.NewNullableWithValue(svc.CommitHash.String)
@@ -222,11 +223,12 @@ func (Server) GetServicesName(
 	}
 
 	res := GetServicesName200JSONResponse{
-		Project:     &project.Name,
-		Branch:      &branch,
-		Name:        &request.Name,
-		Logs:        &logs,
-		PodStatuses: &podStatuses,
+		ImageRefresh: getImageRefreshStatus(ctx, namespace, svc.ServiceName),
+		Project:      &project.Name,
+		Branch:       &branch,
+		Name:         &request.Name,
+		Logs:         &logs,
+		PodStatuses:  &podStatuses,
 	}
 
 	if svc.NodePorts == nil {

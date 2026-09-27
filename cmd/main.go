@@ -72,6 +72,16 @@ func main() {
 				return fmt.Errorf("initializing kubernetes client: %w", err)
 			}
 
+			updatesDone := make(chan struct{})
+			go func() {
+				defer close(updatesDone)
+				kubernetes.RunImageUpdates(ctx, cfg.ImageRefreshInterval)
+			}()
+			defer func() {
+				stop()
+				<-updatesDone
+			}()
+
 			return api.Start(ctx, port, &env.Env{
 				Database: db,
 				Config:   cfg,

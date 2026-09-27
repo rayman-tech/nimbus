@@ -7,6 +7,7 @@ import (
 	"time"
 
 	nimbusEnv "nimbus/internal/env"
+	"nimbus/internal/imageupdate"
 	"nimbus/internal/metrics"
 	"nimbus/internal/models"
 
@@ -47,10 +48,11 @@ func GenerateDeploymentSpec(
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
-						Name:         service.Name,
-						Image:        service.Image,
-						Env:          service.Env,
-						VolumeMounts: []corev1.VolumeMount{},
+						Name:           service.Name,
+						Image:          service.Image,
+						Env:            service.Env,
+						VolumeMounts:   []corev1.VolumeMount{},
+						ReadinessProbe: (*corev1.Probe)(service.ReadinessProbe),
 					},
 				},
 				Volumes: []corev1.Volume{},
@@ -211,13 +213,15 @@ func GenerateDeploymentSpec(
 		}
 	}
 
-	return &appsv1.Deployment{
+	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      service.Name,
 			Namespace: deploymentRequest.Namespace,
 		},
 		Spec: spec,
-	}, nil
+	}
+	setImageTracking(deployment, service.ImageSource, service.Name)
+	return deployment, nil
 }
 
 func CreateDeployment(
@@ -239,6 +243,7 @@ func CreateDeployment(
 	}
 
 	existing.Spec = deployment.Spec
+	setImageTracking(existing, deployment.Annotations[imageupdate.SourceAnnotation], deployment.Annotations[imageupdate.ContainerAnnotation])
 
 	if existing.Spec.Template.Annotations == nil {
 		existing.Spec.Template.Annotations = make(map[string]string)

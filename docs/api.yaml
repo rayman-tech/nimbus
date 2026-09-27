@@ -721,6 +721,8 @@ components:
     ServiceListItem:
       type: object
       properties:
+        image_refresh:
+          $ref: "#/components/schemas/ImageRefreshStatus"
         project:
           type: string
           description: The project name
@@ -742,13 +744,36 @@ components:
         commit_hash:
           type: string
           nullable: true
-          description: The git commit hash of the current deployment
+          description: The git commit that submitted the configuration; not the followed image version
       example:
         project: my-app
         branch: main
         name: web
         status: Running
         commit_hash: abc123def456
+
+    ImageRefreshStatus:
+      type: object
+      required: [source, image, state]
+      properties:
+        source:
+          type: string
+          description: Registry tag being followed
+        image:
+          type: string
+          description: Desired immutable image reference on the Deployment; check state for rollout completion
+        state:
+          type: string
+          enum: [ready, updating, failed, paused]
+        previous_image:
+          type: string
+          description: Image reference before the last automatic update
+        updated_at:
+          type: string
+          description: RFC3339 time of the last automatic image change
+        last_error:
+          type: string
+          description: Last registry lookup error, cleared after recovery
 
     PodStatus:
       type: object
@@ -772,6 +797,8 @@ components:
     ServiceDetail:
       type: object
       properties:
+        image_refresh:
+          $ref: "#/components/schemas/ImageRefreshStatus"
         project:
           type: string
           description: The project name
@@ -794,7 +821,7 @@ components:
         commit_hash:
           type: string
           nullable: true
-          description: The git commit hash of the current deployment
+          description: The git commit that submitted the configuration; not the followed image version
         pod_statuses:
           type: array
           items:
