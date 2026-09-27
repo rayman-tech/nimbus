@@ -70,19 +70,24 @@ if args.egctl:
         {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': 'fixture'}},
         {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': 'envoy-gateway-system'}},
     ])
-    known = {d['metadata']['name'] for d in fixtures if d['kind'] == 'Service'}
+    known = {(d['metadata']['namespace'], d['metadata']['name']) for d in fixtures if d['kind'] == 'Service'}
     for d in list(fixtures):
         if d['kind'] not in ['HTTPRoute', 'GRPCRoute']:
             continue
         for rule in d['spec']['rules']:
             for ref in rule.get('backendRefs', []):
-                if ref['name'] in known:
+                namespace = ref.get('namespace', d['metadata']['namespace'])
+                key = (namespace, ref['name'])
+                if key in known:
                     continue
                 port = {'port': ref['port']}
                 if d['kind'] == 'GRPCRoute':
                     port['appProtocol'] = 'kubernetes.io/h2c'
-                fixtures.append({'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': ref['name'], 'namespace': 'fixture'}, 'spec': {'ports': [port], 'clusterIP': '10.254.0.1'}})
-                known.add(ref['name'])
+                fixtures.append({'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': ref['name'], 'namespace': namespace}, 'spec': {'ports': [port], 'clusterIP': '10.254.0.1'}})
+                known.add(key)
+    namespaces = {d['metadata']['name'] for d in fixtures if d['kind'] == 'Namespace'}
+    for namespace in sorted({d['metadata']['namespace'] for d in fixtures if 'namespace' in d['metadata']} - namespaces):
+        fixtures.append({'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': namespace}})
     for d in fixtures:
         if d['kind'] == 'Service':
             d['spec'].setdefault('clusterIP', '10.254.0.2')
@@ -113,4 +118,4 @@ if args.egctl:
         normalized = result.stdout.lower().replace('_', '')
         for feature in ['envoy.filters.http.ext_authz', 'envoy.filters.http.cors', 'envoy.filters.http.lua', 'early_header_mutation_extensions', 'http2_protocol_options', 'retry_policy', '/example.v1.API/Read']:
             assert feature.lower().replace('_', '') in normalized, feature
-    print('Offline Envoy translation passed for HTTP, gRPC, SPA, auth, and CORS fixtures. Synthetic TLS/services only; no cluster contacted.')
+    print('Offline Envoy translation passed for HTTP, gRPC, SPA, auth, CORS, and Authentik previews. Synthetic TLS/services only; no cluster contacted.')

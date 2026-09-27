@@ -81,6 +81,12 @@ func routeName(parts ...string) string {
 	h := sha256.Sum256([]byte(s))
 	return strings.TrimRight(s[:50], "-") + "-" + hex.EncodeToString(h[:6])
 }
+func authentikGrantName(namespace, service string) string {
+	// Include a hash of the separate components: hyphenated namespace/service
+	// pairs can otherwise collide in the shared Authentik namespace.
+	h := sha256.Sum256([]byte(namespace + "/" + service))
+	return routeName("nimbus-auth", namespace, service, hex.EncodeToString(h[:6]))
+}
 func ownedMetadata(ns, name, ownerNS, service string) object {
 	return object{"name": name, "namespace": ns, "labels": object{managedBy: "nimbus", serviceLabel: service, namespaceLabel: ownerNS}}
 }
@@ -194,8 +200,14 @@ func GenerateRoutePlan(namespace string, s *models.Service, existingHost *string
 	}
 
 	if o.Authentik {
+		p.add(referenceGrants, "ReferenceGrant", authentikNamespace, authentikGrantName(namespace, s.Name), object{
+			"from": []interface{}{
+				object{"group": "gateway.envoyproxy.io", "kind": "SecurityPolicy", "namespace": namespace},
+				object{"group": "gateway.networking.k8s.io", "kind": "HTTPRoute", "namespace": namespace},
+			},
+			"to": []interface{}{object{"group": "", "kind": "Service", "name": authentikService}},
+		})
 		// A separate route bypasses only the application auth check for outpost endpoints.
-		// The app administrator must grant cross-namespace access to this exact Service.
 		p.add(httpRoutes, "HTTPRoute", namespace, routeName(s.Name, "authentik"), object{
 			"parentRefs": []interface{}{parent}, "hostnames": []interface{}{host}, "rules": []interface{}{object{
 				"matches":     []interface{}{object{"path": object{"type": "PathPrefix", "value": "/outpost.goauthentik.io"}}},

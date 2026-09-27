@@ -207,7 +207,7 @@ func TestExportRouteFixtures(t *testing.T) {
 		t.Skip("optional offline Envoy translation fixture")
 	}
 	var objs []object
-	for _, variant := range []string{"http", "grpc", "spa", "auth", "cors", "auth-cors"} {
+	for _, variant := range []string{"http", "grpc", "spa", "auth", "cors", "auth-cors", "authentik", "authentik-preview"} {
 		s := publicService()
 		s.Name = variant
 		s.Ingress = variant + ".example.com"
@@ -227,13 +227,20 @@ func TestExportRouteFixtures(t *testing.T) {
 				envoyAnnotationPrefix + "grpc-per-retry-timeout": "5s",
 			}
 		}
-		if strings.Contains(variant, "auth") {
+		if variant == "auth" || variant == "auth-cors" {
 			s.Annotations[envoyAnnotationPrefix+"auth-url"] = "http://identity.auth.svc/sessions/whoami"
 		}
 		if strings.Contains(variant, "cors") {
 			s.Annotations[envoyAnnotationPrefix+"enable-cors"] = "true"
 		}
-		p, e := GenerateRoutePlan("fixture", s, nil, "main", routeConfig())
+		namespace, branch := "fixture", "main"
+		if strings.HasPrefix(variant, "authentik") {
+			s.Auth = &models.Auth{Provider: "authentik"}
+		}
+		if variant == "authentik-preview" {
+			namespace, branch = "fixture-preview", "feature"
+		}
+		p, e := GenerateRoutePlan(namespace, s, nil, branch, routeConfig())
 		if e != nil {
 			t.Fatal(e)
 		}

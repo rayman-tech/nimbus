@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"nimbus/internal/config"
@@ -24,6 +25,20 @@ func ownedBy(u *unstructured.Unstructured, ns, service string) bool {
 }
 
 func applyRouteResource(ctx context.Context, p *RoutePlan, r routeResource) error {
+	authGrant := r.GVR == referenceGrants && r.Object.GetNamespace() == authentikNamespace && r.Object.GetName() == authentikGrantName(p.Namespace, p.ServiceName)
+	if authGrant {
+		ns, err := GetNamespace(ctx, p.Namespace)
+		if err != nil {
+			return fmt.Errorf("getting owner namespace for Authentik grant: %w", err)
+		}
+		if ns.UID == "" || ns.DeletionTimestamp != nil {
+			return fmt.Errorf("cannot grant Authentik access for missing or terminating namespace %s", p.Namespace)
+		}
+		r.Object = r.Object.DeepCopy()
+		// A Namespace is cluster-scoped, so it can own a grant in Authentik's
+		// namespace. Garbage collection also covers interrupted deployments.
+		r.Object.SetOwnerReferences([]metav1.OwnerReference{{APIVersion: "v1", Kind: "Namespace", Name: ns.Name, UID: ns.UID}})
+	}
 	api := dynamicClient.Resource(r.GVR).Namespace(r.Object.GetNamespace())
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		old, e := api.Get(ctx, r.Object.GetName(), metav1.GetOptions{})
@@ -59,6 +74,9 @@ func applyRouteResource(ctx context.Context, p *RoutePlan, r routeResource) erro
 			labels[k] = v
 		}
 		old.SetLabels(labels)
+		if authGrant {
+			old.SetOwnerReferences(desired.GetOwnerReferences())
+		}
 		// These resources are owned by Nimbus; replace route metadata as configuration changes.
 		if r.GVR == httpRoutes || r.GVR == grpcRoutes {
 			old.SetAnnotations(desired.GetAnnotations())
@@ -181,7 +199,8 @@ func readyCondition(conditions []interface{}, kind string, generation int64) boo
 	return false
 }
 func waitRouteResources(ctx context.Context, p *RoutePlan) error {
-	return wait.PollUntilContextCancel(ctx, 500*time.Millisecond, true, func(ctx context.Context) (bool, error) {
+	pending := "waiting for route resources"
+	err := wait.PollUntilContextCancel(ctx, 500*time.Millisecond, true, func(ctx context.Context) (bool, error) {
 		for _, r := range p.Resources {
 			if r.GVR != p.RouteKind && r.GVR != httpRoutes && r.GVR != certificates && r.GVR != securityPolicies && r.GVR != backendPolicies && r.GVR != extensionPolicies && r.GVR != clientPolicies && r.GVR != deployments {
 				continue
@@ -190,10 +209,12 @@ func waitRouteResources(ctx context.Context, p *RoutePlan) error {
 			if e != nil {
 				return false, e
 			}
+			pending = fmt.Sprintf("%s %s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			if r.GVR == deployments {
 				available, _, _ := unstructured.NestedInt64(obj.Object, "status", "availableReplicas")
 				observed, _, _ := unstructured.NestedInt64(obj.Object, "status", "observedGeneration")
 				if available < 2 || observed != obj.GetGeneration() {
+					pending += ": helper deployment is not available"
 					return false, nil
 				}
 				continue
@@ -201,6 +222,7 @@ func waitRouteResources(ctx context.Context, p *RoutePlan) error {
 			if r.GVR == certificates {
 				c, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
 				if !readyCondition(c, "Ready", obj.GetGeneration()) {
+					pending += ": " + describeConditions(c, obj.GetGeneration())
 					return false, nil
 				}
 				continue
@@ -212,6 +234,7 @@ func waitRouteResources(ctx context.Context, p *RoutePlan) error {
 			}
 			entries, _, _ := unstructured.NestedSlice(obj.Object, "status", key)
 			accepted := false
+			var diagnostics []string
 			for _, raw := range entries {
 				entry := raw.(map[string]interface{})
 				refkey := "ancestorRef"
@@ -226,6 +249,7 @@ func waitRouteResources(ctx context.Context, p *RoutePlan) error {
 					continue
 				}
 				cs, _ := entry["conditions"].([]interface{})
+				diagnostics = append(diagnostics, describeConditions(cs, obj.GetGeneration()))
 				if !readyCondition(cs, "Accepted", obj.GetGeneration()) {
 					continue
 				}
@@ -235,6 +259,9 @@ func waitRouteResources(ctx context.Context, p *RoutePlan) error {
 				bad := false
 				for _, v := range cs {
 					c := v.(map[string]interface{})
+					if observed, ok := c["observedGeneration"].(int64); ok && observed != obj.GetGeneration() {
+						continue
+					}
 					if c["status"] == "False" && (c["type"] == "Accepted" || c["type"] == "ResolvedRefs" || c["type"] == "Programmed" || c["type"] == "BackendsAvailable") {
 						bad = true
 					}
@@ -244,11 +271,45 @@ func waitRouteResources(ctx context.Context, p *RoutePlan) error {
 				}
 			}
 			if !accepted {
+				if len(diagnostics) == 0 {
+					pending += ": waiting for Gateway status"
+				} else {
+					pending += ": " + strings.Join(diagnostics, "; ")
+				}
 				return false, nil
 			}
 		}
 		return true, nil
 	})
+	if err != nil {
+		return fmt.Errorf("%s: %w", pending, err)
+	}
+	return nil
+}
+
+func describeConditions(conditions []interface{}, generation int64) string {
+	var details []string
+	for _, raw := range conditions {
+		c, ok := raw.(map[string]interface{})
+		if !ok || c["status"] == "True" {
+			continue
+		}
+		if observed, ok := c["observedGeneration"].(int64); ok && observed != generation {
+			continue
+		}
+		detail := fmt.Sprintf("%v=%v", c["type"], c["status"])
+		if reason, ok := c["reason"].(string); ok && reason != "" {
+			detail += " (" + reason + ")"
+		}
+		if message, ok := c["message"].(string); ok && message != "" {
+			detail += ": " + message
+		}
+		details = append(details, detail)
+	}
+	if len(details) == 0 {
+		return "waiting for current ready conditions"
+	}
+	return strings.Join(details, "; ")
 }
 
 // ReconcilePublicRoute does not retire an old ingress until certificates, routes,
@@ -359,6 +420,12 @@ func pruneRouteResources(ctx context.Context, p *RoutePlan) error {
 			return e
 		}
 	}
+	grantName := authentikGrantName(p.Namespace, p.ServiceName)
+	if !wanted[referenceGrants.Resource+"/"+grantName] {
+		if e := deleteOwned(ctx, referenceGrants, authentikNamespace, grantName, p.Namespace, p.ServiceName); e != nil {
+			return e
+		}
+	}
 	return nil
 }
 func deleteLegacyIngress(ctx context.Context, namespace, service string) error {
@@ -403,6 +470,7 @@ func DeletePublicRoute(ctx context.Context, namespace, service string, cfg *conf
 		{httpRoutes, namespace, routeName(service, "authentik")}, {httpRoutes, namespace, routeName(service, "route")}, {grpcRoutes, namespace, routeName(service, "route")}, {httpRoutes, namespace, routeName(service, "https-redirect")},
 		{securityPolicies, namespace, routeName(service, "route")}, {backendPolicies, namespace, routeName(service, "route")}, {extensionPolicies, namespace, routeName(service, "route")},
 		{clientPolicies, c.GatewayNamespace, p.ListenerName}, {referenceGrants, namespace, routeName(service, "edge-tls")},
+		{referenceGrants, authentikNamespace, authentikGrantName(namespace, service)},
 		{deployments, namespace, routeName(service, "route-helper")}, {services, namespace, routeName(service, "route-helper")}, {configMaps, namespace, routeName(service, "route-helper")},
 	} {
 		if e := deleteOwned(ctx, r.g, r.ns, r.name, namespace, service); e != nil {
