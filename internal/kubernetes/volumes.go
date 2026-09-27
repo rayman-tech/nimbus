@@ -10,13 +10,14 @@ import (
 	"nimbus/internal/database"
 	"nimbus/internal/env"
 	"nimbus/internal/models"
+	"nimbus/internal/utils"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -48,7 +49,7 @@ func GetVolumeIdentifiers(
 				"volume-name", volume.Name,
 				"branch-name", deploymentRequest.BranchName)
 			identifier = uuid.New()
-			err = CreatePVC(ctx, deploymentRequest.Namespace, identifier, volume.Size, env.Config)
+			err = CreatePVC(ctx, deploymentRequest.Namespace, identifier, volume.Size, deploymentRequest.BranchName, env.Config)
 			if err != nil {
 				return nil, fmt.Errorf("creating pvc: %w", err)
 			}
@@ -66,7 +67,7 @@ func GetVolumeIdentifiers(
 			return nil, fmt.Errorf("getting volume identifier: %w", err)
 		} else if !CheckPVC(ctx, deploymentRequest.Namespace, fmt.Sprintf("pvc-%s", identifier)) {
 			// ensure PVC in database actually exists (sanity check)
-			err = CreatePVC(ctx, deploymentRequest.Namespace, identifier, volume.Size, env.Config)
+			err = CreatePVC(ctx, deploymentRequest.Namespace, identifier, volume.Size, deploymentRequest.BranchName, env.Config)
 			if err != nil {
 				slog.ErrorContext(ctx, "failed to create PVC", "error", err)
 				return nil, err
@@ -89,7 +90,21 @@ func CheckPVC(ctx context.Context, namespace string, name string) bool {
 	return err == nil
 }
 
-func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size int32, cfg *config.Config) error {
+func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size int32, branch string, cfg *config.Config) error {
+	storageClass := cfg.NimbusStorageClass
+	if branch != "" && !utils.IsMainBranch(branch) {
+		storageClass = cfg.PreviewStorageClass
+		if storageClass == "" {
+			return fmt.Errorf("NIMBUS_PREVIEW_STORAGE_CLASS is required for preview volumes")
+		}
+		sc, err := getClient().StorageV1().StorageClasses().Get(ctx, storageClass, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("getting preview storage class %s: %w", storageClass, err)
+		}
+		if sc.ReclaimPolicy == nil || *sc.ReclaimPolicy != corev1.PersistentVolumeReclaimDelete {
+			return fmt.Errorf("preview storage class %s must use reclaimPolicy Delete", storageClass)
+		}
+	}
 	client := getClient().CoreV1().PersistentVolumeClaims(namespace)
 
 	_, err := client.Create(ctx, &corev1.PersistentVolumeClaim{
@@ -106,7 +121,7 @@ func CreatePVC(ctx context.Context, namespace string, identifier uuid.UUID, size
 					corev1.ResourceStorage: resource.MustParse(fmt.Sprintf("%dMi", size)),
 				},
 			},
-			StorageClassName: &cfg.NimbusStorageClass,
+			StorageClassName: &storageClass,
 		},
 	}, metav1.CreateOptions{})
 

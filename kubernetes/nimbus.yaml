@@ -57,7 +57,11 @@ spec:
             - name: DB_PORT
               value: 5432
             - name: NIMBUS_STORAGE_CLASS
-              value: <storage class> # storage class of the created PV
+              value: <production storage class> # use Retain to preserve production data
+            - name: NIMBUS_PREVIEW_STORAGE_CLASS
+              value: <preview storage class> # must use reclaimPolicy: Delete
+            - name: NIMBUS_CLEANUP_TIMEOUT
+              value: "3m"
           args:
             - "server"
           volumeMounts:

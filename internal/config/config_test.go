@@ -199,3 +199,34 @@ func TestImageRefreshInterval(t *testing.T) {
 		})
 	}
 }
+
+func TestPreviewStorageConfig(t *testing.T) {
+	t.Setenv("DOMAIN", "example.com")
+	t.Setenv("DB_HOST", "localhost")
+	t.Setenv("DB_NAME", "nimbus")
+	t.Setenv("DB_USER", "nimbus")
+	t.Setenv("DB_PASSWORD", "password")
+	t.Setenv("NIMBUS_PREVIEW_STORAGE_CLASS", "local-preview")
+	for _, value := range []string{"", "10s", "0s", "-1s", "invalid"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("NIMBUS_CLEANUP_TIMEOUT", value)
+			cfg, err := Load()
+			if value == "0s" || value == "-1s" || value == "invalid" {
+				if err == nil {
+					t.Fatal("accepted invalid timeout")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 3 * time.Minute
+			if value == "10s" {
+				want = 10 * time.Second
+			}
+			if cfg.PreviewStorageClass != "local-preview" || cfg.CleanupTimeout != want {
+				t.Fatalf("config=%+v", cfg)
+			}
+		})
+	}
+}

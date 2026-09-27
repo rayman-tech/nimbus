@@ -43,7 +43,16 @@ func ValidateNamespace(ctx context.Context, name string) (created bool, err erro
 }
 
 func DeleteNamespace(ctx context.Context, name string) error {
-	err := getClient().CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
+	ns, err := GetNamespace(ctx, name)
+	if errors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	err = getClient().CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{
+		Preconditions: &metav1.Preconditions{UID: &ns.UID, ResourceVersion: &ns.ResourceVersion},
+	})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}

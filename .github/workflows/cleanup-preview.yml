@@ -1,0 +1,45 @@
+name: Clean up Nimbus preview
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        required: true
+        type: string
+      branch:
+        required: true
+        type: string
+      server:
+        required: true
+        type: string
+    secrets:
+      NIMBUS_API_KEY:
+        required: true
+
+permissions: {}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Delete preview and wait for storage reclamation
+        env:
+          PROJECT: ${{ inputs.project }}
+          BRANCH: ${{ inputs.branch }}
+          NIMBUS_SERVER: ${{ inputs.server }}
+          NIMBUS_API_KEY: ${{ secrets.NIMBUS_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$BRANCH" in
+            ""|main|master) echo "Refusing to delete a production branch" >&2; exit 1 ;;
+          esac
+          # Cleanup is idempotent. The API retains volume records until the
+          # namespace and disposable PVs disappear, allowing retries to finish.
+          curl --fail-with-body --silent --show-error \
+            --retry 4 --retry-all-errors --retry-delay 5 --max-time 210 \
+            --request DELETE \
+            --header "X-Api-Key: $NIMBUS_API_KEY" \
+            --url-query "project=$PROJECT" --url-query "branch=$BRANCH" \
+            "${NIMBUS_SERVER%/}/branch"
